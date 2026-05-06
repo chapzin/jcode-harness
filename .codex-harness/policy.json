@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "createdAt": "2026-05-06T19:06:27.688Z",
+  "updatedAt": "2026-05-06T19:06:27.688Z",
+  "allowedWriteRoots": [],
+  "forbiddenPaths": [
+    ".env",
+    ".env.*",
+    ".secrets/**",
+    "node_modules/**",
+    ".git/**"
+  ],
+  "requiredVerification": [],
+  "requireTraceRaw": true,
+  "requireCompletionGate": true,
+  "networkAllowed": false,
+  "installPackagesAllowed": false,
+  "subagentPolicy": "Subagents require an explicit role, write scope, output format, budget, and stop rule.",
+  "notes": null
+}

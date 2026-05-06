@@ -1,0 +1,40 @@
+project:
+  name: "init-context-harness"
+  scale: SMALL
+  started: "2026-05-06T19:09:15.887Z"
+  current_phase: P
+
+phases:
+  P:
+    status: in_progress
+    started_at: "2026-05-06T19:09:15.887Z"
+  R:
+    status: skipped
+    reason: "Not required for scale SMALL"
+  E:
+    status: pending
+  V:
+    status: pending
+  C:
+    status: skipped
+    reason: "Not required for scale SMALL"
+
+execution:
+  history:
+    - timestamp: "2026-05-06T19:09:15.887Z"
+      phase: P
+      action: started
+    - timestamp: "2026-05-06T19:09:15.890Z"
+      phase: R
+      action: phase_skipped
+    - timestamp: "2026-05-06T19:09:15.890Z"
+      phase: C
+      action: phase_skipped
+  last_activity: "2026-05-06T19:09:15.890Z"
+  resume_context: "Fase P (Planejamento) em progresso"
+
+settings:
+  autonomous_mode: true
+  require_plan: false
+  require_approval: false
+

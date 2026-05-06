@@ -1,0 +1,761 @@
+{
+  "version": "1.0.0",
+  "generated": "2026-05-06T19:06:36.114Z",
+  "stack": {
+    "primaryLanguage": "javascript",
+    "languages": [
+      "rust",
+      "python",
+      "swift",
+      "javascript"
+    ],
+    "frameworks": [],
+    "buildTools": [],
+    "testFrameworks": [],
+    "packageManager": null,
+    "isMonorepo": false,
+    "hasDocker": false,
+    "hasCI": true
+  },
+  "structure": {
+    "totalFiles": 18513,
+    "rootPath": ".",
+    "topDirectories": [
+      {
+        "name": "assets",
+        "fileCount": 21,
+        "description": "Static assets (images, fonts)"
+      },
+      {
+        "name": "crates",
+        "fileCount": 183,
+        "description": "Crate definitions"
+      },
+      {
+        "name": "docs",
+        "fileCount": 48,
+        "description": "Documentation files"
+      },
+      {
+        "name": "figma",
+        "fileCount": 6,
+        "description": "Module directory"
+      },
+      {
+        "name": "ios",
+        "fileCount": 29,
+        "description": "Io definitions"
+      },
+      {
+        "name": "mockups",
+        "fileCount": 11,
+        "description": "Mockup definitions"
+      },
+      {
+        "name": "packaging",
+        "fileCount": 1,
+        "description": "Module directory"
+      },
+      {
+        "name": "scripts",
+        "fileCount": 71,
+        "description": "Build and utility scripts"
+      },
+      {
+        "name": "src",
+        "fileCount": 633,
+        "description": "Source code root"
+      },
+      {
+        "name": "target",
+        "fileCount": 17459,
+        "description": "Module directory"
+      },
+      {
+        "name": "telemetry-worker",
+        "fileCount": 15,
+        "description": "Module directory"
+      },
+      {
+        "name": "tests",
+        "fileCount": 16,
+        "description": "Test files and fixtures"
+      },
+      {
+        "name": "third_party",
+        "fileCount": 3,
+        "description": "Module directory"
+      }
+    ],
+    "languageDistribution": [
+      {
+        "extension": ".o",
+        "count": 9997
+      },
+      {
+        "extension": ".rmeta",
+        "count": 2305
+      },
+      {
+        "extension": ".d",
+        "count": 2218
+      },
+      {
+        "extension": ".rlib",
+        "count": 1261
+      },
+      {
+        "extension": ".rs",
+        "count": 787
+      },
+      {
+        "extension": ".bin",
+        "count": 771
+      },
+      {
+        "extension": ".lock",
+        "count": 258
+      },
+      {
+        "extension": ".timestamp",
+        "count": 94
+      },
+      {
+        "extension": ".md",
+        "count": 61
+      },
+      {
+        "extension": ".so",
+        "count": 55
+      }
+    ]
+  },
+  "architecture": {
+    "layers": [
+      {
+        "name": "Utils",
+        "description": "Shared utilities and helpers",
+        "directories": [
+          "scripts"
+        ],
+        "symbolCount": 3,
+        "dependsOn": []
+      }
+    ],
+    "patterns": [],
+    "entryPoints": [],
+    "mainEntryPoints": [],
+    "moduleExports": []
+  },
+  "symbols": {
+    "classes": [
+      {
+        "name": "AttributionDelta",
+        "kind": "class",
+        "file": "scripts/analyze_runtime_memory_log.py",
+        "line": 73,
+        "exported": true
+      },
+      {
+        "name": "Budget",
+        "kind": "class",
+        "file": "scripts/bench_startup.py",
+        "line": 44,
+        "exported": true
+      },
+      {
+        "name": "Colors",
+        "kind": "class",
+        "file": "scripts/stress_test.py",
+        "line": 26,
+        "exported": true
+      },
+      {
+        "name": "Colors",
+        "kind": "class",
+        "file": "scripts/jcode_monitor.py",
+        "line": 20,
+        "exported": true
+      },
+      {
+        "name": "DebugSocketClient",
+        "kind": "class",
+        "file": "scripts/test_memory.py",
+        "line": 43,
+        "exported": true
+      },
+      {
+        "name": "JcodeHarborAgent",
+        "kind": "class",
+        "file": "scripts/jcode_harbor_agent.py",
+        "line": 186,
+        "exported": true
+      },
+      {
+        "name": "LiveClient",
+        "kind": "class",
+        "file": "scripts/profile_remote_resume_burst.py",
+        "line": 149,
+        "exported": true
+      },
+      {
+        "name": "MonitorState",
+        "kind": "class",
+        "file": "scripts/jcode_monitor.py",
+        "line": 41,
+        "exported": true
+      },
+      {
+        "name": "ProcMem",
+        "kind": "class",
+        "file": "scripts/jcode_memory_snapshot.py",
+        "line": 16,
+        "exported": true
+      },
+      {
+        "name": "ProcSample",
+        "kind": "class",
+        "file": "scripts/profile_remote_resume_burst.py",
+        "line": 33,
+        "exported": true
+      },
+      {
+        "name": "ProcTracker",
+        "kind": "class",
+        "file": "scripts/profile_remote_resume_burst.py",
+        "line": 39,
+        "exported": true
+      },
+      {
+        "name": "RunResult",
+        "kind": "class",
+        "file": "scripts/compare_token_usage.py",
+        "line": 60,
+        "exported": true
+      },
+      {
+        "name": "Sample",
+        "kind": "class",
+        "file": "scripts/analyze_runtime_memory_log.py",
+        "line": 19,
+        "exported": true
+      },
+      {
+        "name": "SessionLaunch",
+        "kind": "class",
+        "file": "scripts/bench_memory_cli.py",
+        "line": 45,
+        "exported": true
+      },
+      {
+        "name": "Spike",
+        "kind": "class",
+        "file": "scripts/analyze_runtime_memory_log.py",
+        "line": 66,
+        "exported": true
+      },
+      {
+        "name": "StartupProfile",
+        "kind": "class",
+        "file": "scripts/bench_startup.py",
+        "line": 37,
+        "exported": true
+      },
+      {
+        "name": "Suite",
+        "kind": "class",
+        "file": "scripts/test_ci_suites.py",
+        "line": 29,
+        "exported": true
+      },
+      {
+        "name": "TestResult",
+        "kind": "class",
+        "file": "scripts/test_reload.py",
+        "line": 101,
+        "exported": true
+      },
+      {
+        "name": "TokenUsage",
+        "kind": "class",
+        "file": "scripts/compare_token_usage.py",
+        "line": 39,
+        "exported": true
+      },
+      {
+        "name": "ToolRunResult",
+        "kind": "class",
+        "file": "scripts/bench_memory_cli.py",
+        "line": 58,
+        "exported": true
+      },
+      {
+        "name": "ToolSpec",
+        "kind": "class",
+        "file": "scripts/bench_startup_visible_ready.py",
+        "line": 49,
+        "exported": true
+      },
+      {
+        "name": "ToolSpec",
+        "kind": "class",
+        "file": "scripts/bench_memory_cli.py",
+        "line": 36,
+        "exported": true
+      },
+      {
+        "name": "Totals",
+        "kind": "class",
+        "file": "scripts/jcode_memory_snapshot.py",
+        "line": 32,
+        "exported": true
+      }
+    ],
+    "interfaces": [],
+    "functions": [
+      {
+        "name": "adopt_existing_job",
+        "kind": "function",
+        "file": "scripts/run_terminal_bench_campaign.py",
+        "line": 241,
+        "exported": true
+      },
+      {
+        "name": "append_result",
+        "kind": "function",
+        "file": "scripts/run_terminal_bench_campaign.py",
+        "line": 154,
+        "exported": true
+      },
+      {
+        "name": "attributed_total_bytes",
+        "kind": "function",
+        "file": "scripts/analyze_runtime_memory_log.py",
+        "line": 281,
+        "exported": true
+      },
+      {
+        "name": "brace_delta",
+        "kind": "function",
+        "file": "scripts/check_swallowed_error_budget.py",
+        "line": 76,
+        "exported": true
+      },
+      {
+        "name": "brace_delta",
+        "kind": "function",
+        "file": "scripts/check_panic_budget.py",
+        "line": 69,
+        "exported": true
+      },
+      {
+        "name": "build_client_hints",
+        "kind": "function",
+        "file": "scripts/analyze_runtime_memory_log.py",
+        "line": 498,
+        "exported": true
+      },
+      {
+        "name": "build_server_hints",
+        "kind": "function",
+        "file": "scripts/analyze_runtime_memory_log.py",
+        "line": 410,
+        "exported": true
+      },
+      {
+        "name": "build_specs",
+        "kind": "function",
+        "file": "scripts/bench_memory_cli.py",
+        "line": 84,
+        "exported": true
+      },
+      {
+        "name": "build_task_command",
+        "kind": "function",
+        "file": "scripts/run_terminal_bench_campaign.py",
+        "line": 264,
+        "exported": true
+      },
+      {
+        "name": "build_tool_specs",
+        "kind": "function",
+        "file": "scripts/bench_startup_visible_ready.py",
+        "line": 95,
+        "exported": true
+      },
+      {
+        "name": "bytes_to_mb",
+        "kind": "function",
+        "file": "scripts/analyze_runtime_memory_log.py",
+        "line": 246,
+        "exported": true
+      },
+      {
+        "name": "capture",
+        "kind": "function",
+        "file": "scripts/run_terminal_bench_campaign.py",
+        "line": 24,
+        "exported": true
+      },
+      {
+        "name": "cargo_metadata",
+        "kind": "function",
+        "file": "scripts/check_dependency_boundaries.py",
+        "line": 54,
+        "exported": true
+      },
+      {
+        "name": "check_history_order",
+        "kind": "function",
+        "file": "tests/test_injection_thorough.py",
+        "line": 48,
+        "exported": true
+      },
+      {
+        "name": "check_server_up",
+        "kind": "function",
+        "file": "scripts/test_reload.py",
+        "line": 526,
+        "exported": true
+      },
+      {
+        "name": "classify_process",
+        "kind": "function",
+        "file": "scripts/jcode_memory_snapshot.py",
+        "line": 113,
+        "exported": true
+      },
+      {
+        "name": "collect_budgets",
+        "kind": "function",
+        "file": "scripts/bench_startup.py",
+        "line": 242,
+        "exported": true
+      },
+      {
+        "name": "collect_client_peaks",
+        "kind": "function",
+        "file": "scripts/analyze_runtime_memory_log.py",
+        "line": 470,
+        "exported": true
+      },
+      {
+        "name": "collect_descendants",
+        "kind": "function",
+        "file": "scripts/bench_memory_cli.py",
+        "line": 280,
+        "exported": true
+      },
+      {
+        "name": "collect_process_group_pids",
+        "kind": "function",
+        "file": "scripts/bench_memory_cli.py",
+        "line": 296,
+        "exported": true
+      },
+      {
+        "name": "collect_session_peaks",
+        "kind": "function",
+        "file": "scripts/analyze_runtime_memory_log.py",
+        "line": 334,
+        "exported": true
+      },
+      {
+        "name": "collect_trial_results",
+        "kind": "function",
+        "file": "scripts/run_terminal_bench_campaign.py",
+        "line": 174,
+        "exported": true
+      },
+      {
+        "name": "compare_usage",
+        "kind": "function",
+        "file": "scripts/compare_token_usage.py",
+        "line": 244,
+        "exported": true
+      },
+      {
+        "name": "completed_recorded_jobs",
+        "kind": "function",
+        "file": "scripts/run_terminal_bench_campaign.py",
+        "line": 225,
+        "exported": true
+      },
+      {
+        "name": "compute_attribution_deltas",
+        "kind": "function",
+        "file": "scripts/analyze_runtime_memory_log.py",
+        "line": 304,
+        "exported": true
+      },
+      {
+        "name": "compute_spikes",
+        "kind": "function",
+        "file": "scripts/analyze_runtime_memory_log.py",
+        "line": 291,
+        "exported": true
+      },
+      {
+        "name": "configure_pty",
+        "kind": "function",
+        "file": "scripts/bench_startup_visible_ready.py",
+        "line": 113,
+        "exported": true
+      },
+      {
+        "name": "connect_to_socket",
+        "kind": "function",
+        "file": "scripts/jcode_monitor.py",
+        "line": 62,
+        "exported": true
+      },
+      {
+        "name": "count_event_categories",
+        "kind": "function",
+        "file": "scripts/analyze_runtime_memory_log.py",
+        "line": 373,
+        "exported": true
+      },
+      {
+        "name": "create_session",
+        "kind": "function",
+        "file": "scripts/test_swarm_debug.py",
+        "line": 58,
+        "exported": true
+      }
+    ],
+    "types": [],
+    "enums": []
+  },
+  "publicAPI": [
+    {
+      "name": "adopt_existing_job",
+      "kind": "function",
+      "file": "scripts/run_terminal_bench_campaign.py",
+      "line": 241,
+      "exported": true
+    },
+    {
+      "name": "append_result",
+      "kind": "function",
+      "file": "scripts/run_terminal_bench_campaign.py",
+      "line": 154,
+      "exported": true
+    },
+    {
+      "name": "attributed_total_bytes",
+      "kind": "function",
+      "file": "scripts/analyze_runtime_memory_log.py",
+      "line": 281,
+      "exported": true
+    },
+    {
+      "name": "AttributionDelta",
+      "kind": "class",
+      "file": "scripts/analyze_runtime_memory_log.py",
+      "line": 73,
+      "exported": true
+    },
+    {
+      "name": "brace_delta",
+      "kind": "function",
+      "file": "scripts/check_swallowed_error_budget.py",
+      "line": 76,
+      "exported": true
+    },
+    {
+      "name": "brace_delta",
+      "kind": "function",
+      "file": "scripts/check_panic_budget.py",
+      "line": 69,
+      "exported": true
+    },
+    {
+      "name": "Budget",
+      "kind": "class",
+      "file": "scripts/bench_startup.py",
+      "line": 44,
+      "exported": true
+    },
+    {
+      "name": "build_client_hints",
+      "kind": "function",
+      "file": "scripts/analyze_runtime_memory_log.py",
+      "line": 498,
+      "exported": true
+    },
+    {
+      "name": "build_server_hints",
+      "kind": "function",
+      "file": "scripts/analyze_runtime_memory_log.py",
+      "line": 410,
+      "exported": true
+    },
+    {
+      "name": "build_specs",
+      "kind": "function",
+      "file": "scripts/bench_memory_cli.py",
+      "line": 84,
+      "exported": true
+    },
+    {
+      "name": "build_task_command",
+      "kind": "function",
+      "file": "scripts/run_terminal_bench_campaign.py",
+      "line": 264,
+      "exported": true
+    },
+    {
+      "name": "build_tool_specs",
+      "kind": "function",
+      "file": "scripts/bench_startup_visible_ready.py",
+      "line": 95,
+      "exported": true
+    },
+    {
+      "name": "bytes_to_mb",
+      "kind": "function",
+      "file": "scripts/analyze_runtime_memory_log.py",
+      "line": 246,
+      "exported": true
+    },
+    {
+      "name": "capture",
+      "kind": "function",
+      "file": "scripts/run_terminal_bench_campaign.py",
+      "line": 24,
+      "exported": true
+    },
+    {
+      "name": "cargo_metadata",
+      "kind": "function",
+      "file": "scripts/check_dependency_boundaries.py",
+      "line": 54,
+      "exported": true
+    },
+    {
+      "name": "check_history_order",
+      "kind": "function",
+      "file": "tests/test_injection_thorough.py",
+      "line": 48,
+      "exported": true
+    },
+    {
+      "name": "check_server_up",
+      "kind": "function",
+      "file": "scripts/test_reload.py",
+      "line": 526,
+      "exported": true
+    },
+    {
+      "name": "classify_process",
+      "kind": "function",
+      "file": "scripts/jcode_memory_snapshot.py",
+      "line": 113,
+      "exported": true
+    },
+    {
+      "name": "collect_budgets",
+      "kind": "function",
+      "file": "scripts/bench_startup.py",
+      "line": 242,
+      "exported": true
+    },
+    {
+      "name": "collect_client_peaks",
+      "kind": "function",
+      "file": "scripts/analyze_runtime_memory_log.py",
+      "line": 470,
+      "exported": true
+    },
+    {
+      "name": "collect_descendants",
+      "kind": "function",
+      "file": "scripts/bench_memory_cli.py",
+      "line": 280,
+      "exported": true
+    },
+    {
+      "name": "collect_process_group_pids",
+      "kind": "function",
+      "file": "scripts/bench_memory_cli.py",
+      "line": 296,
+      "exported": true
+    },
+    {
+      "name": "collect_session_peaks",
+      "kind": "function",
+      "file": "scripts/analyze_runtime_memory_log.py",
+      "line": 334,
+      "exported": true
+    },
+    {
+      "name": "collect_trial_results",
+      "kind": "function",
+      "file": "scripts/run_terminal_bench_campaign.py",
+      "line": 174,
+      "exported": true
+    },
+    {
+      "name": "Colors",
+      "kind": "class",
+      "file": "scripts/stress_test.py",
+      "line": 26,
+      "exported": true
+    },
+    {
+      "name": "Colors",
+      "kind": "class",
+      "file": "scripts/jcode_monitor.py",
+      "line": 20,
+      "exported": true
+    },
+    {
+      "name": "compare_usage",
+      "kind": "function",
+      "file": "scripts/compare_token_usage.py",
+      "line": 244,
+      "exported": true
+    },
+    {
+      "name": "completed_recorded_jobs",
+      "kind": "function",
+      "file": "scripts/run_terminal_bench_campaign.py",
+      "line": 225,
+      "exported": true
+    },
+    {
+      "name": "compute_attribution_deltas",
+      "kind": "function",
+      "file": "scripts/analyze_runtime_memory_log.py",
+      "line": 304,
+      "exported": true
+    },
+    {
+      "name": "compute_spikes",
+      "kind": "function",
+      "file": "scripts/analyze_runtime_memory_log.py",
+      "line": 291,
+      "exported": true
+    }
+  ],
+  "dependencies": {
+    "mostImported": []
+  },
+  "stats": {
+    "totalSymbols": 386,
+    "exportedSymbols": 345,
+    "analysisTimeMs": 146
+  },
+  "keyFiles": [],
+  "navigation": {
+    "tests": "src/**/*.test.ts",
+    "config": [
+      "package.json"
+    ],
+    "types": [],
+    "mainLogic": [
+      "src"
+    ]
+  }
+}

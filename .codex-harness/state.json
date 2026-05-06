@@ -1,0 +1,42 @@
+{
+  "version": 5,
+  "projectName": "jcode-harness",
+  "focus": "Inicialização do harness e contexto concluída",
+  "status": "done",
+  "activeContractId": "",
+  "counters": {
+    "contracts": 0,
+    "traces": 0,
+    "gates": 0,
+    "verifications": 0,
+    "knowledgeItems": 0,
+    "knowledgeQueries": 0,
+    "evalCases": 0,
+    "evalRuns": 0,
+    "harnessProfiles": 0,
+    "harnessProposals": 0,
+    "promotionDecisions": 0
+  },
+  "decisions": [
+    {
+      "id": "decision-2026-05-06-1c16f8",
+      "ts": "2026-05-06T19:09:22.556Z",
+      "text": "Responder ao usuário em português conforme preferência global registrada."
+    }
+  ],
+  "events": [
+    {
+      "ts": "2026-05-06T19:06:27.681Z",
+      "type": "bootstrap",
+      "summary": "Harness workspace initialized."
+    },
+    {
+      "ts": "2026-05-06T19:09:22.556Z",
+      "type": "state_update",
+      "note": "Criado .codex-harness, .context docs/agents/skills/workflow e workflow PREVC init-context-harness.",
+      "status": "done",
+      "focus": "Inicialização do harness e contexto concluída",
+      "activeContractId": ""
+    }
+  ]
+}
