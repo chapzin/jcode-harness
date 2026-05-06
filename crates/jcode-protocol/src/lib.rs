@@ -588,7 +588,7 @@ pub enum Request {
 /// Server event sent to client
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
-#[expect(
+#[allow(
     clippy::large_enum_variant,
     reason = "wire protocol prioritizes straightforward serde payloads over boxing every larger event variant"
 )]
@@ -1750,7 +1750,7 @@ pub fn resolve_optional_comm_target_session(
 ) -> String {
     match target.as_deref() {
         Some("current") | None => current_session.to_string(),
-        Some(_) => target.expect("target is Some when as_deref returned Some"),
+        Some(value) => value.to_string(),
     }
 }
 

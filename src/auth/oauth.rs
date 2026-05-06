@@ -1264,7 +1264,10 @@ fn build_claude_exchange_request(
     (
         claude::TOKEN_URL.to_string(),
         "application/json".to_string(),
-        serde_json::to_vec(&body).expect("Claude exchange test body should serialize"),
+        match serde_json::to_vec(&body) {
+            Ok(bytes) => bytes,
+            Err(err) => format!(r#"{{"serialization_error":"{}"}}"#, err).into_bytes(),
+        },
     )
 }
 
@@ -1285,7 +1288,10 @@ fn build_claude_refresh_request_with_scope(
         "refresh_token": refresh_token,
         "client_id": claude::CLIENT_ID,
     });
-    let mut body = body.as_object().expect("refresh body object").clone();
+    let mut body = match body.as_object() {
+        Some(object) => object.clone(),
+        None => serde_json::Map::new(),
+    };
     if let Some(scope) = scope {
         body.insert(
             "scope".to_string(),
@@ -1295,7 +1301,10 @@ fn build_claude_refresh_request_with_scope(
     (
         claude::TOKEN_URL.to_string(),
         "application/json".to_string(),
-        serde_json::to_vec(&body).expect("Claude refresh test body should serialize"),
+        match serde_json::to_vec(&body) {
+            Ok(bytes) => bytes,
+            Err(err) => format!(r#"{{"serialization_error":"{}"}}"#, err).into_bytes(),
+        },
     )
 }
 
