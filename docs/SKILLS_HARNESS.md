@@ -44,10 +44,14 @@ jcode-harness skills doctor
 ## Harness run
 
 ```bash
+jcode-harness
+jcode-harness smoke
 jcode-harness run "fix this Rust bug" --provider openai-compatible --model gpt-4.1
 jcode-harness run "optimize memory usage" --skills always --dry-run
 jcode-harness run "review this diff" --skill karpathy-guidelines --max-turns 3 --json
 ```
+
+`jcode-harness` with no subcommand starts the regular interactive jcode experience.
 
 `jcode-harness run` uses the same provider initialization, tool registry, and `Agent` runtime as `jcode run`, while remaining script-friendly. It prepends selected skill context before starting the agent loop.
 

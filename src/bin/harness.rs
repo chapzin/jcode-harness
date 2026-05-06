@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "jcode-harness")]
-#[command(about = "Standalone jcode harness utilities")]
+#[command(about = "Standalone jcode harness utilities. With no command, starts interactive jcode.")]
 struct Args {
     #[command(subcommand)]
     command: Option<Command>,
@@ -136,13 +136,11 @@ struct ToolCase {
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
-    match args.command.unwrap_or(Command::Smoke(SmokeArgs {
-        cwd: None,
-        include_network: false,
-    })) {
-        Command::Smoke(args) => run_smoke(args).await,
-        Command::Run(args) => run_goal(args).await,
-        Command::Skills(args) => run_skills(args),
+    match args.command {
+        None => jcode::run().await,
+        Some(Command::Smoke(args)) => run_smoke(args).await,
+        Some(Command::Run(args)) => run_goal(args).await,
+        Some(Command::Skills(args)) => run_skills(args),
     }
 }
 
