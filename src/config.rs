@@ -7,9 +7,9 @@ pub use jcode_config_types::{
     AgentsConfig, AmbientConfig, AuthConfig, AutoJudgeConfig, AutoReviewConfig, CompactionConfig,
     CompactionMode, CrossProviderFailoverMode, DiagramDisplayMode, DiagramPanePosition,
     DiffDisplayMode, DisplayConfig, FeatureConfig, GatewayConfig, KeybindingsConfig,
-    MarkdownSpacingMode, NamedProviderAuth, NamedProviderConfig, NamedProviderModelConfig,
-    NamedProviderType, NativeScrollbarConfig, ProviderConfig, SafetyConfig,
-    SessionPickerResumeAction, UpdateChannel,
+    MarkdownSpacingMode, MemoryConfig, NamedProviderAuth, NamedProviderConfig,
+    NamedProviderModelConfig, NamedProviderType, NativeScrollbarConfig, ProviderConfig,
+    SafetyConfig, SessionPickerResumeAction, UpdateChannel,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -55,6 +55,9 @@ pub struct Config {
 
     /// Agent-specific model defaults
     pub agents: AgentsConfig,
+
+    /// Persistent memory backend configuration
+    pub memory: MemoryConfig,
 
     /// Ambient mode configuration
     pub ambient: AmbientConfig,

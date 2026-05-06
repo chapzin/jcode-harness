@@ -210,6 +210,15 @@ pub enum MemorySubcommand {
     },
     Stats,
     ClearTest,
+    Wiki(MemoryWikiSubcommand),
+}
+
+pub enum MemoryWikiSubcommand {
+    Init,
+    Status,
+    Doctor,
+    Search { query: String },
+    Schema { full: bool },
 }
 
 pub fn run_memory_command(cmd: MemorySubcommand) -> Result<()> {
@@ -436,8 +445,66 @@ pub fn run_memory_command(cmd: MemorySubcommand) -> Result<()> {
                 println!("Test memory storage is already empty");
             }
         }
+        MemorySubcommand::Wiki(subcmd) => run_memory_wiki_command(subcmd)?,
     }
 
+    Ok(())
+}
+
+fn run_memory_wiki_command(cmd: MemoryWikiSubcommand) -> Result<()> {
+    match cmd {
+        MemoryWikiSubcommand::Init => {
+            let root = crate::memory_wiki::ensure_layout(None)?;
+            println!("Initialized Jcode Living Memory at {}", root.display());
+        }
+        MemoryWikiSubcommand::Status => {
+            let status = crate::memory_wiki::status(None)?;
+            println!("backend: {}", status.backend.as_str());
+            println!("scope: {}", status.scope.as_str());
+            println!("root: {}", status.root.display());
+            println!("exists: {}", status.exists);
+            println!("schema: {}", status.schema_exists);
+            println!("index: {}", status.index_exists);
+            println!("overview: {}", status.overview_exists);
+            println!("log: {}", status.log_exists);
+        }
+        MemoryWikiSubcommand::Doctor => {
+            let status = crate::memory_wiki::status(None)?;
+            println!("backend: {}", status.backend.as_str());
+            println!("scope: {}", status.scope.as_str());
+            println!("root: {}", status.root.display());
+            if !status.exists {
+                println!("wiki: missing (run `jcode memory wiki init`)");
+                return Ok(());
+            }
+            for (label, ok) in [
+                ("schema.md", status.schema_exists),
+                ("index.md", status.index_exists),
+                ("overview.md", status.overview_exists),
+                ("log.md", status.log_exists),
+            ] {
+                println!("{}: {}", label, if ok { "ok" } else { "missing" });
+            }
+        }
+        MemoryWikiSubcommand::Search { query } => {
+            let hits = crate::memory_wiki::search(&query, None)?;
+            if hits.is_empty() {
+                println!("No wiki pages matched '{}'.", query);
+            } else {
+                println!("Found {} wiki page match(es):", hits.len());
+                for (path, snippet) in hits {
+                    println!("- {}: {}", path.display(), snippet);
+                }
+            }
+        }
+        MemoryWikiSubcommand::Schema { full } => {
+            if full {
+                println!("{}", crate::memory_wiki::SCHEMA_FULL);
+            } else {
+                println!("{}", crate::memory_wiki::SCHEMA_SUMMARY);
+            }
+        }
+    }
     Ok(())
 }
 

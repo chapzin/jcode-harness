@@ -201,6 +201,32 @@ impl Config {
                 self.features.memory = parsed;
             }
         }
+        if let Ok(v) = std::env::var("JCODE_MEMORY_BACKEND") {
+            let value = v.trim().to_ascii_lowercase();
+            if matches!(
+                value.as_str(),
+                "legacy" | "wiki" | "llm-wiki" | "hybrid" | "off"
+            ) {
+                self.memory.backend = if value == "llm-wiki" {
+                    "wiki".into()
+                } else {
+                    value
+                };
+            }
+        }
+        if let Ok(v) = std::env::var("JCODE_MEMORY_WIKI_SCOPE") {
+            let value = v.trim().to_ascii_lowercase();
+            if matches!(
+                value.as_str(),
+                "global-cache" | "global" | "repo-local" | "local" | "project"
+            ) {
+                self.memory.wiki_scope = match value.as_str() {
+                    "global" => "global-cache".into(),
+                    "local" | "project" => "repo-local".into(),
+                    _ => value,
+                };
+            }
+        }
         if let Ok(v) = std::env::var("JCODE_SWARM_ENABLED") {
             if let Some(parsed) = parse_env_bool(&v) {
                 self.features.swarm = parsed;

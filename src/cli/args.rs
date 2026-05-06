@@ -629,6 +629,28 @@ pub(crate) enum MemoryCommand {
 
     /// Clear test memory storage (used by debug sessions)
     ClearTest,
+
+    /// Manage the LLM Wiki memory backend
+    #[command(subcommand)]
+    Wiki(MemoryWikiCommand),
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum MemoryWikiCommand {
+    /// Initialize the Living Memory wiki layout
+    Init,
+    /// Show Living Memory backend and layout status
+    Status,
+    /// Validate Living Memory files and paths
+    Doctor,
+    /// Search Markdown wiki pages locally
+    Search { query: String },
+    /// Print schema summary or full schema
+    Schema {
+        /// Print full schema instead of compact summary
+        #[arg(long)]
+        full: bool,
+    },
 }
 
 #[cfg(test)]

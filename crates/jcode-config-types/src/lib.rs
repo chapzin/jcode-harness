@@ -363,6 +363,25 @@ pub struct AgentsConfig {
     pub memory_sidecar_enabled: bool,
 }
 
+/// Persistent memory backend configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MemoryConfig {
+    /// Memory backend: legacy, wiki, hybrid, or off. Defaults to legacy for compatibility.
+    pub backend: String,
+    /// LLM Wiki scope: global-cache or repo-local. Defaults to global-cache.
+    pub wiki_scope: String,
+}
+
+impl Default for MemoryConfig {
+    fn default() -> Self {
+        Self {
+            backend: "legacy".to_string(),
+            wiki_scope: "global-cache".to_string(),
+        }
+    }
+}
+
 /// Automatic end-of-turn code review configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]

@@ -5,8 +5,8 @@ use std::process::{Command as ProcessCommand, Stdio};
 use std::time::Instant;
 
 use super::args::{
-    AmbientCommand, Args, AuthCommand, Command, MemoryCommand, ModelCommand, ProviderCommand,
-    RestartCommand, SessionCommand, SkillCommand, TranscriptModeArg,
+    AmbientCommand, Args, AuthCommand, Command, MemoryCommand, MemoryWikiCommand, ModelCommand,
+    ProviderCommand, RestartCommand, SessionCommand, SkillCommand, TranscriptModeArg,
 };
 use crate::{
     agent, auth, build, provider, provider_catalog, server, session, setup_hints, startup_profile,
@@ -376,6 +376,13 @@ fn map_memory_subcommand(subcmd: MemoryCommand) -> commands::MemorySubcommand {
         },
         MemoryCommand::Stats => commands::MemorySubcommand::Stats,
         MemoryCommand::ClearTest => commands::MemorySubcommand::ClearTest,
+        MemoryCommand::Wiki(subcmd) => commands::MemorySubcommand::Wiki(match subcmd {
+            MemoryWikiCommand::Init => commands::MemoryWikiSubcommand::Init,
+            MemoryWikiCommand::Status => commands::MemoryWikiSubcommand::Status,
+            MemoryWikiCommand::Doctor => commands::MemoryWikiSubcommand::Doctor,
+            MemoryWikiCommand::Search { query } => commands::MemoryWikiSubcommand::Search { query },
+            MemoryWikiCommand::Schema { full } => commands::MemoryWikiSubcommand::Schema { full },
+        }),
     }
 }
 

@@ -9,6 +9,8 @@ Local embeddings + lightweight sidecar (GPT-5.3 Codex Spark) are implemented and
 
 See also: [Memory Regression Budget](./MEMORY_BUDGET.md) for the current measurable guardrails and review expectations.
 
+See also: [Jcode Living Memory](./LIVING_MEMORY.md) for the progressive Memory v2 `llm-wiki` backend. The legacy graph/embedding backend remains the default.
+
 A multi-layered memory system for cross-session learning that mimics how human memory works - relevant memories "pop up" when triggered by context rather than requiring explicit recall.
 
 **Key Design Decisions:**

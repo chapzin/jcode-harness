@@ -1,6 +1,34 @@
 use super::Agent;
 use crate::logging;
 use crate::message::{Message, ToolDefinition};
+use std::time::Instant;
+
+fn merge_memory_prompts(
+    wiki_prompt: Option<String>,
+    legacy_pending: Option<crate::memory::PendingMemory>,
+) -> Option<crate::memory::PendingMemory> {
+    match (wiki_prompt, legacy_pending) {
+        (None, None) => None,
+        (Some(prompt), None) => Some(crate::memory::PendingMemory {
+            prompt: prompt.clone(),
+            display_prompt: Some(prompt),
+            computed_at: Instant::now(),
+            count: 1,
+            memory_ids: vec!["wiki:living-memory".to_string()],
+        }),
+        (None, Some(pending)) => Some(pending),
+        (Some(wiki), Some(mut pending)) => {
+            pending.prompt = format!("{}\n\n{}", wiki, pending.prompt);
+            pending.display_prompt = Some(match pending.display_prompt.take() {
+                Some(display) => format!("{}\n\n{}", wiki, display),
+                None => pending.prompt.clone(),
+            });
+            pending.count += 1;
+            pending.memory_ids.push("wiki:living-memory".to_string());
+            Some(pending)
+        }
+    }
+}
 
 impl Agent {
     pub(super) fn log_prompt_prefix_accounting(
@@ -26,25 +54,47 @@ impl Agent {
             return None;
         }
 
+        let backend = crate::memory_wiki::configured_backend();
+        if backend == crate::memory_wiki::MemoryBackend::Off {
+            return None;
+        }
+
         let session_id = &self.session.id;
 
-        let pending = if crate::message::ends_with_fresh_user_turn(&messages) {
-            crate::memory::take_pending_memory(session_id)
-        } else {
-            None
-        };
+        let legacy_pending =
+            if backend.uses_legacy() && crate::message::ends_with_fresh_user_turn(&messages) {
+                crate::memory::take_pending_memory(session_id)
+            } else {
+                None
+            };
+
+        let wiki_prompt =
+            if backend.uses_wiki() && crate::message::ends_with_fresh_user_turn(&messages) {
+                let working_dir = self
+                    .session
+                    .working_dir
+                    .as_deref()
+                    .map(std::path::Path::new);
+                crate::memory_wiki::build_prompt(working_dir, 8_000)
+                    .ok()
+                    .flatten()
+            } else {
+                None
+            };
 
         // Use the persistent memory-agent pipeline as the single source of truth.
         // Running both this and the legacy MemoryManager background retrieval path
         // can prepare overlapping pending prompts for the same turn, which makes
         // memory injection feel overly aggressive.
-        crate::memory_agent::update_context_sync_with_dir(
-            session_id,
-            messages,
-            self.session.working_dir.clone(),
-        );
+        if backend.uses_legacy() {
+            crate::memory_agent::update_context_sync_with_dir(
+                session_id,
+                messages,
+                self.session.working_dir.clone(),
+            );
+        }
 
-        pending
+        merge_memory_prompts(wiki_prompt, legacy_pending)
     }
 
     fn append_current_turn_system_reminder(&self, split: &mut crate::prompt::SplitSystemPrompt) {

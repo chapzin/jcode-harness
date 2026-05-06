@@ -43,6 +43,7 @@ pub mod memory_agent;
 pub mod memory_graph;
 pub mod memory_log;
 pub mod memory_types;
+pub mod memory_wiki;
 pub mod message;
 pub mod notifications;
 pub mod overnight;
