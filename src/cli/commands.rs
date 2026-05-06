@@ -789,10 +789,88 @@ pub async fn run_usage_command(emit_json: bool) -> Result<()> {
     report_info::run_usage_command(emit_json).await
 }
 
-pub fn run_skills_list_command() -> Result<()> {
+#[derive(Serialize)]
+struct SkillCliEntry {
+    name: String,
+    description: String,
+    origin: String,
+    path: String,
+    allowed_tools: Option<Vec<String>>,
+}
+
+impl From<&crate::skill::Skill> for SkillCliEntry {
+    fn from(skill: &crate::skill::Skill) -> Self {
+        Self {
+            name: skill.name.clone(),
+            description: skill.description.clone(),
+            origin: skill.origin.label().to_string(),
+            path: skill.path.display().to_string(),
+            allowed_tools: skill.allowed_tools.clone(),
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct SkillsListOutput {
+    skills: Vec<SkillCliEntry>,
+}
+
+#[derive(Serialize)]
+struct SkillShowOutput {
+    #[serde(flatten)]
+    skill: SkillCliEntry,
+    content: String,
+}
+
+#[derive(Serialize)]
+struct SkillsDoctorBuiltinStatus {
+    name: String,
+    status: String,
+    path: String,
+}
+
+#[derive(Serialize)]
+struct SkillsDoctorDuplicate {
+    name: String,
+    entries: Vec<SkillDoctorCandidate>,
+}
+
+#[derive(Serialize)]
+struct SkillDoctorCandidate {
+    name: String,
+    origin: String,
+    path: String,
+}
+
+impl From<&SkillCandidate> for SkillDoctorCandidate {
+    fn from(candidate: &SkillCandidate) -> Self {
+        Self {
+            name: candidate.name.clone(),
+            origin: candidate.origin.to_string(),
+            path: candidate.path.display().to_string(),
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct SkillsDoctorOutput {
+    skills_loaded: usize,
+    builtins: Vec<SkillsDoctorBuiltinStatus>,
+    duplicates: Vec<SkillsDoctorDuplicate>,
+    skills: Vec<SkillCliEntry>,
+}
+
+pub fn run_skills_list_command(emit_json: bool) -> Result<()> {
     let registry = crate::skill::SkillRegistry::load()?;
     let mut skills = registry.list();
     skills.sort_by(|a, b| a.name.cmp(&b.name));
+    if emit_json {
+        let output = SkillsListOutput {
+            skills: skills.into_iter().map(SkillCliEntry::from).collect(),
+        };
+        println!("{}", serde_json::to_string_pretty(&output)?);
+        return Ok(());
+    }
     for skill in skills {
         println!(
             "{}\t{}\t{}\t{}",
@@ -805,11 +883,19 @@ pub fn run_skills_list_command() -> Result<()> {
     Ok(())
 }
 
-pub fn run_skills_show_command(name: &str) -> Result<()> {
+pub fn run_skills_show_command(name: &str, emit_json: bool) -> Result<()> {
     let registry = crate::skill::SkillRegistry::load()?;
     let skill = registry
         .get(name)
         .ok_or_else(|| anyhow::anyhow!("Skill '{}' not found", name))?;
+    if emit_json {
+        let output = SkillShowOutput {
+            skill: SkillCliEntry::from(skill),
+            content: skill.content.clone(),
+        };
+        println!("{}", serde_json::to_string_pretty(&output)?);
+        return Ok(());
+    }
     println!("---");
     println!("name: {}", skill.name);
     println!("description: {}", skill.description);
@@ -835,11 +921,10 @@ pub fn run_skills_sync_command(force: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn run_skills_doctor_command() -> Result<()> {
+pub fn run_skills_doctor_command(emit_json: bool) -> Result<()> {
     let registry = crate::skill::SkillRegistry::load()?;
     let mut skills = registry.list();
     skills.sort_by(|a, b| a.name.cmp(&b.name));
-    println!("skills loaded: {}", skills.len());
 
     let discovered = discover_skill_candidates()?;
     let mut by_name: BTreeMap<String, Vec<SkillCandidate>> = BTreeMap::new();
@@ -850,30 +935,58 @@ pub fn run_skills_doctor_command() -> Result<()> {
             .push(candidate);
     }
 
-    for builtin in crate::skill_pack::builtin_skills() {
-        let status = if registry.get(builtin.name).is_some() {
-            "ok"
-        } else {
-            "missing"
-        };
-        println!(
-            "built-in {}: {} ({})",
-            builtin.name, status, builtin.relative_path
-        );
-    }
+    let builtins: Vec<_> = crate::skill_pack::builtin_skills()
+        .iter()
+        .map(|builtin| SkillsDoctorBuiltinStatus {
+            name: builtin.name.to_string(),
+            status: if registry.get(builtin.name).is_some() {
+                "ok".to_string()
+            } else {
+                "missing".to_string()
+            },
+            path: format!("<builtin>/{}", builtin.relative_path),
+        })
+        .collect();
 
     let duplicates: Vec<_> = by_name
         .iter()
         .filter(|(_, entries)| entries.len() > 1)
+        .map(|(name, entries)| SkillsDoctorDuplicate {
+            name: name.clone(),
+            entries: entries.iter().map(SkillDoctorCandidate::from).collect(),
+        })
         .collect();
+
+    if emit_json {
+        let output = SkillsDoctorOutput {
+            skills_loaded: skills.len(),
+            builtins,
+            duplicates,
+            skills: skills.into_iter().map(SkillCliEntry::from).collect(),
+        };
+        println!("{}", serde_json::to_string_pretty(&output)?);
+        return Ok(());
+    }
+
+    println!("skills loaded: {}", skills.len());
+
+    for builtin in &builtins {
+        println!(
+            "built-in {}: {} ({})",
+            builtin.name,
+            builtin.status,
+            builtin.path.trim_start_matches("<builtin>/")
+        );
+    }
+
     if duplicates.is_empty() {
         println!("duplicates: none");
     } else {
         println!("duplicates: {} name(s)", duplicates.len());
-        for (name, entries) in duplicates {
-            println!("duplicate {}:", name);
-            for entry in entries {
-                println!("  - {} {}", entry.origin, entry.path.display());
+        for duplicate in duplicates {
+            println!("duplicate {}:", duplicate.name);
+            for entry in duplicate.entries {
+                println!("  - {} {}", entry.origin, entry.path);
             }
         }
     }

@@ -27,15 +27,21 @@ The built-ins are compiled with `include_str!`, so runtime skill loading does no
 
 ```bash
 jcode skills list
+jcode skills list --json
 jcode skills show karpathy-guidelines
+jcode skills show karpathy-guidelines --json
 jcode skills sync
 jcode skills sync --force
 jcode skills doctor
+jcode skills doctor --json
 
 jcode-harness skills list
+jcode-harness skills list --json
 jcode-harness skills show karpathy-guidelines
+jcode-harness skills show karpathy-guidelines --json
 jcode-harness skills sync
 jcode-harness skills doctor
+jcode-harness skills doctor --json
 ```
 
 Quality gate commands:
@@ -50,6 +56,8 @@ jcode-harness clean-code check --json
 `sync` copies built-in skills to `~/.jcode/skills` and does not overwrite existing files unless `--force` is used.
 
 `skills doctor` reports loaded skills, built-in availability, invalid frontmatter found while scanning standard paths, duplicate names across origins, and the final effective path for each loaded skill.
+
+`skills list --json`, `skills show <name> --json`, and `skills doctor --json` provide stable machine-readable output for automation. JSON entries include skill `name`, `description`, `origin`, `path`, and `allowed_tools`; `show` also includes `content`; `doctor` includes `skills_loaded`, `builtins`, `duplicates`, and final effective `skills`.
 
 ## Harness run
 

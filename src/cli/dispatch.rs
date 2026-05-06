@@ -203,10 +203,10 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             commands::run_memory_command(map_memory_subcommand(subcmd))?;
         }
         Some(Command::Skills(subcmd)) => match subcmd {
-            SkillCommand::List => commands::run_skills_list_command()?,
-            SkillCommand::Show { name } => commands::run_skills_show_command(&name)?,
+            SkillCommand::List { json } => commands::run_skills_list_command(json)?,
+            SkillCommand::Show { name, json } => commands::run_skills_show_command(&name, json)?,
             SkillCommand::Sync { force } => commands::run_skills_sync_command(force)?,
-            SkillCommand::Doctor => commands::run_skills_doctor_command()?,
+            SkillCommand::Doctor { json } => commands::run_skills_doctor_command(json)?,
         },
         Some(Command::CleanCode(subcmd)) => match subcmd {
             CleanCodeCommand::Check {

@@ -395,9 +395,18 @@ pub(crate) enum Command {
 #[derive(Subcommand, Debug)]
 pub(crate) enum SkillCommand {
     /// List loaded skills and their origins
-    List,
+    List {
+        /// Emit JSON instead of tab-separated text
+        #[arg(long)]
+        json: bool,
+    },
     /// Show a loaded skill by name
-    Show { name: String },
+    Show {
+        name: String,
+        /// Emit JSON instead of markdown/text
+        #[arg(long)]
+        json: bool,
+    },
     /// Copy built-in skills to ~/.jcode/skills
     Sync {
         /// Overwrite existing files in ~/.jcode/skills
@@ -405,7 +414,11 @@ pub(crate) enum SkillCommand {
         force: bool,
     },
     /// Validate skill loading and frontmatter health
-    Doctor,
+    Doctor {
+        /// Emit JSON instead of a human-readable report
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]

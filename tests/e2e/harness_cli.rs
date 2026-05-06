@@ -298,6 +298,94 @@ fn skills_list_and_sync_expose_builtin_harness_skills() -> Result<()> {
 }
 
 #[test]
+fn skills_json_commands_are_machine_readable() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-cli-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+    write_skill(&cwd, ".claude", "json-shared", "Claude JSON duplicate")?;
+    write_skill(&home, "", "json-shared", "Global JSON duplicate")?;
+
+    let list_output = harness_command(&home, &cwd)
+        .args(["skills", "list", "--json"])
+        .output()?;
+    let list_stdout = stdout_text(&list_output);
+    assert!(
+        list_output.status.success(),
+        "list stderr: {}",
+        stderr_text(&list_output)
+    );
+    let list_json: Value = serde_json::from_str(&list_stdout)?;
+    let skills = list_json["skills"].as_array().expect("skills array");
+    assert!(
+        skills
+            .iter()
+            .any(|skill| skill["name"] == "karpathy-guidelines" && skill["origin"] == "built-in"),
+        "stdout: {list_stdout}"
+    );
+    assert!(
+        skills
+            .iter()
+            .any(|skill| skill["name"] == "json-shared" && skill["origin"] == "global"),
+        "global skill should win over claude compat. stdout: {list_stdout}"
+    );
+
+    let show_output = harness_command(&home, &cwd)
+        .args(["skills", "show", "json-shared", "--json"])
+        .output()?;
+    let show_stdout = stdout_text(&show_output);
+    assert!(
+        show_output.status.success(),
+        "show stderr: {}",
+        stderr_text(&show_output)
+    );
+    let show_json: Value = serde_json::from_str(&show_stdout)?;
+    assert_eq!(show_json["name"], "json-shared");
+    assert_eq!(show_json["origin"], "global");
+    assert_eq!(show_json["description"], "Global JSON duplicate");
+    assert!(
+        show_json["content"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("Use json-shared")
+    );
+
+    let doctor_output = harness_command(&home, &cwd)
+        .args(["skills", "doctor", "--json"])
+        .output()?;
+    let doctor_stdout = stdout_text(&doctor_output);
+    assert!(
+        doctor_output.status.success(),
+        "doctor stderr: {}",
+        stderr_text(&doctor_output)
+    );
+    let doctor_json: Value = serde_json::from_str(&doctor_stdout)?;
+    assert!(doctor_json["skills_loaded"].as_u64().unwrap_or_default() >= 3);
+    assert!(
+        doctor_json["builtins"]
+            .as_array()
+            .expect("builtins array")
+            .iter()
+            .any(|builtin| builtin["name"] == "clean-code-guardian" && builtin["status"] == "ok"),
+        "stdout: {doctor_stdout}"
+    );
+    assert!(
+        doctor_json["duplicates"]
+            .as_array()
+            .expect("duplicates array")
+            .iter()
+            .any(|duplicate| duplicate["name"] == "json-shared"
+                && duplicate["entries"].as_array().map(Vec::len) == Some(2)),
+        "stdout: {doctor_stdout}"
+    );
+
+    Ok(())
+}
+
+#[test]
 fn clean_code_check_json_reports_findings_without_failing_below_threshold() -> Result<()> {
     let temp = tempfile::Builder::new()
         .prefix("jcode-clean-code-cli-")

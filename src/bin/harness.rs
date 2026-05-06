@@ -70,15 +70,23 @@ struct SkillsArgs {
 
 #[derive(Subcommand)]
 enum SkillsCommand {
-    List,
+    List {
+        #[arg(long)]
+        json: bool,
+    },
     Show {
         name: String,
+        #[arg(long)]
+        json: bool,
     },
     Sync {
         #[arg(long)]
         force: bool,
     },
-    Doctor,
+    Doctor {
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Parser)]
@@ -367,10 +375,12 @@ async fn run_goal(args: RunArgs) -> Result<()> {
 
 fn run_skills(args: SkillsArgs) -> Result<()> {
     match args.command {
-        SkillsCommand::List => jcode::cli::commands::run_skills_list_command(),
-        SkillsCommand::Show { name } => jcode::cli::commands::run_skills_show_command(&name),
+        SkillsCommand::List { json } => jcode::cli::commands::run_skills_list_command(json),
+        SkillsCommand::Show { name, json } => {
+            jcode::cli::commands::run_skills_show_command(&name, json)
+        }
         SkillsCommand::Sync { force } => jcode::cli::commands::run_skills_sync_command(force),
-        SkillsCommand::Doctor => jcode::cli::commands::run_skills_doctor_command(),
+        SkillsCommand::Doctor { json } => jcode::cli::commands::run_skills_doctor_command(json),
     }
 }
 
