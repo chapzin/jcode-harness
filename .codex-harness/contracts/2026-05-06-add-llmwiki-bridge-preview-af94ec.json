@@ -1,0 +1,48 @@
+{
+  "id": "2026-05-06-add-llmwiki-bridge-preview-af94ec",
+  "title": "Add llmwiki bridge preview",
+  "goal": "Implement the next embedded-skills harness slice: permission-reviewed bridge points between llmwiki-memory skill guidance and concrete local wiki commands without mandatory remote MCP/network dependencies.",
+  "createdAt": "2026-05-06T23:07:53.462Z",
+  "status": "active",
+  "requiredInputs": [
+    "Current branch feature/embedded-skills-harness",
+    "GitHub issue/PR context #151"
+  ],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 60,
+    "maxToolCalls": 30
+  },
+  "permissions": [
+    "Edit source/docs/tests in repo",
+    "Run cargo fmt/test/check and selfdev build",
+    "No network calls in implementation path"
+  ],
+  "completionConditions": [
+    "Add deterministic, offline bridge command from harness skills to concrete LLM wiki MCP commands",
+    "JSON output documents commands, safety boundaries, and no network requirement",
+    "E2E tests cover text and JSON output",
+    "Docs/status/schema updated",
+    "Formatting, targeted tests, cargo check, selfdev build pass"
+  ],
+  "outputPaths": [
+    "src/bin/harness.rs",
+    "tests/e2e/harness_cli.rs",
+    "docs/SKILLS_HARNESS.md",
+    "docs/SKILLS_HARNESS_STATUS.md",
+    "docs/JCODE_HARNESS_JSON_SCHEMAS.md"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test --test e2e harness_cli -- --nocapture",
+    "cargo check -p jcode",
+    "selfdev build target=auto"
+  ],
+  "failureTaxonomy": [
+    "CLI schema break",
+    "Network or credential dependency introduced",
+    "Non-deterministic output",
+    "Insufficient validation"
+  ],
+  "notes": "Based on docs/SKILLS_HARNESS_STATUS.md next slice #1 and PR #151 motivation."
+}

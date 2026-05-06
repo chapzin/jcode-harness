@@ -45,6 +45,8 @@ jcode-harness skills doctor
 jcode-harness skills doctor --json
 jcode-harness skills match "fix this Rust bug" --json
 jcode-harness skills match "review this diff" --skill repo-reviewer --cwd /path/to/repo
+jcode-harness skills llmwiki-bridge
+jcode-harness skills llmwiki-bridge --json
 ```
 
 Quality gate commands:
@@ -63,6 +65,8 @@ jcode-harness clean-code check --json
 `skills list --json`, `skills show <name> --json`, and `skills doctor --json` provide stable machine-readable output for automation. JSON entries include skill `name`, `description`, `origin`, `path`, and `allowed_tools`; `show` also includes `content`; `doctor` includes `skills_loaded`, `builtins`, `duplicates`, and final effective `skills`. See `docs/JCODE_HARNESS_JSON_SCHEMAS.md` for the stable schema contract.
 
 `skills match <goal>` previews task-scoped skill routing without invoking a provider. It uses the same deterministic router as `jcode-harness run`, includes explicit `--skill <name>` values first, and resolves effective skill metadata with the same source priority described above. Use `--cwd <repo>` to inspect repo-local `.jcode/skills` overrides from automation that is not already running inside the repository. This is the offline bridge for repo and task-level skill scoping.
+
+`skills llmwiki-bridge` is a permission-reviewed bridge between the embedded `llmwiki-memory` skill and concrete local LLM wiki MCP commands. It is an offline preview only: it prints the supported command mapping, examples, read/write/secret boundaries, and recommended flow, but does not invoke MCP tools or require network access. Use `--json` when another harness wants a stable automation contract for `wiki_query`, `wiki_search`, `wiki_read_page`, `wiki_sync`, `wiki_export`, and `wiki_lint`.
 
 ## Harness run
 

@@ -15,7 +15,7 @@ This checklist tracks the fork proposal described in `docs/SKILLS_HARNESS.md` an
 | Deterministic skill router | Done | `src/skill_router.rs` supports `auto`, `off`, `always`, explicit skills, coding terms, perf terms, and LLM wiki/project-memory terms, with unit and CLI dry-run coverage for proposal guarantees. | Keep trigger vocabulary conservative and test every expansion. |
 | Repo/task skill scoping preview | Done | `jcode-harness skills match <goal>` previews selected skills without provider calls, preserves explicit task-level skills first, resolves repo-local overrides via `--cwd`, and emits JSON for automation. | Extend only with backward-compatible fields and keep router order deterministic. |
 | Harness smoke | Done | `jcode-harness smoke` executes deterministic tool cases without model calls. | Add CI-friendly smoke assertion or e2e wrapper. |
-| LLM wiki memory integration | Partial | `llmwiki-memory` is an embedded skill that documents safe local LLM wiki MCP usage for durable project memory, provenance, transcript sync, and secret boundaries; router auto-selects it for wiki/context-history tasks. | Add deeper CLI/MCP integration only after permission and credential-boundary review. |
+| LLM wiki memory integration | Done | `llmwiki-memory` is an embedded skill that documents safe local LLM wiki MCP usage for durable project memory, provenance, transcript sync, and secret boundaries; router auto-selects it for wiki/context-history tasks; `jcode-harness skills llmwiki-bridge` prints the permission-reviewed offline mapping to concrete local wiki MCP commands without invoking them. | Keep the bridge preview offline; add direct MCP invocation only after a separate explicit permission and credential-boundary review. |
 | Documentation and discoverability | Partial | README, `docs/SKILLS_HARNESS.md`, `docs/CODEX_BOOTSTRAP.md`, `docs/JCODE_HARNESS_PRODUCT_PLAN.md`, `docs/JCODE_HARNESS_RELEASE_GATES.md`, `docs/JCODE_HARNESS_JSON_SCHEMAS.md`, `docs/JCODE_HARNESS_INIT_SWARM.md`, and `.jcode/SKILLS_PLAN.md`. | Keep this status checklist updated after each implementation slice. |
 
 ## Latest validation snapshot
@@ -36,10 +36,10 @@ Commands recently run successfully:
 - `cargo run -q -p jcode --bin jcode-harness -- skills show llmwiki-memory --json | python3 -m json.tool >/dev/null`
 - `cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m json.tool >/dev/null`
 - `cargo run -q -p jcode --bin jcode-harness -- skills match "fix this Rust bug" --json | python3 -m json.tool >/dev/null`
+- `cargo run -q -p jcode --bin jcode-harness -- skills llmwiki-bridge --json | python3 -m json.tool >/dev/null`
 
 ## Next implementation slices
 
-1. Add permission-reviewed bridge points between `llmwiki-memory` and concrete wiki commands without making remote MCP/network dependencies mandatory.
-2. Add opt-in live-provider integration smoke for `jcode-harness run` with strict credential isolation.
-3. Add release-note template for upstream divergence and harness-specific behavior.
-4. Continue expanding stable JSON schema docs as automation contracts expand.
+1. Add opt-in live-provider integration smoke for `jcode-harness run` with strict credential isolation.
+2. Add release-note template for upstream divergence and harness-specific behavior.
+3. Continue expanding stable JSON schema docs as automation contracts expand.

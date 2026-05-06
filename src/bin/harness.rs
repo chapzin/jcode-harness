@@ -103,6 +103,12 @@ enum SkillsCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Print the permission-reviewed local LLM wiki MCP bridge contract
+    LlmwikiBridge {
+        /// Emit JSON contract for automation
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Parser)]
@@ -461,7 +467,110 @@ fn run_skills(args: SkillsArgs) -> Result<()> {
             skill,
             json,
         } => run_skills_match(&goal, cwd, skills.into(), &skill, json),
+        SkillsCommand::LlmwikiBridge { json } => run_llmwiki_bridge(json),
     }
+}
+
+fn llmwiki_bridge_contract() -> serde_json::Value {
+    json!({
+        "skill": "llmwiki-memory",
+        "kind": "local-mcp-bridge-preview",
+        "offline": true,
+        "network_required": false,
+        "permission_boundary": {
+            "default": "read-only preview; this command never invokes MCP tools",
+            "writes": "wiki_sync may write local raw/session pages only when the operator explicitly invokes it outside this preview",
+            "secrets": "do not record credentials, tokens, private keys, or unredacted personal data in wiki pages"
+        },
+        "commands": [
+            {
+                "name": "wiki_query",
+                "purpose": "Retrieve synthesized project memory, decisions, and prior context by question.",
+                "when_to_use": "Before planning or coding when prior decisions may exist.",
+                "mcp_tool": "mcp__llmwiki__wiki_query",
+                "example": { "question": "what did we decide about embedded skills?", "max_pages": 5 }
+            },
+            {
+                "name": "wiki_search",
+                "purpose": "Find literal text across wiki pages and optionally raw session transcripts.",
+                "when_to_use": "When exact wording, issue numbers, or command output matters.",
+                "mcp_tool": "mcp__llmwiki__wiki_search",
+                "example": { "term": "llmwiki-memory", "include_raw": false }
+            },
+            {
+                "name": "wiki_read_page",
+                "purpose": "Read one known wiki or raw page by path for provenance.",
+                "when_to_use": "After query/search returns a source path that needs verification.",
+                "mcp_tool": "mcp__llmwiki__wiki_read_page",
+                "example": { "path": "wiki/index.md" }
+            },
+            {
+                "name": "wiki_sync",
+                "purpose": "Import new local agent session transcripts into raw/sessions for future wiki use.",
+                "when_to_use": "At explicit memory-capture checkpoints after reviewing local write/secret boundaries.",
+                "mcp_tool": "mcp__llmwiki__wiki_sync",
+                "example": { "dry_run": true },
+                "write_risk": "local-files"
+            },
+            {
+                "name": "wiki_export",
+                "purpose": "Export a machine-readable wiki index or flattened dump for handoff/context packaging.",
+                "when_to_use": "When producing durable handoff context or release evidence.",
+                "mcp_tool": "mcp__llmwiki__wiki_export",
+                "example": { "format": "llms-txt" }
+            },
+            {
+                "name": "wiki_lint",
+                "purpose": "Check wiki graph health, broken wikilinks, stale summaries, and contradictions.",
+                "when_to_use": "Before trusting wiki context in a release or long-running agent loop.",
+                "mcp_tool": "mcp__llmwiki__wiki_lint",
+                "example": {}
+            }
+        ],
+        "recommended_flow": [
+            "Run wiki_query with the task question.",
+            "Use wiki_search for exact issue numbers or command names.",
+            "Read cited pages with wiki_read_page before treating them as evidence.",
+            "Use wiki_sync --dry-run first when capturing new local transcripts.",
+            "Run wiki_lint before release or handoff if wiki-derived context is relied on."
+        ]
+    })
+}
+
+fn run_llmwiki_bridge(json_output: bool) -> Result<()> {
+    let contract = llmwiki_bridge_contract();
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(&contract)?);
+        return Ok(());
+    }
+
+    println!(
+        "LLM wiki bridge for skill: {}",
+        contract["skill"].as_str().unwrap_or("llmwiki-memory")
+    );
+    println!("Offline preview: true");
+    println!("Network required: false");
+    println!(
+        "Permission boundary: this command only prints the bridge contract; it does not invoke MCP tools.\n"
+    );
+    println!("Concrete MCP commands:");
+    if let Some(commands) = contract["commands"].as_array() {
+        for command in commands {
+            println!(
+                "- {} -> {}: {}",
+                command["name"].as_str().unwrap_or("unknown"),
+                command["mcp_tool"].as_str().unwrap_or("unknown"),
+                command["purpose"].as_str().unwrap_or("")
+            );
+        }
+    }
+    println!("\nRecommended flow:");
+    if let Some(flow) = contract["recommended_flow"].as_array() {
+        for (idx, step) in flow.iter().enumerate() {
+            println!("{}. {}", idx + 1, step.as_str().unwrap_or(""));
+        }
+    }
+    Ok(())
 }
 
 fn run_skills_match(

@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Set OpenAI reasoning effort max",
+  "focus": "Add LLM wiki bridge preview",
   "status": "done",
-  "activeContractId": "2026-05-06-set-openai-reasoning-effort-max-2224b3",
+  "activeContractId": "2026-05-06-add-llmwiki-bridge-preview-af94ec",
   "counters": {
-    "contracts": 6,
-    "traces": 6,
-    "gates": 6,
-    "verifications": 6,
+    "contracts": 7,
+    "traces": 7,
+    "gates": 7,
+    "verifications": 7,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -163,6 +163,35 @@
       "contractId": "2026-05-06-set-openai-reasoning-effort-max-2224b3",
       "gateId": "gate-2026-05-06-75e856",
       "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-06T23:07:53.464Z",
+      "type": "contract_created",
+      "contractId": "2026-05-06-add-llmwiki-bridge-preview-af94ec",
+      "summary": "Add llmwiki bridge preview"
+    },
+    {
+      "ts": "2026-05-06T23:11:20.146Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-06-c25e825c",
+      "contractId": "2026-05-06-add-llmwiki-bridge-preview-af94ec",
+      "status": "pass",
+      "summary": "All required validations passed; reload blocked by known environment issue."
+    },
+    {
+      "ts": "2026-05-06T23:11:26.923Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-06-add-llmwiki-bridge-preview-af94ec",
+      "gateId": "gate-2026-05-06-eb6da6",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-06T23:11:43.747Z",
+      "type": "state_update",
+      "note": "Implemented and committed deterministic offline llmwiki-memory bridge preview. Validations and governance audit passed.",
+      "status": "done",
+      "focus": "Add LLM wiki bridge preview",
+      "activeContractId": "2026-05-06-add-llmwiki-bridge-preview-af94ec"
     }
   ]
 }

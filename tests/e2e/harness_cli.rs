@@ -560,6 +560,89 @@ fn skills_match_json_reports_task_and_repo_scoped_selection() -> Result<()> {
 }
 
 #[test]
+fn skills_llmwiki_bridge_prints_permission_reviewed_mcp_mapping() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-cli-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .args(["skills", "llmwiki-bridge"])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    assert!(
+        stdout.contains("LLM wiki bridge for skill: llmwiki-memory"),
+        "stdout: {stdout}"
+    );
+    assert!(stdout.contains("Offline preview: true"), "stdout: {stdout}");
+    assert!(
+        stdout.contains("wiki_query -> mcp__llmwiki__wiki_query"),
+        "stdout: {stdout}"
+    );
+    assert!(
+        stdout.contains("wiki_sync -> mcp__llmwiki__wiki_sync"),
+        "stdout: {stdout}"
+    );
+    assert!(
+        stdout.contains("does not invoke MCP tools"),
+        "stdout: {stdout}"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn skills_llmwiki_bridge_json_is_machine_readable_and_offline() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-cli-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .args(["skills", "llmwiki-bridge", "--json"])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["skill"], "llmwiki-memory");
+    assert_eq!(report["kind"], "local-mcp-bridge-preview");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["network_required"], false);
+    assert!(
+        report["permission_boundary"]["secrets"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("credentials"),
+        "stdout: {stdout}"
+    );
+    let commands = report["commands"].as_array().expect("commands array");
+    assert!(
+        commands
+            .iter()
+            .any(|command| command["name"] == "wiki_query"
+                && command["mcp_tool"] == "mcp__llmwiki__wiki_query"),
+        "stdout: {stdout}"
+    );
+    assert!(
+        commands.iter().any(|command| command["name"] == "wiki_sync"
+            && command["example"]["dry_run"] == true
+            && command["write_risk"] == "local-files"),
+        "stdout: {stdout}"
+    );
+
+    Ok(())
+}
+
+#[test]
 fn clean_code_check_json_reports_findings_without_failing_below_threshold() -> Result<()> {
     let temp = tempfile::Builder::new()
         .prefix("jcode-clean-code-cli-")

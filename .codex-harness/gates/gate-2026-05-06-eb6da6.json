@@ -1,0 +1,49 @@
+{
+  "id": "gate-2026-05-06-eb6da6",
+  "ts": "2026-05-06T23:11:26.923Z",
+  "contractId": "2026-05-06-add-llmwiki-bridge-preview-af94ec",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/bin/harness.rs",
+      "exists": true
+    },
+    {
+      "path": "tests/e2e/harness_cli.rs",
+      "exists": true
+    },
+    {
+      "path": "docs/SKILLS_HARNESS.md",
+      "exists": true
+    },
+    {
+      "path": "docs/SKILLS_HARNESS_STATUS.md",
+      "exists": true
+    },
+    {
+      "path": "docs/JCODE_HARNESS_JSON_SCHEMAS.md",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Added deterministic offline skills llmwiki-bridge subcommand",
+    "JSON output includes commands, permission boundary, offline/network flags, recommended flow",
+    "E2E text and JSON tests pass",
+    "Docs and schemas updated",
+    "cargo fmt/check/test/check/selfdev build pass"
+  ],
+  "uncheckedConditions": [
+    "Add deterministic, offline bridge command from harness skills to concrete LLM wiki MCP commands",
+    "JSON output documents commands, safety boundaries, and no network requirement",
+    "E2E tests cover text and JSON output",
+    "Docs/status/schema updated",
+    "Formatting, targeted tests, cargo check, selfdev build pass"
+  ],
+  "evidence": [
+    "tests/e2e/harness_cli.rs adds two llmwiki-bridge e2e tests",
+    "docs/SKILLS_HARNESS.md documents command",
+    "docs/JCODE_HARNESS_JSON_SCHEMAS.md documents JSON contract",
+    "Validation trace trace-2026-05-06-c25e825c"
+  ],
+  "notes": "selfdev reload failed due known environment issue unrelated to build correctness."
+}

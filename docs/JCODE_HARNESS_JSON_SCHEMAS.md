@@ -163,6 +163,59 @@ Guarantees:
 - Missing explicit skills are reported as `{ "name": "...", "missing": true }` instead of failing, so automation can decide whether to block.
 - `--cwd` changes repo-local skill resolution without requiring a provider call.
 
+## `skills llmwiki-bridge --json`
+
+Command:
+
+```bash
+jcode-harness skills llmwiki-bridge --json
+```
+
+Shape:
+
+```json
+{
+  "skill": "llmwiki-memory",
+  "kind": "local-mcp-bridge-preview",
+  "offline": true,
+  "network_required": false,
+  "permission_boundary": {
+    "default": "read-only preview; this command never invokes MCP tools",
+    "writes": "wiki_sync may write local raw/session pages only when the operator explicitly invokes it outside this preview",
+    "secrets": "do not record credentials, tokens, private keys, or unredacted personal data in wiki pages"
+  },
+  "commands": [
+    {
+      "name": "wiki_query",
+      "purpose": "Retrieve synthesized project memory, decisions, and prior context by question.",
+      "when_to_use": "Before planning or coding when prior decisions may exist.",
+      "mcp_tool": "mcp__llmwiki__wiki_query",
+      "example": { "question": "what did we decide about embedded skills?", "max_pages": 5 }
+    },
+    {
+      "name": "wiki_sync",
+      "purpose": "Import new local agent session transcripts into raw/sessions for future wiki use.",
+      "when_to_use": "At explicit memory-capture checkpoints after reviewing local write/secret boundaries.",
+      "mcp_tool": "mcp__llmwiki__wiki_sync",
+      "example": { "dry_run": true },
+      "write_risk": "local-files"
+    }
+  ],
+  "recommended_flow": [
+    "Run wiki_query with the task question.",
+    "Use wiki_search for exact issue numbers or command names."
+  ]
+}
+```
+
+Guarantees:
+
+- This command is a deterministic offline preview and never invokes MCP tools itself.
+- `offline` is always `true` and `network_required` is always `false` for the preview command.
+- Every command entry includes `name`, `purpose`, `when_to_use`, `mcp_tool`, and `example`.
+- Commands that can write local files when invoked externally include an explicit `write_risk` field.
+- `permission_boundary` records the read/write/secret constraints that automation should surface before using the concrete MCP tools.
+
 ## `run --json`
 
 Command:
