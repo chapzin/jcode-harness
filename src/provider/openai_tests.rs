@@ -14,6 +14,18 @@ const BRIGHT_PEARL_WRAPPED_TOOL_CALL_FIXTURE: &str =
     include_str!("../../tests/fixtures/openai/bright_pearl_wrapped_tool_call.txt");
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 
+#[test]
+fn openai_reasoning_effort_accepts_max_alias() {
+    assert_eq!(
+        OpenAIProvider::normalize_reasoning_effort("max").as_deref(),
+        Some("xhigh")
+    );
+    assert_eq!(
+        OpenAIProvider::normalize_reasoning_effort(" MAX ").as_deref(),
+        Some("xhigh")
+    );
+}
+
 struct EnvVarGuard {
     key: &'static str,
     previous: Option<OsString>,

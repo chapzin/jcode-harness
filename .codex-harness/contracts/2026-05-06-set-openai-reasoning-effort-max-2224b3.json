@@ -1,0 +1,46 @@
+{
+  "id": "2026-05-06-set-openai-reasoning-effort-max-2224b3",
+  "title": "Set OpenAI reasoning effort max",
+  "goal": "Set OpenAI reasoning effort configuration to maximum by default and validate provider/config behavior.",
+  "createdAt": "2026-05-06T22:54:43.488Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 6,
+    "maxMinutes": 30,
+    "maxToolCalls": 20
+  },
+  "permissions": [
+    "edit repository files",
+    "run cargo tests/check",
+    "run selfdev build",
+    "git commit own changes"
+  ],
+  "completionConditions": [
+    "OpenAI default reasoning effort is max/xhigh in config defaults and generated config",
+    "OpenAI accepts max as an alias for xhigh reasoning effort",
+    "Targeted tests and cargo check pass",
+    "Selfdev build completes"
+  ],
+  "outputPaths": [
+    "crates/jcode-config-types/src/lib.rs",
+    "src/config/default_file.rs",
+    "src/config_tests.rs",
+    "src/provider/openai.rs",
+    "src/cli/commands/provider_setup.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode openai_reasoning --lib",
+    "cargo test -p jcode config --lib",
+    "cargo check -p jcode",
+    "selfdev build"
+  ],
+  "failureTaxonomy": [
+    "config-default-regression",
+    "openai-reasoning-normalization-regression",
+    "test-failure",
+    "build-failure"
+  ],
+  "notes": "User requested OpenAI reasoning effort max configuration now, continuing autonomous harness-driven improvements."
+}

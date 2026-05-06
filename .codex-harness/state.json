@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Support OpenRouter reasoning effort",
+  "focus": "Set OpenAI reasoning effort max",
   "status": "done",
-  "activeContractId": "2026-05-06-support-openrouter-reasoning-effort-d511e5",
+  "activeContractId": "2026-05-06-set-openai-reasoning-effort-max-2224b3",
   "counters": {
-    "contracts": 5,
-    "traces": 5,
-    "gates": 5,
-    "verifications": 5,
+    "contracts": 6,
+    "traces": 6,
+    "gates": 6,
+    "verifications": 6,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -141,6 +141,27 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-06-fix-minimax-endpoint-5cce11",
       "gateId": "gate-2026-05-06-96841d",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-06T22:54:43.489Z",
+      "type": "contract_created",
+      "contractId": "2026-05-06-set-openai-reasoning-effort-max-2224b3",
+      "summary": "Set OpenAI reasoning effort max"
+    },
+    {
+      "ts": "2026-05-06T22:58:18.222Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-06-a8fae51a",
+      "contractId": "2026-05-06-set-openai-reasoning-effort-max-2224b3",
+      "status": "pass",
+      "summary": "OpenAI reasoning max default and alias validated successfully"
+    },
+    {
+      "ts": "2026-05-06T22:58:24.908Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-06-set-openai-reasoning-effort-max-2224b3",
+      "gateId": "gate-2026-05-06-75e856",
       "verdict": "pass"
     }
   ]

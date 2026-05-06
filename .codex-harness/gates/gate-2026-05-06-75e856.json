@@ -1,0 +1,46 @@
+{
+  "id": "gate-2026-05-06-75e856",
+  "ts": "2026-05-06T22:58:24.908Z",
+  "contractId": "2026-05-06-set-openai-reasoning-effort-max-2224b3",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "crates/jcode-config-types/src/lib.rs",
+      "exists": true
+    },
+    {
+      "path": "src/config/default_file.rs",
+      "exists": true
+    },
+    {
+      "path": "src/config_tests.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openai.rs",
+      "exists": true
+    },
+    {
+      "path": "src/cli/commands/provider_setup.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "OpenAI default reasoning effort is max/xhigh in ProviderConfig::default",
+    "Generated default config writes openai_reasoning_effort = \"xhigh\"",
+    "OpenAI normalize_reasoning_effort accepts max and maps it to xhigh",
+    "Targeted tests, cargo check, and selfdev build passed"
+  ],
+  "uncheckedConditions": [
+    "OpenAI default reasoning effort is max/xhigh in config defaults and generated config",
+    "OpenAI accepts max as an alias for xhigh reasoning effort",
+    "Targeted tests and cargo check pass",
+    "Selfdev build completes"
+  ],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/225160f8ss.output",
+    "/tmp/jcode-bg-tasks/259383zjw7.output",
+    "git diff reviewed before commit"
+  ],
+  "notes": "Broad cargo test filter `config` also matched an unrelated configured auth target test and failed; exact relevant filters passed. selfdev reload remains blocked by known environment issue."
+}

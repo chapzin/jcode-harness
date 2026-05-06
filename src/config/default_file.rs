@@ -161,8 +161,8 @@ wiki_scope = "global-cache"
 # Default provider (optional: claude|openai|copilot|openrouter)
 # When set, this provider is preferred on startup if available
 # default_provider = "copilot"
-# OpenAI reasoning effort (none|low|medium|high|xhigh)
-openai_reasoning_effort = "low"
+# OpenAI reasoning effort (none|low|medium|high|xhigh|max). Default uses maximum reasoning.
+openai_reasoning_effort = "xhigh"
 # OpenAI transport mode (auto|websocket|https)
 # openai_transport = "auto"
 # OpenAI service tier override (priority|flex)

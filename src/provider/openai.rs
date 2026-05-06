@@ -575,9 +575,10 @@ impl OpenAIProvider {
         }
         match value.as_str() {
             "none" | "low" | "medium" | "high" | "xhigh" => Some(value),
+            "max" => Some("xhigh".to_string()),
             other => {
                 crate::logging::info(&format!(
-                    "Warning: Unsupported OpenAI reasoning effort '{}'; expected none|low|medium|high|xhigh. Using 'xhigh'.",
+                    "Warning: Unsupported OpenAI reasoning effort '{}'; expected none|low|medium|high|xhigh|max. Using 'xhigh'.",
                     other
                 ));
                 Some("xhigh".to_string())

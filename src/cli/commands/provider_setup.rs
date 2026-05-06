@@ -675,7 +675,7 @@ mod tests {
         let config_path = temp.path().join("config.toml");
         std::fs::write(
             &config_path,
-            "# keep this comment\n[provider]\nopenai_reasoning_effort = \"low\"\n",
+            "# keep this comment\n[provider]\nopenai_reasoning_effort = \"xhigh\"\n",
         )
         .expect("write config");
 

@@ -611,7 +611,7 @@ pub struct ProviderConfig {
     pub default_model: Option<String>,
     /// Default provider to use (claude|openai|copilot|openrouter)
     pub default_provider: Option<String>,
-    /// Reasoning effort for OpenAI Responses API (none|low|medium|high|xhigh)
+    /// Reasoning effort for OpenAI Responses API (none|low|medium|high|xhigh|max)
     pub openai_reasoning_effort: Option<String>,
     /// OpenAI transport mode (auto|websocket|https)
     pub openai_transport: Option<String>,
@@ -636,7 +636,7 @@ impl Default for ProviderConfig {
         Self {
             default_model: None,
             default_provider: None,
-            openai_reasoning_effort: Some("low".to_string()),
+            openai_reasoning_effort: Some("xhigh".to_string()),
             openai_transport: None,
             openai_service_tier: None,
             openai_native_compaction_mode: "auto".to_string(),
