@@ -39,10 +39,12 @@ This fork is not a patch set of small upstream improvements. It is a new `jcode-
 
 See `docs/SKILLS_HARNESS.md` and `docs/SKILLS_HARNESS_STATUS.md` for implemented pillars and validation snapshots.
 
+Release readiness is governed by `docs/JCODE_HARNESS_RELEASE_GATES.md`. A change is not considered production-ready unless the relevant gates have objective evidence.
+
 ## Next planning milestones
 
 1. Define the `jcode-harness` CLI contract as a stable public interface.
 2. Expand clean-code rule fixtures and document rule severity policy.
-3. Create release-readiness checklist covering tests, docs, migration notes, and upstream divergence.
-4. Promote stable JSON schema documentation as automation contracts expand beyond skills commands.
-5. Add opt-in live-provider smoke tests after mock-provider JSON/NDJSON contracts are stable.
+3. Promote stable JSON schema documentation as automation contracts expand beyond skills commands.
+4. Add opt-in live-provider smoke tests after mock-provider JSON/NDJSON contracts are stable.
+5. Keep release gates updated when new harness pillars become stable.

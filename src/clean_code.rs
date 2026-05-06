@@ -410,6 +410,37 @@ pub fn print_human_report(report: &CleanCodeReport) {
 mod tests {
     use super::*;
 
+    fn temp_root(label: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "jcode-clean-code-{label}-{}",
+            crate::id::new_id("t")
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn run_check(root: &Path, paths: Vec<PathBuf>) -> CleanCodeReport {
+        check(CleanCodeCheckOptions {
+            root: root.to_path_buf(),
+            paths,
+        })
+        .unwrap()
+    }
+
+    fn finding<'a>(report: &'a CleanCodeReport, rule_id: &str) -> &'a CleanCodeFinding {
+        report
+            .findings
+            .iter()
+            .find(|finding| finding.rule_id == rule_id)
+            .unwrap_or_else(|| panic!("missing finding {rule_id}: {:?}", report.findings))
+    }
+
+    fn cleanup(dir: PathBuf) {
+        if fs::remove_dir_all(dir).is_err() {
+            // Best-effort test cleanup only.
+        }
+    }
+
     #[test]
     fn parses_builtin_rules() {
         let pack = load_rule_pack(None).unwrap();
@@ -423,9 +454,7 @@ mod tests {
 
     #[test]
     fn detects_silent_error_and_long_function() {
-        let dir =
-            std::env::temp_dir().join(format!("jcode-clean-code-test-{}", crate::id::new_id("t")));
-        fs::create_dir_all(&dir).unwrap();
+        let dir = temp_root("combined");
         let file = dir.join("main.rs");
         let mut content = String::from("fn long_one() {\n");
         for _ in 0..45 {
@@ -434,11 +463,7 @@ mod tests {
         content
             .push_str("}\nfn ignore() {\n    let _ = std::fs::read_to_string(\"missing\");\n}\n");
         fs::write(&file, content).unwrap();
-        let report = check(CleanCodeCheckOptions {
-            root: dir.clone(),
-            paths: vec![],
-        })
-        .unwrap();
+        let report = run_check(&dir, vec![]);
         assert!(
             report
                 .findings
@@ -451,8 +476,137 @@ mod tests {
                 .iter()
                 .any(|f| f.rule_id == "no-silent-error-swallowing")
         );
-        if fs::remove_dir_all(dir).is_err() {
-            // Best-effort test cleanup only.
-        }
+        cleanup(dir);
+    }
+
+    #[test]
+    fn file_size_thresholds_emit_warning_and_error() {
+        let warning_dir = temp_root("file-warning");
+        fs::write(warning_dir.join("large.rs"), "// x\n".repeat(501)).unwrap();
+        let warning = run_check(&warning_dir, vec![]);
+        let warning_finding = finding(&warning, "manageable-file-size");
+        assert_eq!(warning_finding.severity, Severity::Warning);
+        assert!(warning_finding.message.contains("501 lines"));
+        cleanup(warning_dir);
+
+        let error_dir = temp_root("file-error");
+        fs::write(error_dir.join("huge.rs"), "// x\n".repeat(1001)).unwrap();
+        let error = run_check(&error_dir, vec![]);
+        let error_finding = finding(&error, "manageable-file-size");
+        assert_eq!(error_finding.severity, Severity::Error);
+        assert!(error_finding.message.contains("1001 lines"));
+        cleanup(error_dir);
+    }
+
+    #[test]
+    fn function_length_thresholds_emit_warning_and_error() {
+        let warning_dir = temp_root("function-warning");
+        let mut warning_content = String::from("fn medium() {\n");
+        warning_content.push_str(&"    println!(\"x\");\n".repeat(41));
+        warning_content.push_str("}\n");
+        fs::write(warning_dir.join("medium.rs"), warning_content).unwrap();
+        let warning = run_check(&warning_dir, vec![]);
+        assert_eq!(
+            finding(&warning, "small-focused-functions").severity,
+            Severity::Warning
+        );
+        cleanup(warning_dir);
+
+        let error_dir = temp_root("function-error");
+        let mut error_content = String::from("pub async fn huge() {\n");
+        error_content.push_str(&"    println!(\"x\");\n".repeat(81));
+        error_content.push_str("}\n");
+        fs::write(error_dir.join("huge.rs"), error_content).unwrap();
+        let error = run_check(&error_dir, vec![]);
+        assert_eq!(
+            finding(&error, "small-focused-functions").severity,
+            Severity::Error
+        );
+        cleanup(error_dir);
+    }
+
+    #[test]
+    fn silent_error_patterns_and_allow_comment_are_deterministic() {
+        let dir = temp_root("silent-errors");
+        fs::write(
+            dir.join("sample.rs"),
+            "fn ignored() {\n    let _ = do_work();\n    fallible().ok();\n    let _ = intentional(); // clean-code: allow\n}\n",
+        )
+        .unwrap();
+
+        let report = run_check(&dir, vec![]);
+        let silent_findings: Vec<_> = report
+            .findings
+            .iter()
+            .filter(|finding| finding.rule_id == "no-silent-error-swallowing")
+            .collect();
+
+        assert_eq!(silent_findings.len(), 2, "findings: {:?}", report.findings);
+        assert_eq!(silent_findings[0].line, 2);
+        assert_eq!(silent_findings[1].line, 3);
+        cleanup(dir);
+    }
+
+    #[test]
+    fn long_line_reports_info_without_failing_clean_files() {
+        let dir = temp_root("long-line");
+        fs::write(dir.join("sample.rs"), format!("// {}\n", "x".repeat(141))).unwrap();
+
+        let report = run_check(&dir, vec![]);
+        let long_line = finding(&report, "readable-names");
+        assert_eq!(long_line.severity, Severity::Info);
+        assert!(!report.has_at_least(Severity::Warning));
+        cleanup(dir);
+    }
+
+    #[test]
+    fn target_paths_are_deduplicated() {
+        let dir = temp_root("paths");
+        fs::write(dir.join("a.rs"), "fn ok() {\n    println!(\"ok\");\n}\n").unwrap();
+
+        let report = run_check(&dir, vec![PathBuf::from("a.rs"), PathBuf::from("a.rs")]);
+        assert_eq!(report.files_scanned, 1);
+        assert!(
+            report.findings.is_empty(),
+            "findings: {:?}",
+            report.findings
+        );
+        cleanup(dir);
+    }
+
+    #[test]
+    fn workspace_scan_skips_generated_dirs() {
+        let dir = temp_root("skip-generated");
+        fs::write(dir.join("a.rs"), "fn ok() {\n    println!(\"ok\");\n}\n").unwrap();
+        fs::create_dir_all(dir.join("target")).unwrap();
+        fs::write(
+            dir.join("target/generated.rs"),
+            "fn ignored() {\n    let _ = do_work();\n}\n",
+        )
+        .unwrap();
+
+        let report = run_check(&dir, vec![]);
+        assert_eq!(report.files_scanned, 1);
+        assert!(
+            report.findings.is_empty(),
+            "findings: {:?}",
+            report.findings
+        );
+        cleanup(dir);
+    }
+
+    #[test]
+    fn unsupported_files_are_not_scanned() {
+        let dir = temp_root("unsupported");
+        fs::write(dir.join("README.md"), "let _ = should_not_scan();\n").unwrap();
+
+        let report = run_check(&dir, vec![]);
+        assert_eq!(report.files_scanned, 0);
+        assert!(
+            report.findings.is_empty(),
+            "findings: {:?}",
+            report.findings
+        );
+        cleanup(dir);
     }
 }

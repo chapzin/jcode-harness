@@ -527,3 +527,79 @@ fn clean_code_check_json_passes_for_clean_file() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn clean_code_rules_prints_parseable_builtin_yaml() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-clean-code-cli-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .args(["clean-code", "rules"])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(
+        output.status.success(),
+        "rules should succeed. stderr: {}",
+        stderr_text(&output)
+    );
+    let rules: Value = serde_yaml::from_str(&stdout)?;
+    assert_eq!(rules["name"], "clean-code-default");
+    assert!(
+        rules["rules"]
+            .as_array()
+            .expect("rules sequence")
+            .iter()
+            .any(|rule| rule["id"] == "no-silent-error-swallowing")
+    );
+
+    Ok(())
+}
+
+#[test]
+fn clean_code_fail_on_info_fails_for_info_findings() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-clean-code-cli-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+    std::fs::write(cwd.join("sample.rs"), format!("// {}\n", "x".repeat(141)))?;
+
+    let default_output = harness_command(&home, &cwd)
+        .args(["clean-code", "check", "--json", "sample.rs"])
+        .output()?;
+    let default_stdout = stdout_text(&default_output);
+    assert!(
+        default_output.status.success(),
+        "default fail-on error should pass on info. stdout: {default_stdout} stderr: {}",
+        stderr_text(&default_output)
+    );
+    let default_report: Value = serde_json::from_str(&default_stdout)?;
+    assert_eq!(default_report["findings"][0]["severity"], "info");
+
+    let info_output = harness_command(&home, &cwd)
+        .args([
+            "clean-code",
+            "check",
+            "--json",
+            "--fail-on",
+            "info",
+            "sample.rs",
+        ])
+        .output()?;
+    assert!(
+        !info_output.status.success(),
+        "fail-on info should fail. stdout: {} stderr: {}",
+        stdout_text(&info_output),
+        stderr_text(&info_output)
+    );
+
+    Ok(())
+}
