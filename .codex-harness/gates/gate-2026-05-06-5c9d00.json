@@ -1,0 +1,31 @@
+{
+  "id": "gate-2026-05-06-5c9d00",
+  "ts": "2026-05-06T19:15:23.060Z",
+  "contractId": "2026-05-06-cli-quality-security-ux-optimization-50bbc2",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": ".context/plans/cli-quality-security-ux.md",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Plano incremental registrado em .context/plans/cli-quality-security-ux.md",
+    "Melhoria concreta implementada no CLI/TUI",
+    "Testes e cargo check executados com sucesso",
+    "Commit criado"
+  ],
+  "uncheckedConditions": [
+    "Plano incremental registrado",
+    "Pelo menos uma melhoria concreta implementada no CLI/TUI ou segurança/testes",
+    "Verificações relevantes executadas",
+    "Mudanças commitadas"
+  ],
+  "evidence": [
+    "cargo test -p jcode-tui-style: 12 passed",
+    "cargo check -p jcode: passed",
+    "selfdev build: passed",
+    "commit 1aee95fd Improve CLI activity animations and tests"
+  ],
+  "notes": "Budgets de segurança/dependência falham por dívida preexistente registrada como follow-up separado."
+}

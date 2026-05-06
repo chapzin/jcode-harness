@@ -2,12 +2,12 @@
   "version": 5,
   "projectName": "jcode-harness",
   "focus": "CLI quality security UX optimization",
-  "status": "executing",
+  "status": "done",
   "activeContractId": "2026-05-06-cli-quality-security-ux-optimization-50bbc2",
   "counters": {
     "contracts": 1,
     "traces": 1,
-    "gates": 0,
+    "gates": 1,
     "verifications": 1,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
@@ -51,6 +51,13 @@
       "contractId": "2026-05-06-cli-quality-security-ux-optimization-50bbc2",
       "status": "pass",
       "summary": "Testes do crate de estilo, check do CLI e build selfdev passaram."
+    },
+    {
+      "ts": "2026-05-06T19:15:23.060Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-06-cli-quality-security-ux-optimization-50bbc2",
+      "gateId": "gate-2026-05-06-5c9d00",
+      "verdict": "pass"
     }
   ]
 }
