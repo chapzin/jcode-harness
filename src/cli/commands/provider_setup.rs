@@ -183,7 +183,18 @@ pub(crate) fn configure_provider_profile(
     };
 
     let config_path = Config::path().ok_or_else(|| anyhow::anyhow!("No config path"))?;
-    let content = std::fs::read_to_string(&config_path).unwrap_or_default();
+    let content = match std::fs::read_to_string(&config_path) {
+        Ok(content) => content,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(err) => {
+            return Err(err).with_context(|| {
+                format!(
+                    "failed to read existing config at {}",
+                    config_path.display()
+                )
+            });
+        }
+    };
     let existing = parse_config_or_default(&content).with_context(|| {
         format!(
             "failed to parse existing config at {}",

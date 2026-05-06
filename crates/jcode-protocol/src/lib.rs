@@ -1545,11 +1545,10 @@ pub fn format_comm_members(current_session_id: &str, members: &[AgentInfo]) -> S
                 role_label,
                 if is_me { "you" } else { session },
                 status,
-                member
-                    .detail
-                    .as_deref()
-                    .map(|detail| format!(" — {}", detail))
-                    .unwrap_or_default(),
+                match member.detail.as_deref() {
+                    Some(detail) => format!(" — {}", detail),
+                    None => String::new(),
+                },
                 if files.is_empty() {
                     String::new()
                 } else {

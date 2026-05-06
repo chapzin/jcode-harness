@@ -60,7 +60,7 @@ pub struct OAuthTokens {
 
 fn parse_oauth_scopes(scope: Option<&str>) -> Vec<String> {
     scope
-        .unwrap_or_default()
+        .unwrap_or("")
         .split_whitespace()
         .filter(|scope| !scope.trim().is_empty())
         .map(ToOwned::to_owned)
@@ -139,6 +139,22 @@ fn bad_request_response(message: &str) -> String {
         body.len(),
         body
     )
+}
+
+fn write_oauth_response_best_effort<W: Write>(writer: &mut W, response: String) {
+    if let Err(err) = writer.write_all(response.as_bytes()) {
+        eprintln!("warning: failed to write OAuth callback response: {err}");
+    }
+}
+
+async fn write_oauth_response_async_best_effort<W>(writer: &mut W, response: String)
+where
+    W: tokio::io::AsyncWrite + Unpin,
+{
+    use tokio::io::AsyncWriteExt;
+    if let Err(err) = writer.write_all(response.as_bytes()).await {
+        eprintln!("warning: failed to write OAuth callback response: {err}");
+    }
 }
 
 fn is_socket_read_timeout(err: &std::io::Error) -> bool {
@@ -232,7 +248,10 @@ pub fn wait_for_callback(port: u16, expected_state: &str) -> Result<String> {
 
         let parts: Vec<&str> = request_line.split_whitespace().collect();
         if parts.len() < 2 {
-            let _ = stream.write_all(bad_request_response("Invalid HTTP request.").as_bytes());
+            write_oauth_response_best_effort(
+                &mut stream,
+                bad_request_response("Invalid HTTP request."),
+            );
             continue;
         }
 
@@ -240,8 +259,9 @@ pub fn wait_for_callback(port: u16, expected_state: &str) -> Result<String> {
         let url = match url::Url::parse(&format!("http://localhost{}", path)) {
             Ok(url) => url,
             Err(_) => {
-                let _ = stream.write_all(
-                    bad_request_response("Could not parse OAuth callback URL.").as_bytes(),
+                write_oauth_response_best_effort(
+                    &mut stream,
+                    bad_request_response("Could not parse OAuth callback URL."),
                 );
                 continue;
             }
@@ -252,8 +272,9 @@ pub fn wait_for_callback(port: u16, expected_state: &str) -> Result<String> {
             .find(|(k, _)| k == "error")
             .map(|(_, v)| v.to_string())
         {
-            let _ = stream.write_all(
-                bad_request_response("Authentication was denied or cancelled.").as_bytes(),
+            write_oauth_response_best_effort(
+                &mut stream,
+                bad_request_response("Authentication was denied or cancelled."),
             );
             anyhow::bail!("OAuth provider returned error: {}", error);
         }
@@ -265,9 +286,9 @@ pub fn wait_for_callback(port: u16, expected_state: &str) -> Result<String> {
         {
             Some(code) => code,
             None => {
-                let _ = stream.write_all(
-                    bad_request_response("No authorization code was included in this request.")
-                        .as_bytes(),
+                write_oauth_response_best_effort(
+                    &mut stream,
+                    bad_request_response("No authorization code was included in this request."),
                 );
                 continue;
             }
@@ -280,17 +301,18 @@ pub fn wait_for_callback(port: u16, expected_state: &str) -> Result<String> {
         {
             Some(state) => state,
             None => {
-                let _ = stream.write_all(
-                    bad_request_response("No OAuth state was included in this request.").as_bytes(),
+                write_oauth_response_best_effort(
+                    &mut stream,
+                    bad_request_response("No OAuth state was included in this request."),
                 );
                 continue;
             }
         };
 
         if state != expected_state {
-            let _ = stream.write_all(
-                bad_request_response("OAuth state mismatch. Please retry the latest login flow.")
-                    .as_bytes(),
+            write_oauth_response_best_effort(
+                &mut stream,
+                bad_request_response("OAuth state mismatch. Please retry the latest login flow."),
             );
             continue;
         }
@@ -340,9 +362,11 @@ pub async fn wait_for_callback_async_on_listener(
 
         let parts: Vec<&str> = request_line.split_whitespace().collect();
         if parts.len() < 2 {
-            let _ = writer
-                .write_all(bad_request_response("Invalid HTTP request.").as_bytes())
-                .await;
+            write_oauth_response_async_best_effort(
+                &mut writer,
+                bad_request_response("Invalid HTTP request."),
+            )
+            .await;
             continue;
         }
 
@@ -350,11 +374,11 @@ pub async fn wait_for_callback_async_on_listener(
         let url = match url::Url::parse(&format!("http://localhost{}", path)) {
             Ok(url) => url,
             Err(_) => {
-                let _ = writer
-                    .write_all(
-                        bad_request_response("Could not parse OAuth callback URL.").as_bytes(),
-                    )
-                    .await;
+                write_oauth_response_async_best_effort(
+                    &mut writer,
+                    bad_request_response("Could not parse OAuth callback URL."),
+                )
+                .await;
                 continue;
             }
         };
@@ -364,11 +388,11 @@ pub async fn wait_for_callback_async_on_listener(
             .find(|(k, _)| k == "error")
             .map(|(_, v)| v.to_string())
         {
-            let _ = writer
-                .write_all(
-                    bad_request_response("Authentication was denied or cancelled.").as_bytes(),
-                )
-                .await;
+            write_oauth_response_async_best_effort(
+                &mut writer,
+                bad_request_response("Authentication was denied or cancelled."),
+            )
+            .await;
             anyhow::bail!("OAuth provider returned error: {}", error);
         }
 
@@ -379,12 +403,11 @@ pub async fn wait_for_callback_async_on_listener(
         {
             Some(code) => code,
             None => {
-                let _ = writer
-                    .write_all(
-                        bad_request_response("No authorization code was included in this request.")
-                            .as_bytes(),
-                    )
-                    .await;
+                write_oauth_response_async_best_effort(
+                    &mut writer,
+                    bad_request_response("No authorization code was included in this request."),
+                )
+                .await;
                 continue;
             }
         };
@@ -396,25 +419,21 @@ pub async fn wait_for_callback_async_on_listener(
         {
             Some(state) => state,
             None => {
-                let _ = writer
-                    .write_all(
-                        bad_request_response("No OAuth state was included in this request.")
-                            .as_bytes(),
-                    )
-                    .await;
+                write_oauth_response_async_best_effort(
+                    &mut writer,
+                    bad_request_response("No OAuth state was included in this request."),
+                )
+                .await;
                 continue;
             }
         };
 
         if state != expected_state {
-            let _ = writer
-                .write_all(
-                    bad_request_response(
-                        "OAuth state mismatch. Please retry the latest login flow.",
-                    )
-                    .as_bytes(),
-                )
-                .await;
+            write_oauth_response_async_best_effort(
+                &mut writer,
+                bad_request_response("OAuth state mismatch. Please retry the latest login flow."),
+            )
+            .await;
             continue;
         }
 
@@ -532,7 +551,9 @@ pub async fn login_claude(no_browser: bool) -> Result<OAuthTokens> {
     }
     eprintln!("Opening browser for Claude login...\n");
     if !crate::auth::browser_suppressed(no_browser) {
-        let _ = open::that(&auth_url);
+        if let Err(err) = open::that(&auth_url) {
+            eprintln!("warning: failed to open browser for Claude login: {err}");
+        }
     }
     eprintln!("After logging in, copy and paste the callback URL or code here:\n");
     eprint!("> ");
@@ -609,7 +630,13 @@ pub fn claude_redirect_uri_for_input(input: &str, fallback_redirect_uri: &str) -
 
     let matches_manual = [claude::REDIRECT_URI, claude::LEGACY_REDIRECT_URI]
         .iter()
-        .filter_map(|candidate| url::Url::parse(candidate).ok())
+        .filter_map(|candidate| match url::Url::parse(candidate) {
+            Ok(url) => Some(url),
+            Err(err) => {
+                eprintln!("warning: invalid built-in Claude redirect URI {candidate}: {err}");
+                None
+            }
+        })
         .any(|expected_manual| {
             url.scheme() == expected_manual.scheme()
                 && url.host_str() == expected_manual.host_str()
@@ -748,7 +775,7 @@ pub fn openai_auth_url_with_prompt(
 ) -> String {
     let prompt_param = prompt
         .map(|p| format!("&prompt={}", urlencoding::encode(p)))
-        .unwrap_or_default();
+        .unwrap_or_else(String::new);
     format!(
         "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&code_challenge={}&code_challenge_method=S256&state={}&id_token_add_organizations=true&codex_cli_simplified_flow=true&originator=codex_cli_rs{}",
         openai::AUTHORIZE_URL,
@@ -855,7 +882,13 @@ pub async fn login_openai(no_browser: bool) -> Result<OAuthTokens> {
         eprintln!("{qr}\n");
     }
 
-    let callback_listener = bind_callback_listener(port).ok();
+    let callback_listener = match bind_callback_listener(port) {
+        Ok(listener) => Some(listener),
+        Err(err) => {
+            eprintln!("warning: OpenAI callback listener unavailable on port {port}: {err}");
+            None
+        }
+    };
     let browser_opened = if crate::auth::browser_suppressed(no_browser) {
         false
     } else {
@@ -918,10 +951,10 @@ pub fn save_claude_tokens_for_account(tokens: &OAuthTokens, label: &str) -> Resu
         .into_iter()
         .find(|account| account.label == label);
     let scopes = if tokens.scopes.is_empty() {
-        existing
-            .as_ref()
-            .map(|account| account.scopes.clone())
-            .unwrap_or_default()
+        match existing.as_ref() {
+            Some(account) => account.scopes.clone(),
+            None => Vec::new(),
+        }
     } else {
         tokens.scopes.clone()
     };
@@ -1115,15 +1148,7 @@ async fn refresh_claude_tokens_inner(
 /// Refresh Claude OAuth tokens
 pub async fn refresh_claude_tokens(refresh_token: &str) -> Result<OAuthTokens> {
     let result = refresh_claude_tokens_inner(refresh_token, None).await;
-
-    match &result {
-        Ok(_) => {
-            let _ = crate::auth::refresh_state::record_success("claude");
-        }
-        Err(err) => {
-            let _ = crate::auth::refresh_state::record_failure("claude", err.to_string());
-        }
-    }
+    record_refresh_result("claude", &result);
 
     result
 }
@@ -1134,15 +1159,7 @@ pub async fn refresh_claude_tokens_for_account(
     label: &str,
 ) -> Result<OAuthTokens> {
     let result = refresh_claude_tokens_inner(refresh_token, Some(label)).await;
-
-    match &result {
-        Ok(_) => {
-            let _ = crate::auth::refresh_state::record_success("claude");
-        }
-        Err(err) => {
-            let _ = crate::auth::refresh_state::record_failure("claude", err.to_string());
-        }
-    }
+    record_refresh_result("claude", &result);
 
     result
 }
@@ -1231,16 +1248,19 @@ async fn refresh_openai_tokens_inner(
     }
     .await;
 
-    match &result {
-        Ok(_) => {
-            let _ = crate::auth::refresh_state::record_success("openai");
-        }
-        Err(err) => {
-            let _ = crate::auth::refresh_state::record_failure("openai", err.to_string());
-        }
-    }
+    record_refresh_result("openai", &result);
 
     result
+}
+
+fn record_refresh_result(provider: &str, result: &Result<OAuthTokens>) {
+    let record_result = match result {
+        Ok(_) => crate::auth::refresh_state::record_success(provider),
+        Err(err) => crate::auth::refresh_state::record_failure(provider, err.to_string()),
+    };
+    if let Err(err) = record_result {
+        eprintln!("warning: failed to record {provider} refresh state: {err}");
+    }
 }
 
 /// Build a Claude token exchange request (extracted for testability).
