@@ -135,6 +135,24 @@ pub fn tool_activity_bars(elapsed: f32, enable_decorative_animations: bool) -> (
     (build(false), build(true))
 }
 
+pub fn status_queue_suffix(pending_count: usize) -> Option<String> {
+    (pending_count > 0).then(|| format!(" · +{pending_count} queued"))
+}
+
+pub fn retry_delay_label(secs: u64) -> String {
+    if secs >= 3600 {
+        let hours = secs / 3600;
+        let mins = (secs % 3600) / 60;
+        format!("{hours}h {mins}m")
+    } else if secs >= 60 {
+        let mins = secs / 60;
+        let remaining_secs = secs % 60;
+        format!("{mins}m {remaining_secs}s")
+    } else {
+        format!("{secs}s")
+    }
+}
+
 /// Convert HSL to RGB (h in 0-360, s and l in 0-1)
 /// Chroma color based on position and time - creates flowing rainbow wave
 /// Calculate chroma color with fade-in from dim during startup
@@ -269,5 +287,18 @@ mod tests {
         let (reduced_left, reduced_right) = tool_activity_bars(0.0, false);
         assert_eq!(reduced_left, "·".repeat(TOOL_ACTIVITY_WIDTH));
         assert_eq!(reduced_right, reduced_left);
+    }
+
+    #[test]
+    fn status_queue_suffix_only_allocates_when_pending() {
+        assert_eq!(status_queue_suffix(0), None);
+        assert_eq!(status_queue_suffix(3).as_deref(), Some(" · +3 queued"));
+    }
+
+    #[test]
+    fn retry_delay_label_formats_seconds_minutes_and_hours() {
+        assert_eq!(retry_delay_label(7), "7s");
+        assert_eq!(retry_delay_label(65), "1m 5s");
+        assert_eq!(retry_delay_label(3661), "1h 1m");
     }
 }

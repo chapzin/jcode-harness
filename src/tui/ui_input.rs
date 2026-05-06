@@ -3,7 +3,8 @@ use super::tools_ui::{get_tool_summary, summarize_batch_running_tools_compact};
 use super::visual_debug::{self, FrameCaptureBuilder};
 use super::{
     ProcessingStatus, TuiState, accent_color, ai_color, animated_tool_color, asap_color, dim_color,
-    pending_color, queued_color, rainbow_prompt_color, tool_activity_bars, user_color,
+    pending_color, queued_color, rainbow_prompt_color, retry_delay_label, status_queue_suffix,
+    tool_activity_bars, user_color,
 };
 use crate::message::ConnectionPhase;
 use crate::tui::app;
@@ -414,10 +415,9 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
         cache_ttl.as_ref(),
     );
 
-    let queued_suffix = if pending_count > 0 {
-        format!(" · +{} queued", pending_count)
-    } else {
-        String::new()
+    let queued_suffix = match status_queue_suffix(pending_count) {
+        Some(suffix) => suffix,
+        None => String::new(),
     };
 
     let line = if let Some(build_progress) = crate::build::read_build_progress() {
@@ -432,17 +432,7 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
     } else if let Some(remaining) = app.rate_limit_remaining() {
         let secs = remaining.as_secs();
         let spinner = super::activity_indicator(elapsed, 4.0);
-        let time_str = if secs >= 3600 {
-            let hours = secs / 3600;
-            let mins = (secs % 3600) / 60;
-            format!("{}h {}m", hours, mins)
-        } else if secs >= 60 {
-            let mins = secs / 60;
-            let s = secs % 60;
-            format!("{}m {}s", mins, s)
-        } else {
-            format!("{}s", secs)
-        };
+        let time_str = retry_delay_label(secs);
         Line::from(vec![
             Span::styled(spinner, Style::default().fg(rgb(255, 193, 7))),
             Span::styled(

@@ -59,3 +59,8 @@ Melhorar o CLI/TUI do Jcode em fatias verificáveis, sem tentar reescrever tudo 
 ## Quarta fatia implementada
 - Ampliar `redact_secrets` para cobrir headers `Authorization`/`Proxy-Authorization`, tokens `Bearer`, variáveis genéricas com `PASSWORD`, `TOKEN` ou `SECRET`, e campos JSON sensíveis.
 - Adicionar regressões focadas para impedir vazamento de bearer token, basic auth, password, refresh token e client secret em histórico/export/tool output.
+
+## Quinta fatia implementada
+- Extrair mais lógica inline de status do TUI para `jcode-tui-style`: `status_queue_suffix` e `retry_delay_label`.
+- Adicionar testes puros para sufixo de fila e formatação de retry em segundos, minutos e horas.
+- Aplicar os helpers em `src/tui/ui_input.rs`, mantendo o rendering real igual e tornando regressões de texto/status mais fáceis de testar.
