@@ -5,6 +5,18 @@
 [![License](https://img.shields.io/github/license/1jehuang/jcode?style=flat-square)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-blue?style=flat-square)](https://github.com/1jehuang/jcode/releases)
 
+![jcode-harness engineering loop](docs/assets/jcode-harness-loop.svg)
+
+## At a glance
+
+| Layer | What it contributes | Durable artifact |
+| --- | --- | --- |
+| Jcode runtime | Fast Rust CLI/TUI, tools, providers, sessions, swarm, side panel, self-dev builds | `src/`, `crates/`, logs, session state |
+| Embedded skills | Offline behavioral instructions and deterministic source precedence | `src/skill_pack.rs`, `.jcode/skills/*/SKILL.md` |
+| Karpathy guidelines | Practical agent discipline: plan, keep changes surgical, avoid overengineering, verify success | `karpathy-guidelines` built-in skill, vendored source in `third_party/` |
+| LLM wiki memory | Prior decisions, transcripts, provenance, handoff context, searchable project memory | wiki pages/raw sessions via local MCP tools |
+| Harness governance | `/init` plans, release gates, clean-code checks, JSON/NDJSON contracts, validation snapshots | `.jcode/`, `docs/JCODE_HARNESS_*`, e2e tests |
+
 ## What this fork is
 
 This branch is not only a small patch set on top of upstream jcode. It is a product direction called **jcode-harness**.
@@ -17,6 +29,20 @@ The goal is to turn jcode into a rigorous local AI engineering harness:
 - **Harness quality gates** supply deterministic checks before claims of completion: JSON/NDJSON contracts, offline skills, clean-code checks, init swarm analysis, and repeatable tests.
 
 In short: this fork is about making an AI coding agent less improvisational and more like a disciplined engineering runtime.
+
+## How the engineering is put together
+
+The engineering is built as a closed local loop, similar in spirit to the Codex Harness MCP loop: request, context, contract, execution, evidence, gate, and handoff. The difference is that this fork embeds that loop directly into Jcode's Rust runtime and project files.
+
+1. **Request enters Jcode** through the interactive TUI, `jcode run`, `jcode-harness run`, or `/init`. The request is not treated as enough context by itself. It is paired with cwd, provider choice, skill mode, safety policy, and project-local artifacts.
+2. **Project bootstrap creates durable structure** under `.jcode/`: init reports, questions, MCP plan, skills plan, side-panel status, and swarm analysis files. This prevents the first agent turn from being a pure chat transcript with no durable output.
+3. **The swarm analysis separates concerns**. Architecture, QA, documentation/onboarding, and tooling/security are discovered independently, then synthesis waits on a barrier before writing recommendations.
+4. **The skill router narrows behavior**. Coding work gets `karpathy-guidelines` plus `clean-code-guardian`; performance work gets `optimization`; project-memory or prior-decision work gets `llmwiki-memory`. Explicit skills always win, and automatic routing stays conservative.
+5. **The LLM wiki is the memory plane**. It is used for prior decisions, transcripts, provenance, and handoff context. It is deliberately not treated as source-code truth, so code claims still need repository/test evidence.
+6. **Verification gates close the loop**. `cargo fmt`, focused tests, e2e harness tests, JSON schema checks, clean-code checks, and self-dev builds are the evidence that a change is real.
+7. **Artifacts make the work resumable**. Future agents can read README, `docs/CODEX_BOOTSTRAP.md`, `.jcode/init/SWARM_ANALYSIS_REPORT.md`, `.jcode/SKILLS_PLAN.md`, and side-panel status instead of reconstructing intent from chat history.
+
+The image above captures that loop: Jcode receives work, `/init` and swarm analysis create structure, skills constrain behavior, agent runtime performs the task, LLM wiki memory preserves decisions, verification gates prove completion, and durable artifacts make the next session safer.
 
 ## Why this exists
 
