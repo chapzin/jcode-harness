@@ -52,6 +52,7 @@ pub mod plan;
 pub mod platform;
 pub mod process_memory;
 pub mod process_title;
+pub mod project_init;
 pub mod prompt;
 pub mod protocol;
 pub mod provider;

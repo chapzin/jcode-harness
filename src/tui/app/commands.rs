@@ -786,6 +786,114 @@ pub(super) fn handle_help_command(app: &mut App, trimmed: &str) -> bool {
     false
 }
 
+pub(super) fn handle_init_command(app: &mut App, trimmed: &str) -> bool {
+    if !matches!(trimmed, "/init" | "/init --force" | "/init --yes") {
+        if trimmed.starts_with("/init ") {
+            app.push_display_message(DisplayMessage::error(
+                "Usage: `/init [--force|--yes]`".to_string(),
+            ));
+            return true;
+        }
+        return false;
+    }
+
+    let force = trimmed.contains("--force");
+    let yes = trimmed.contains("--yes");
+    let root = app
+        .session
+        .working_dir
+        .as_deref()
+        .map(PathBuf::from)
+        .or_else(|| std::env::current_dir().ok())
+        .unwrap_or_else(|| PathBuf::from("."));
+
+    match crate::project_init::run_project_init(
+        &root,
+        crate::project_init::ProjectInitOptions {
+            force,
+            yes,
+            include_memory_wiki: true,
+        },
+    ) {
+        Ok(report) => {
+            let content = format_init_side_panel(&report);
+            match crate::side_panel::write_markdown_page(
+                active_session_id(app).as_str(),
+                "jcode-init",
+                Some("Jcode Init"),
+                &content,
+                true,
+            ) {
+                Ok(snapshot) => app.set_side_panel_snapshot(snapshot),
+                Err(error) => app.push_display_message(DisplayMessage::error(format!(
+                    "Initialized project, but failed to open side panel: {}",
+                    error
+                ))),
+            }
+            app.push_display_message(DisplayMessage::system(format!(
+                "Initialized jcode-harness project at {}. Wrote {} file(s), skipped {} existing file(s). Review `.jcode/INIT_QUESTIONS.md` and `.jcode/MCP_PLAN.md`.",
+                report.root.display(),
+                report.files_written.len(),
+                report.files_skipped.len()
+            )));
+            app.set_status_notice("Project initialized");
+        }
+        Err(error) => {
+            app.push_display_message(DisplayMessage::error(format!("/init failed: {}", error)));
+            app.set_status_notice("/init failed");
+        }
+    }
+    true
+}
+
+fn format_init_side_panel(report: &crate::project_init::ProjectInitReport) -> String {
+    let written = report
+        .files_written
+        .iter()
+        .map(|p| format!("- {}", p.display()))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let skipped = report
+        .files_skipped
+        .iter()
+        .map(|p| format!("- {}", p.display()))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let stack = if report.detected_stack.is_empty() {
+        "- Not detected yet".to_string()
+    } else {
+        report
+            .detected_stack
+            .iter()
+            .map(|s| format!("- {}", s))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let next = report
+        .next_steps
+        .iter()
+        .map(|s| format!("- {}", s))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    format!(
+        "# Jcode Init\n\n## Root\n\n{}\n\n## Detected stack\n\n{}\n\n## Files written\n\n{}\n\n## Files skipped\n\n{}\n\n## Next steps\n\n{}\n",
+        report.root.display(),
+        stack,
+        if written.is_empty() {
+            "- None"
+        } else {
+            &written
+        },
+        if skipped.is_empty() {
+            "- None"
+        } else {
+            &skipped
+        },
+        next,
+    )
+}
+
 fn build_btw_loading_markdown(question: &str) -> String {
     format!(
         "# `/btw`\n\n## Question\n{}\n\n## Status\nThinking…\n",

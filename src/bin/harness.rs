@@ -19,12 +19,33 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Initialize a project for the full jcode-harness experience
+    Init(InitArgs),
     /// Run the deterministic tool harness smoke test
     Smoke(SmokeArgs),
     /// Run a single goal by delegating to the jcode run path with skill routing
     Run(RunArgs),
     /// Manage embedded and local skills
     Skills(SkillsArgs),
+}
+
+#[derive(Parser)]
+struct InitArgs {
+    /// Project directory to initialize (defaults to current directory)
+    #[arg(long)]
+    cwd: Option<String>,
+    /// Overwrite existing generated files
+    #[arg(long)]
+    force: bool,
+    /// Non-interactive defaults, leave questions in .jcode/INIT_QUESTIONS.md
+    #[arg(long)]
+    yes: bool,
+    /// Skip creating .jcode/memory_wiki
+    #[arg(long)]
+    no_memory_wiki: bool,
+    /// Emit JSON report
+    #[arg(long)]
+    json: bool,
 }
 
 #[derive(Parser, Clone)]
@@ -138,10 +159,62 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     match args.command {
         None => jcode::run().await,
+        Some(Command::Init(args)) => run_init(args),
         Some(Command::Smoke(args)) => run_smoke(args).await,
         Some(Command::Run(args)) => run_goal(args).await,
         Some(Command::Skills(args)) => run_skills(args),
     }
+}
+
+fn run_init(args: InitArgs) -> Result<()> {
+    let root = args
+        .cwd
+        .as_deref()
+        .map(PathBuf::from)
+        .unwrap_or(std::env::current_dir()?);
+    let report = jcode::project_init::run_project_init(
+        &root,
+        jcode::project_init::ProjectInitOptions {
+            force: args.force,
+            yes: args.yes,
+            include_memory_wiki: !args.no_memory_wiki,
+        },
+    )?;
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        println!(
+            "Initialized jcode-harness project at {}",
+            report.root.display()
+        );
+        println!(
+            "Detected stack: {}",
+            if report.detected_stack.is_empty() {
+                "none".into()
+            } else {
+                report.detected_stack.join(", ")
+            }
+        );
+        println!("Files written: {}", report.files_written.len());
+        for path in &report.files_written {
+            println!("  wrote {}", path.display());
+        }
+        if !report.files_skipped.is_empty() {
+            println!(
+                "Files skipped: {} (use --force to overwrite)",
+                report.files_skipped.len()
+            );
+            for path in &report.files_skipped {
+                println!("  skipped {}", path.display());
+            }
+        }
+        println!("Next steps:");
+        for step in &report.next_steps {
+            println!("  - {}", step);
+        }
+    }
+    Ok(())
 }
 
 async fn run_goal(args: RunArgs) -> Result<()> {
