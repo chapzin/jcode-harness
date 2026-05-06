@@ -153,6 +153,16 @@ pub fn retry_delay_label(secs: u64) -> String {
     }
 }
 
+pub fn cache_miss_label(miss_tokens: u64) -> String {
+    if miss_tokens >= 1000 {
+        format!("{}k", miss_tokens / 1000)
+    } else if miss_tokens > 0 {
+        miss_tokens.to_string()
+    } else {
+        "kv".to_string()
+    }
+}
+
 /// Convert HSL to RGB (h in 0-360, s and l in 0-1)
 /// Chroma color based on position and time - creates flowing rainbow wave
 /// Calculate chroma color with fade-in from dim during startup
@@ -300,5 +310,14 @@ mod tests {
         assert_eq!(retry_delay_label(7), "7s");
         assert_eq!(retry_delay_label(65), "1m 5s");
         assert_eq!(retry_delay_label(3661), "1h 1m");
+    }
+
+    #[test]
+    fn cache_miss_label_formats_zero_exact_and_thousands() {
+        assert_eq!(cache_miss_label(0), "kv");
+        assert_eq!(cache_miss_label(42), "42");
+        assert_eq!(cache_miss_label(999), "999");
+        assert_eq!(cache_miss_label(1_000), "1k");
+        assert_eq!(cache_miss_label(12_345), "12k");
     }
 }

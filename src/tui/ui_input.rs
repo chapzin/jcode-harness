@@ -2,9 +2,9 @@ use super::inline_interactive_ui::format_elapsed;
 use super::tools_ui::{get_tool_summary, summarize_batch_running_tools_compact};
 use super::visual_debug::{self, FrameCaptureBuilder};
 use super::{
-    ProcessingStatus, TuiState, accent_color, ai_color, animated_tool_color, asap_color, dim_color,
-    pending_color, queued_color, rainbow_prompt_color, retry_delay_label, status_queue_suffix,
-    tool_activity_bars, user_color,
+    ProcessingStatus, TuiState, accent_color, ai_color, animated_tool_color, asap_color,
+    cache_miss_label, dim_color, pending_color, queued_color, rainbow_prompt_color,
+    retry_delay_label, status_queue_suffix, tool_activity_bars, user_color,
 };
 use crate::message::ConnectionPhase;
 use crate::tui::app;
@@ -528,13 +528,7 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
                 append_transport_context(&mut status_text, app);
                 if let Some(problem) = kv_cache_problem {
                     let miss_tokens = problem.affected_tokens.unwrap_or(0);
-                    let miss_str = if miss_tokens >= 1000 {
-                        format!("{}k", miss_tokens / 1000)
-                    } else if miss_tokens > 0 {
-                        format!("{}", miss_tokens)
-                    } else {
-                        "kv".to_string()
-                    };
+                    let miss_str = cache_miss_label(miss_tokens);
                     status_text = format!("⚠ {} cache miss · {}", miss_str, status_text);
                 }
                 let spans = streaming_status_spans(
@@ -729,13 +723,7 @@ fn running_tool_status_spans(
     ));
 
     if let Some(miss_tokens) = cache_miss_tokens {
-        let miss_str = if miss_tokens >= 1000 {
-            format!("{}k", miss_tokens / 1000)
-        } else if miss_tokens > 0 {
-            format!("{}", miss_tokens)
-        } else {
-            "kv".to_string()
-        };
+        let miss_str = cache_miss_label(miss_tokens);
         spans.push(Span::styled(
             format!(" · ⚠ {} cache miss", miss_str),
             Style::default().fg(rgb(255, 193, 7)),

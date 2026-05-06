@@ -69,3 +69,8 @@ Melhorar o CLI/TUI do Jcode em fatias verificáveis, sem tentar reescrever tudo 
 - Extrair a composição textual do status `RunningTool` para `running_tool_status_spans`, isolando barras animadas, detalhe da ferramenta, avisos experimentais, subagente, transporte, elapsed, cache miss, atalho de background e fila.
 - Adicionar um snapshot textual unitário cobrindo o estado rico de `RunningTool`, incluindo websocket, provider upstream, cache miss e fila pendente.
 - Isso valida o rendering real do status sem depender de terminal gráfico e reduz risco de regressões nas próximas mudanças de UI.
+
+## Sétima fatia implementada
+- Extrair a formatação textual de cache miss para `jcode-tui-style::theme::cache_miss_label`.
+- Reusar o helper nos status de streaming e `RunningTool`, eliminando duplicação inline no TUI.
+- Adicionar teste unitário para zero (`kv`), valores exatos e arredondamento em milhares.
