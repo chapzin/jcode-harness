@@ -16,7 +16,7 @@ Jcode is a modular Rust workspace centered on a terminal UI agent runtime. It is
 The main user path starts in the TUI/CLI binary, loads configuration and auth state, constructs sessions and tool runtimes, streams model/tool events into UI state, persists history/memory, and exposes debug/self-dev control surfaces. Desktop and mobile/design artifacts sit beside the terminal core rather than replacing it.
 
 ## Architectural Layers
-- **Application UI**: `src/`, `crates/jcode/`, `crates/jcode-desktop/` render and manage user interaction.
+- **Application UI**: root `src/` renders and manages the CLI/TUI; `crates/jcode-desktop/` provides desktop wrapper support.
 - **Agent/runtime contracts**: `crates/jcode-agent-runtime`, `jcode-*types` define portable data structures and behavior boundaries.
 - **Integrations**: auth, MCP, gateway, web/search, browser, Gmail, and telemetry-related crates/scripts.
 - **Automation and verification**: `scripts/` and `tests/` drive benchmarks, reloads, socket checks, and CI budgets.
@@ -32,7 +32,7 @@ The main user path starts in the TUI/CLI binary, loads configuration and auth st
 | Budget checks | Medium | `scripts/check_*_budget.py` | Static policy checks guard code size, panic usage, and swallowed errors. |
 
 ## Entry Points
-- `src/main.rs` and `crates/jcode/src/main.rs` for terminal execution.
+- `src/main.rs` for terminal execution and `src/bin/harness.rs` for the `jcode-harness` CLI.
 - `crates/jcode-desktop/src/main.rs` for desktop execution.
 - `telemetry-worker/src/worker.js` for telemetry ingestion.
 - `scripts/test_reload.py`, `scripts/test_swarm.py`, and related scripts for black-box validation.

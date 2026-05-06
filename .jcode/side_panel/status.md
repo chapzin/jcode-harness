@@ -2,7 +2,7 @@
 
 ## Current goal
 
-Jcode `/init` swarm analysis completed for `/home/chapzin/jcode-harness`.
+Post-init hardening completed for `/home/chapzin/jcode-harness`: onboarding/context docs corrected and validation suite passed.
 
 ## Swarm status
 
@@ -11,14 +11,17 @@ Jcode `/init` swarm analysis completed for `/home/chapzin/jcode-harness`.
 - documenter: reported, completed
 - tooling-security: reported, ready
 - Barrier: all required discovery reports received before synthesis
+- Synthesis: `.jcode/init/SWARM_ANALYSIS_REPORT.md`
 
-## Detected stack
+## Documentation updates completed
 
-- Rust 2024 workspace rooted at `Cargo.toml`
-- Root package/binaries: `jcode` (`src/main.rs`) and `jcode-harness` (`src/bin/harness.rs`)
-- Telemetry worker: `telemetry-worker/package.json` uses `npx wrangler`
+- Expanded `AGENTS.md` with repository map, validation commands, architecture boundaries, self-dev/debug guidance, and security/MCP policy.
+- Corrected stale `.context` references to TypeScript and `crates/jcode` as the main binary.
+- Updated `.context/docs/README.md`, `project-overview.md`, `architecture.md`, and `testing-strategy.md`.
 
-## Validation candidates
+## Validation passed
+
+Last run: 2026-05-06T21:14Z
 
 ```bash
 cargo fmt --check
@@ -32,22 +35,11 @@ cargo run -q -p jcode --bin jcode-harness -- skills list --json | python3 -m jso
 cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m json.tool >/dev/null
 ```
 
-For self-dev builds, prefer coordinated `selfdev build target=auto`.
+Observed warning only: deprecated `ProviderChoice::ClaudeSubprocess` in `src/cli/provider_init_tests.rs`.
 
-## Architecture risks
+## Remaining recommended work
 
-- Root crate compile fan-out and broad runtime coupling.
-- Swarm/session lifecycle persistence and concurrency.
-- Provider/auth/network surfaces and secret boundaries.
-- Embedded skills determinism and offline behavior.
-- JSON/NDJSON harness CLI compatibility.
-
-## MCP/security status
-
-- `.jcode/mcp.json` has no active MCP servers.
-- MCP remains review-first and disabled by default.
-- Do not store credentials, tokens, `.env` values, private keys, or deployment secrets in memory or docs.
-
-## Open questions
-
-See `.jcode/INIT_QUESTIONS.md`. Additional project-specific questions are listed in `.jcode/init/SWARM_ANALYSIS_REPORT.md`.
+- Decide whether to make `python3 scripts/test_ci_suites.py lib-bins` or `cargo test --lib --bins` a CI gate.
+- Add telemetry-worker test/lint scripts if telemetry deployment should be release-gated.
+- Review release/install script signature verification and Homebrew SSH host-key behavior before release hardening.
+- Keep MCP disabled until explicit credential and scope review.
