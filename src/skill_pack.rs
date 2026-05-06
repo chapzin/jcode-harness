@@ -24,6 +24,11 @@ pub const BUILTIN_SKILLS: &[BuiltinSkill] = &[
         relative_path: ".jcode/skills/clean-code-guardian/SKILL.md",
         content: include_str!("../.jcode/skills/clean-code-guardian/SKILL.md"),
     },
+    BuiltinSkill {
+        name: "llmwiki-memory",
+        relative_path: ".jcode/skills/llmwiki-memory/SKILL.md",
+        content: include_str!("../.jcode/skills/llmwiki-memory/SKILL.md"),
+    },
 ];
 
 pub fn builtin_skills() -> &'static [BuiltinSkill] {

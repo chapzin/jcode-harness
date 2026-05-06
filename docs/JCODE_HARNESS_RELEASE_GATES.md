@@ -49,7 +49,7 @@ cargo test -p jcode test_init_command --lib -- --nocapture
 
 **Acceptance criteria:**
 
-- Built-ins include `karpathy-guidelines`, `optimization`, and `clean-code-guardian`.
+- Built-ins include `karpathy-guidelines`, `optimization`, `clean-code-guardian`, and `llmwiki-memory`.
 - Source precedence remains: built-in < `.claude/skills` < `~/.jcode/skills` < project `.jcode/skills`.
 - Duplicate skill names are discoverable via `skills doctor`.
 - JSON output for skills commands remains machine-readable.
@@ -134,6 +134,7 @@ selfdev build target=auto
 ```bash
 cargo run -q -p jcode --bin jcode-harness -- skills list --json | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- skills show karpathy-guidelines --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- skills show llmwiki-memory --json | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m json.tool >/dev/null
 ```
 

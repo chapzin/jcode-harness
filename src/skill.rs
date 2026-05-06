@@ -611,7 +611,12 @@ mod tests {
         let mut registry = SkillRegistry::default();
         registry.load_builtin_skills().expect("load built-ins");
 
-        for name in ["karpathy-guidelines", "optimization", "clean-code-guardian"] {
+        for name in [
+            "karpathy-guidelines",
+            "optimization",
+            "clean-code-guardian",
+            "llmwiki-memory",
+        ] {
             let skill = registry
                 .get(name)
                 .unwrap_or_else(|| panic!("missing {name}"));

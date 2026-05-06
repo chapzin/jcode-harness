@@ -30,7 +30,7 @@ pub fn select_skills(goal: &str, explicit: &[String], mode: SkillMode) -> Vec<St
         "implement",
         "corrigir",
         "fix",
-        "pr",
+        "pull request",
         "diff",
     ];
     let perf_terms = [
@@ -50,6 +50,23 @@ pub fn select_skills(goal: &str, explicit: &[String], mode: SkillMode) -> Vec<St
         "cpu",
         "ram",
     ];
+    let memory_terms = [
+        "llmwiki",
+        "llm wiki",
+        "wiki",
+        "memória do projeto",
+        "memoria do projeto",
+        "project memory",
+        "contexto",
+        "context",
+        "decisão",
+        "decisao",
+        "decision",
+        "decisions",
+        "provenance",
+        "transcript",
+        "session history",
+    ];
 
     if mode == SkillMode::Always || coding_terms.iter().any(|term| text.contains(term)) {
         push_unique(&mut selected, "karpathy-guidelines");
@@ -57,6 +74,9 @@ pub fn select_skills(goal: &str, explicit: &[String], mode: SkillMode) -> Vec<St
     }
     if mode == SkillMode::Always || perf_terms.iter().any(|term| text.contains(term)) {
         push_unique(&mut selected, "optimization");
+    }
+    if mode == SkillMode::Always || memory_terms.iter().any(|term| text.contains(term)) {
+        push_unique(&mut selected, "llmwiki-memory");
     }
 
     selected
@@ -81,6 +101,8 @@ pub fn build_skill_preface(goal: &str, explicit: &[String], mode: SkillMode) -> 
                 out.push_str("Minimal principles: think before coding; make surgical changes; avoid speculative abstractions; state assumptions; define verifiable success criteria.\n");
             } else if name == "clean-code-guardian" {
                 out.push_str("Minimal principles: prefer readable, focused, well-tested code; avoid silent errors; improve only touched code; explain trade-offs.\n");
+            } else if name == "llmwiki-memory" {
+                out.push_str("Minimal principles: query durable wiki memory before assuming prior decisions; cite provenance; verify wiki claims against the repository; never sync secrets.\n");
             }
             out.push_str(&skill.content);
             out.push('\n');
@@ -125,6 +147,18 @@ mod tests {
     }
 
     #[test]
+    fn auto_selects_llmwiki_memory_for_wiki_context_tasks() {
+        assert_eq!(
+            names(
+                "query the llm wiki for prior project decisions",
+                &[],
+                SkillMode::Auto,
+            ),
+            vec!["llmwiki-memory"]
+        );
+    }
+
+    #[test]
     fn auto_combines_coding_and_optimization_when_both_match() {
         assert_eq!(
             names(
@@ -157,6 +191,7 @@ mod tests {
                 "karpathy-guidelines",
                 "clean-code-guardian",
                 "optimization",
+                "llmwiki-memory",
             ]
         );
     }

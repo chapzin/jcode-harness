@@ -19,7 +19,8 @@ This fork embeds:
 
 - `karpathy-guidelines`, vendored from `forrestchang/andrej-karpathy-skills`;
 - `optimization`, from this repository's existing `.jcode/skills/optimization` skill;
-- `clean-code-guardian`, an original Clean Code inspired quality policy for coding, review, refactoring, and debugging.
+- `clean-code-guardian`, an original Clean Code inspired quality policy for coding, review, refactoring, and debugging;
+- `llmwiki-memory`, an operational skill for using the local LLM wiki as durable project memory with provenance and secret-safety boundaries.
 
 The built-ins are compiled with `include_str!`, so runtime skill loading does not require internet access, Node, Claude Code, Cursor, Codex CLI, or a plugin marketplace.
 
@@ -83,6 +84,7 @@ The router is intentionally simple and deterministic:
 
 - coding, bug, test, refactor, review, implement, fix, PR, or diff tasks select `karpathy-guidelines` and `clean-code-guardian`;
 - performance, latency, memory, throughput, CPU, RAM, or efficiency tasks select `optimization`;
+- LLM wiki, project memory, prior decision, provenance, transcript, or context-history tasks select `llmwiki-memory`;
 - explicit `--skill <name>` always includes that skill;
 - `--skills off` disables automatic routing while preserving explicit `--skill` values;
 - `--skills always` includes built-in coding and optimization skills.

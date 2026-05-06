@@ -14,6 +14,7 @@ fn lock_env() -> std::sync::MutexGuard<'static, ()> {
 }
 
 #[test]
+#[allow(deprecated)]
 fn test_provider_choice_arg_values() {
     assert_eq!(ProviderChoice::Jcode.as_arg_value(), "jcode");
     assert_eq!(ProviderChoice::Claude.as_arg_value(), "claude");

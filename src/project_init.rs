@@ -267,8 +267,9 @@ fn skills_plan_md(analysis: &ProjectAnalysis) -> String {
         recommended.push("rust".into());
     }
     recommended.push("optimization".into());
+    recommended.push("llmwiki-memory".into());
     format!(
-        "# Skills Plan\n\n## Recommended initial skills\n\n{}\n\n## Notes\n\n- Built-in skills are available offline.\n- Project-local skills can override built-ins under `.jcode/skills/<name>/SKILL.md`.\n- Do not inject every full skill by default. Route skills by task.\n",
+        "# Skills Plan\n\n## Recommended initial skills\n\n{}\n\n## Notes\n\n- Built-in skills are available offline.\n- Project-local skills can override built-ins under `.jcode/skills/<name>/SKILL.md`.\n- Do not inject every full skill by default. Route skills by task.\n- Use `llmwiki-memory` for local LLM wiki, durable project memory, provenance, transcript, and prior-decision tasks.\n- Do not sync secrets, credentials, `.env` values, provider tokens, deployment secrets, or database credentials into wiki memory.\n",
         bullet_list(&recommended)
     )
 }

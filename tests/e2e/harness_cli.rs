@@ -142,7 +142,12 @@ fn harness_run_dry_run_always_includes_all_builtin_harness_skills() -> Result<()
         "dry-run should succeed. stderr: {}",
         stderr_text(&output)
     );
-    for skill in ["karpathy-guidelines", "clean-code-guardian", "optimization"] {
+    for skill in [
+        "karpathy-guidelines",
+        "clean-code-guardian",
+        "optimization",
+        "llmwiki-memory",
+    ] {
         assert!(
             stdout.contains(&format!("## Skill: {skill}")),
             "missing {skill}. stdout: {stdout}"
@@ -331,7 +336,12 @@ fn skills_list_and_sync_expose_builtin_harness_skills() -> Result<()> {
         "skills list should succeed. stderr: {}",
         stderr_text(&list_output)
     );
-    for skill in ["karpathy-guidelines", "clean-code-guardian", "optimization"] {
+    for skill in [
+        "karpathy-guidelines",
+        "clean-code-guardian",
+        "optimization",
+        "llmwiki-memory",
+    ] {
         assert!(
             list_stdout.contains(&format!("{skill}\tbuilt-in")),
             "missing built-in {skill}. stdout: {list_stdout}"
@@ -347,7 +357,12 @@ fn skills_list_and_sync_expose_builtin_harness_skills() -> Result<()> {
         "skills sync should succeed. stderr: {}",
         stderr_text(&sync_output)
     );
-    for skill in ["karpathy-guidelines", "clean-code-guardian", "optimization"] {
+    for skill in [
+        "karpathy-guidelines",
+        "clean-code-guardian",
+        "optimization",
+        "llmwiki-memory",
+    ] {
         let synced = home.join("skills").join(skill).join("SKILL.md");
         assert!(synced.exists(), "missing synced file: {}", synced.display());
         assert!(
@@ -436,6 +451,12 @@ fn skills_json_commands_are_machine_readable() -> Result<()> {
     assert!(
         skills
             .iter()
+            .any(|skill| skill["name"] == "llmwiki-memory" && skill["origin"] == "built-in"),
+        "stdout: {list_stdout}"
+    );
+    assert!(
+        skills
+            .iter()
             .any(|skill| skill["name"] == "json-shared" && skill["origin"] == "global"),
         "global skill should win over claude compat. stdout: {list_stdout}"
     );
@@ -476,7 +497,7 @@ fn skills_json_commands_are_machine_readable() -> Result<()> {
             .as_array()
             .expect("builtins array")
             .iter()
-            .any(|builtin| builtin["name"] == "clean-code-guardian" && builtin["status"] == "ok"),
+            .any(|builtin| builtin["name"] == "llmwiki-memory" && builtin["status"] == "ok"),
         "stdout: {doctor_stdout}"
     );
     assert!(

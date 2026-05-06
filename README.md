@@ -11,7 +11,7 @@
 The next generation coding agent harness to raise the skill ceiling. <br>
 Built for multi-session workflows, infinite customizability, and performance. 
 
-This fork also includes an embedded skills harness with built-in `karpathy-guidelines`, `optimization`, and `clean-code-guardian` skills, plus an offline Clean Code quality gate. See [docs/SKILLS_HARNESS.md](docs/SKILLS_HARNESS.md) and [docs/CLEAN_CODE_GUARDIAN.md](docs/CLEAN_CODE_GUARDIAN.md).
+This fork also includes an embedded skills harness with built-in `karpathy-guidelines`, `optimization`, `clean-code-guardian`, and `llmwiki-memory` skills, plus an offline Clean Code quality gate. See [docs/SKILLS_HARNESS.md](docs/SKILLS_HARNESS.md) and [docs/CLEAN_CODE_GUARDIAN.md](docs/CLEAN_CODE_GUARDIAN.md).
 
 <br>
 
