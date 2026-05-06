@@ -49,6 +49,7 @@ pub fn select_skills(goal: &str, explicit: &[String], mode: SkillMode) -> Vec<St
 
     if mode == SkillMode::Always || coding_terms.iter().any(|term| text.contains(term)) {
         push_unique(&mut selected, "karpathy-guidelines");
+        push_unique(&mut selected, "clean-code-guardian");
     }
     if mode == SkillMode::Always || perf_terms.iter().any(|term| text.contains(term)) {
         push_unique(&mut selected, "optimization");
@@ -74,6 +75,8 @@ pub fn build_skill_preface(goal: &str, explicit: &[String], mode: SkillMode) -> 
             ));
             if name == "karpathy-guidelines" {
                 out.push_str("Minimal principles: think before coding; make surgical changes; avoid speculative abstractions; state assumptions; define verifiable success criteria.\n");
+            } else if name == "clean-code-guardian" {
+                out.push_str("Minimal principles: prefer readable, focused, well-tested code; avoid silent errors; improve only touched code; explain trade-offs.\n");
             }
             out.push_str(&skill.content);
             out.push('\n');

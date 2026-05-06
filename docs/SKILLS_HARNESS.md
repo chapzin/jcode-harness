@@ -18,7 +18,8 @@ This means a project-local `.jcode/skills/<name>/SKILL.md` can override a built-
 This fork embeds:
 
 - `karpathy-guidelines`, vendored from `forrestchang/andrej-karpathy-skills`;
-- `optimization`, from this repository's existing `.jcode/skills/optimization` skill.
+- `optimization`, from this repository's existing `.jcode/skills/optimization` skill;
+- `clean-code-guardian`, an original Clean Code inspired quality policy for coding, review, refactoring, and debugging.
 
 The built-ins are compiled with `include_str!`, so runtime skill loading does not require internet access, Node, Claude Code, Cursor, Codex CLI, or a plugin marketplace.
 
@@ -35,6 +36,15 @@ jcode-harness skills list
 jcode-harness skills show karpathy-guidelines
 jcode-harness skills sync
 jcode-harness skills doctor
+```
+
+Quality gate commands:
+
+```bash
+jcode clean-code check
+jcode clean-code check src tests --fail-on warning
+jcode clean-code rules
+jcode-harness clean-code check --json
 ```
 
 `sync` copies built-in skills to `~/.jcode/skills` and does not overwrite existing files unless `--force` is used.
@@ -59,7 +69,7 @@ jcode-harness run "review this diff" --skill karpathy-guidelines --max-turns 3 -
 
 The router is intentionally simple and deterministic:
 
-- coding, bug, test, refactor, review, implement, fix, PR, or diff tasks select `karpathy-guidelines`;
+- coding, bug, test, refactor, review, implement, fix, PR, or diff tasks select `karpathy-guidelines` and `clean-code-guardian`;
 - performance, latency, memory, throughput, CPU, RAM, or efficiency tasks select `optimization`;
 - explicit `--skill <name>` always includes that skill;
 - `--skills off` disables automatic routing while preserving explicit `--skill` values;

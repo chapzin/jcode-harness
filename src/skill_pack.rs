@@ -19,6 +19,11 @@ pub const BUILTIN_SKILLS: &[BuiltinSkill] = &[
         relative_path: ".jcode/skills/optimization/SKILL.md",
         content: include_str!("../.jcode/skills/optimization/SKILL.md"),
     },
+    BuiltinSkill {
+        name: "clean-code-guardian",
+        relative_path: ".jcode/skills/clean-code-guardian/SKILL.md",
+        content: include_str!("../.jcode/skills/clean-code-guardian/SKILL.md"),
+    },
 ];
 
 pub fn builtin_skills() -> &'static [BuiltinSkill] {

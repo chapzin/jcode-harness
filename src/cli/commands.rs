@@ -889,6 +889,33 @@ pub fn run_skills_doctor_command() -> Result<()> {
     Ok(())
 }
 
+pub fn run_clean_code_check_command(
+    paths: Vec<std::path::PathBuf>,
+    emit_json: bool,
+    fail_on: crate::clean_code::Severity,
+) -> Result<()> {
+    let root = std::env::current_dir()?;
+    let report =
+        crate::clean_code::check(crate::clean_code::CleanCodeCheckOptions { root, paths })?;
+    if emit_json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        crate::clean_code::print_human_report(&report);
+    }
+    if report.has_at_least(fail_on) {
+        anyhow::bail!(
+            "Clean Code Guardian quality gate failed on {} or higher",
+            fail_on.as_str()
+        );
+    }
+    Ok(())
+}
+
+pub fn run_clean_code_rules_command() -> Result<()> {
+    print!("{}", crate::clean_code::BUILTIN_RULES_YAML);
+    Ok(())
+}
+
 #[derive(Debug)]
 struct SkillCandidate {
     name: String,

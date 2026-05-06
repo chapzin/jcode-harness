@@ -27,6 +27,9 @@ enum Command {
     Run(RunArgs),
     /// Manage embedded and local skills
     Skills(SkillsArgs),
+    /// Run Clean Code Guardian quality checks
+    #[command(name = "clean-code")]
+    CleanCode(CleanCodeArgs),
 }
 
 #[derive(Parser)]
@@ -76,6 +79,49 @@ enum SkillsCommand {
         force: bool,
     },
     Doctor,
+}
+
+#[derive(Parser)]
+struct CleanCodeArgs {
+    #[command(subcommand)]
+    command: CleanCodeCommand,
+}
+
+#[derive(Subcommand)]
+enum CleanCodeCommand {
+    /// Run the offline Clean Code Guardian quality gate
+    Check {
+        /// Project directory to use as root
+        #[arg(long)]
+        cwd: Option<String>,
+        /// Files or directories to scan, defaults to cwd
+        paths: Vec<PathBuf>,
+        /// Emit JSON report
+        #[arg(long)]
+        json: bool,
+        /// Exit non-zero when findings at this severity or higher are present
+        #[arg(long, value_enum, default_value = "error")]
+        fail_on: HarnessFailOn,
+    },
+    /// Print the built-in clean-code rule pack YAML
+    Rules,
+}
+
+#[derive(Clone, ValueEnum)]
+enum HarnessFailOn {
+    Info,
+    Warning,
+    Error,
+}
+
+impl From<HarnessFailOn> for jcode::clean_code::Severity {
+    fn from(value: HarnessFailOn) -> Self {
+        match value {
+            HarnessFailOn::Info => Self::Info,
+            HarnessFailOn::Warning => Self::Warning,
+            HarnessFailOn::Error => Self::Error,
+        }
+    }
 }
 
 #[derive(Parser)]
@@ -163,6 +209,7 @@ async fn main() -> Result<()> {
         Some(Command::Smoke(args)) => run_smoke(args).await,
         Some(Command::Run(args)) => run_goal(args).await,
         Some(Command::Skills(args)) => run_skills(args),
+        Some(Command::CleanCode(args)) => run_clean_code(args),
     }
 }
 
@@ -322,6 +369,23 @@ fn run_skills(args: SkillsArgs) -> Result<()> {
         SkillsCommand::Show { name } => jcode::cli::commands::run_skills_show_command(&name),
         SkillsCommand::Sync { force } => jcode::cli::commands::run_skills_sync_command(force),
         SkillsCommand::Doctor => jcode::cli::commands::run_skills_doctor_command(),
+    }
+}
+
+fn run_clean_code(args: CleanCodeArgs) -> Result<()> {
+    match args.command {
+        CleanCodeCommand::Rules => jcode::cli::commands::run_clean_code_rules_command(),
+        CleanCodeCommand::Check {
+            cwd,
+            paths,
+            json,
+            fail_on,
+        } => {
+            if let Some(cwd) = cwd {
+                std::env::set_current_dir(cwd)?;
+            }
+            jcode::cli::commands::run_clean_code_check_command(paths, json, fail_on.into())
+        }
     }
 }
 

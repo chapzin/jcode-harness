@@ -236,6 +236,10 @@ pub(crate) enum Command {
     #[command(subcommand)]
     Skills(SkillCommand),
 
+    /// Clean Code Guardian quality gate
+    #[command(name = "clean-code", subcommand)]
+    CleanCode(CleanCodeCommand),
+
     /// Session management commands
     #[command(subcommand)]
     Session(SessionCommand),
@@ -402,6 +406,33 @@ pub(crate) enum SkillCommand {
     },
     /// Validate skill loading and frontmatter health
     Doctor,
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum CleanCodeCommand {
+    /// Run the offline Clean Code Guardian quality gate
+    Check {
+        /// Files or directories to scan, defaults to the current working directory
+        paths: Vec<std::path::PathBuf>,
+
+        /// Emit JSON instead of a human-readable report
+        #[arg(long)]
+        json: bool,
+
+        /// Exit non-zero when findings at this severity or higher are present
+        #[arg(long, value_enum, default_value = "error")]
+        fail_on: CleanCodeFailOnArg,
+    },
+
+    /// Print the built-in clean-code rule pack YAML
+    Rules,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
+pub(crate) enum CleanCodeFailOnArg {
+    Info,
+    Warning,
+    Error,
 }
 
 #[derive(Subcommand, Debug)]

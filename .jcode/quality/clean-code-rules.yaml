@@ -1,0 +1,50 @@
+version: 1
+name: clean-code-default
+description: Original Clean Code inspired policy for jcode quality gates. This is not copied from any copyrighted book.
+severity_levels:
+  - info
+  - warning
+  - error
+rules:
+  - id: readable-names
+    title: Intention-revealing names
+    severity: warning
+    category: naming
+    check_type: llm
+    description: Names should reveal purpose and avoid unnecessary ambiguity.
+  - id: small-focused-functions
+    title: Small focused functions
+    severity: warning
+    category: functions
+    check_type: heuristic
+    thresholds:
+      max_function_lines_soft: 40
+      max_function_lines_hard: 80
+    description: Functions should remain focused and easy to review.
+  - id: manageable-file-size
+    title: Manageable file size
+    severity: warning
+    category: structure
+    check_type: heuristic
+    thresholds:
+      max_file_lines_soft: 500
+      max_file_lines_hard: 1000
+    description: Very large files should be split when the touched area naturally permits it.
+  - id: no-silent-error-swallowing
+    title: Do not silently swallow errors
+    severity: error
+    category: error-handling
+    check_type: heuristic
+    description: Error paths must be handled, propagated, logged, or intentionally documented.
+  - id: clear-tests
+    title: Behavior changes should include clear validation
+    severity: warning
+    category: tests
+    check_type: checklist
+    description: Behavior changes should include tests, checks, or a clear manual validation note.
+  - id: avoid-speculative-abstractions
+    title: Avoid speculative abstractions
+    severity: warning
+    category: design
+    check_type: checklist
+    description: Add abstractions only when they simplify the current change.

@@ -15,8 +15,10 @@
 - Built-in skills must remain usable without runtime network access, Node, Claude Code, Cursor, Codex CLI, or plugin marketplaces.
 - Preserve vendored attribution under `third_party/andrej-karpathy-skills/` and `NOTICE.md` when updating `karpathy-guidelines`.
 - Prefer `include_str!` and small registry changes over broad abstractions.
+- Keep `clean-code-guardian` as an original operational synthesis. Do not vendor copyrighted Clean Code book text, examples, chapters, PDFs, or proprietary lists.
+- Use `jcode clean-code check` or `jcode-harness clean-code check` for offline quality-gate validation when touching code.
 - Keep `jcode run`, `jcode serve`, `jcode connect`, and existing providers compatible.
-- Use `docs/SKILLS_HARNESS.md` and `docs/CODEX_BOOTSTRAP.md` as the operating docs for this fork.
+- Use `docs/SKILLS_HARNESS.md`, `docs/CLEAN_CODE_GUARDIAN.md`, and `docs/CODEX_BOOTSTRAP.md` as the operating docs for this fork.
 
 ## Logs
 - Logs are written to `~/.jcode/logs/` (daily files like `jcode-YYYY-MM-DD.log`).

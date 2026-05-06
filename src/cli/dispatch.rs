@@ -5,8 +5,9 @@ use std::process::{Command as ProcessCommand, Stdio};
 use std::time::Instant;
 
 use super::args::{
-    AmbientCommand, Args, AuthCommand, Command, MemoryCommand, MemoryWikiCommand, ModelCommand,
-    ProviderCommand, RestartCommand, SessionCommand, SkillCommand, TranscriptModeArg,
+    AmbientCommand, Args, AuthCommand, CleanCodeCommand, CleanCodeFailOnArg, Command,
+    MemoryCommand, MemoryWikiCommand, ModelCommand, ProviderCommand, RestartCommand,
+    SessionCommand, SkillCommand, TranscriptModeArg,
 };
 use crate::{
     agent, auth, build, provider, provider_catalog, server, session, setup_hints, startup_profile,
@@ -207,6 +208,18 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             SkillCommand::Sync { force } => commands::run_skills_sync_command(force)?,
             SkillCommand::Doctor => commands::run_skills_doctor_command()?,
         },
+        Some(Command::CleanCode(subcmd)) => match subcmd {
+            CleanCodeCommand::Check {
+                paths,
+                json,
+                fail_on,
+            } => commands::run_clean_code_check_command(
+                paths,
+                json,
+                map_clean_code_fail_on(fail_on),
+            )?,
+            CleanCodeCommand::Rules => commands::run_clean_code_rules_command()?,
+        },
         Some(Command::Session(subcmd)) => match subcmd {
             SessionCommand::Rename {
                 session,
@@ -393,6 +406,14 @@ fn map_ambient_subcommand(subcmd: AmbientCommand) -> commands::AmbientSubcommand
         AmbientCommand::Trigger => commands::AmbientSubcommand::Trigger,
         AmbientCommand::Stop => commands::AmbientSubcommand::Stop,
         AmbientCommand::RunVisible => commands::AmbientSubcommand::RunVisible,
+    }
+}
+
+fn map_clean_code_fail_on(value: CleanCodeFailOnArg) -> crate::clean_code::Severity {
+    match value {
+        CleanCodeFailOnArg::Info => crate::clean_code::Severity::Info,
+        CleanCodeFailOnArg::Warning => crate::clean_code::Severity::Warning,
+        CleanCodeFailOnArg::Error => crate::clean_code::Severity::Error,
     }
 }
 

@@ -18,6 +18,7 @@ pub mod bus;
 pub mod cache_tracker;
 pub mod catchup;
 pub mod channel;
+pub mod clean_code;
 pub mod cli;
 pub mod compaction;
 pub mod config;
