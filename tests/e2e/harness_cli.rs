@@ -146,6 +146,76 @@ fn harness_run_dry_run_always_includes_all_builtin_harness_skills() -> Result<()
 }
 
 #[test]
+fn harness_run_json_uses_mock_provider_without_network() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-cli-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .args([
+            "run",
+            "review this diff",
+            "--json",
+            "--mock-response",
+            "mocked harness response",
+        ])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["provider"], "harness-mock");
+    assert_eq!(report["model"], "harness-mock-model");
+    assert_eq!(report["text"], "mocked harness response");
+    assert_eq!(report["usage"]["input_tokens"], 1);
+    assert_eq!(report["usage"]["output_tokens"], 1);
+
+    Ok(())
+}
+
+#[test]
+fn harness_run_ndjson_uses_mock_provider_without_network() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-cli-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .args([
+            "run",
+            "optimize memory usage",
+            "--ndjson",
+            "--mock-response",
+            "mocked ndjson response",
+        ])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let lines: Vec<Value> = stdout
+        .lines()
+        .map(serde_json::from_str)
+        .collect::<serde_json::Result<_>>()?;
+    assert_eq!(lines.len(), 2, "stdout: {stdout}");
+    assert_eq!(lines[0]["type"], "start");
+    assert_eq!(lines[0]["provider"], "harness-mock");
+    assert_eq!(lines[0]["model"], "harness-mock-model");
+    assert_eq!(lines[1]["type"], "done");
+    assert_eq!(lines[1]["text"], "mocked ndjson response");
+    assert_eq!(lines[1]["usage"]["input_tokens"], 1);
+    assert_eq!(lines[1]["usage"]["output_tokens"], 1);
+
+    Ok(())
+}
+
+#[test]
 fn skills_doctor_reports_duplicate_names_across_origins() -> Result<()> {
     let temp = tempfile::Builder::new()
         .prefix("jcode-harness-cli-")

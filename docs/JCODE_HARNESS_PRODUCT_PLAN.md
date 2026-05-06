@@ -42,7 +42,7 @@ See `docs/SKILLS_HARNESS.md` and `docs/SKILLS_HARNESS_STATUS.md` for implemented
 ## Next planning milestones
 
 1. Define the `jcode-harness` CLI contract as a stable public interface.
-2. Design mock-provider support for provider-backed JSON/NDJSON `run` smoke tests.
-3. Expand clean-code rule fixtures and document rule severity policy.
-4. Create release-readiness checklist covering tests, docs, migration notes, and upstream divergence.
-5. Promote stable JSON schema documentation as automation contracts expand beyond skills commands.
+2. Expand clean-code rule fixtures and document rule severity policy.
+3. Create release-readiness checklist covering tests, docs, migration notes, and upstream divergence.
+4. Promote stable JSON schema documentation as automation contracts expand beyond skills commands.
+5. Add opt-in live-provider smoke tests after mock-provider JSON/NDJSON contracts are stable.

@@ -10,7 +10,7 @@ This checklist tracks the fork proposal described in `docs/SKILLS_HARNESS.md` an
 | Deterministic skill source priority | Done | `src/skill.rs` loads built-ins, `.claude/skills`, `~/.jcode/skills`, then project `.jcode/skills`; unit tests cover built-in, Claude compat, and project-local override precedence; e2e coverage verifies isolated global precedence via `JCODE_HOME`. | Keep precedence docs and tests in lockstep with any new source. |
 | Skills CLI | Done | `jcode skills list/show/sync/doctor` and `jcode-harness skills ...` are wired through `src/cli/commands.rs` and `src/bin/harness.rs`; e2e tests cover list, show, sync, doctor, duplicate reporting, JSON output, and broken-pipe consumers exit cleanly. | Keep JSON schema stable and add fields only in backward-compatible ways. |
 | Clean Code quality gate | Done | `src/clean_code.rs`, `.jcode/quality/clean-code-rules.yaml`, and `clean-code check/rules`; e2e tests cover JSON and fail-on behavior. | Expand rule-specific fixtures as the rule pack grows. |
-| `jcode-harness run` | Done | `src/bin/harness.rs` delegates to provider init, `Registry::new`, and `Agent` runtime, with JSON/NDJSON/dry-run modes; e2e dry-run tests cover skill preface selection. | Add JSON/NDJSON provider-backed smoke when a mock provider path is available. |
+| `jcode-harness run` | Done | `src/bin/harness.rs` delegates to provider init, `Registry::new`, and `Agent` runtime, with JSON/NDJSON/dry-run modes; e2e dry-run tests cover skill preface selection; `--mock-response` e2e tests cover JSON/NDJSON without network credentials. | Add live-provider smoke only as an opt-in integration test. |
 | Deterministic skill router | Done | `src/skill_router.rs` supports `auto`, `off`, `always`, explicit skills, coding terms, and perf terms, with unit and CLI dry-run coverage for proposal guarantees. | Keep trigger vocabulary conservative and test every expansion. |
 | Harness smoke | Done | `jcode-harness smoke` executes deterministic tool cases without model calls. | Add CI-friendly smoke assertion or e2e wrapper. |
 | Runtime offline assumption | Done | Runtime skill loading uses embedded strings and local paths only. | Add a test preventing accidental network/process dependency in built-in skill loading. |
@@ -36,6 +36,6 @@ Commands recently run successfully:
 
 ## Next implementation slices
 
-1. Add JSON/NDJSON `jcode-harness run` smoke once a mock provider path is available.
-2. Add CLI regression tests for broken-pipe consumers once a binary test harness can assert pipe behavior portably.
-3. Define and document release-readiness gates for the standalone `jcode-harness` product.
+1. Add CLI regression tests for broken-pipe consumers once a binary test harness can assert pipe behavior portably.
+2. Define and document release-readiness gates for the standalone `jcode-harness` product.
+3. Add opt-in live-provider integration smoke for `jcode-harness run` with strict credential isolation.

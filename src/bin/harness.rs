@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use jcode::cli::provider_init::ProviderChoice;
 use jcode::id::new_id;
-use jcode::message::{Message, ToolDefinition};
+use jcode::message::{Message, StreamEvent, ToolDefinition};
 use jcode::provider::{EventStream, Provider};
 use jcode::tool::{Registry, ToolContext, ToolExecutionMode};
 use serde_json::json;
@@ -155,6 +155,10 @@ struct RunArgs {
     ndjson: bool,
     #[arg(long)]
     dry_run: bool,
+    /// Use a deterministic local provider response instead of network/provider auth.
+    /// Intended for CI smoke tests and harness contract validation.
+    #[arg(long)]
+    mock_response: Option<String>,
 }
 
 #[derive(Clone, ValueEnum)]
@@ -175,6 +179,10 @@ impl From<HarnessSkillMode> for jcode::skill_router::SkillMode {
 }
 
 struct NoopProvider;
+
+struct MockRunProvider {
+    response: String,
+}
 
 #[async_trait::async_trait]
 impl Provider for NoopProvider {
@@ -197,6 +205,53 @@ impl Provider for NoopProvider {
     fn available_models_display(&self) -> Vec<String> {
         vec![]
     }
+    async fn prefetch_models(&self) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl Provider for MockRunProvider {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _tools: &[ToolDefinition],
+        _system: &str,
+        _resume_session_id: Option<&str>,
+    ) -> Result<EventStream> {
+        let events = vec![
+            Ok(StreamEvent::TextDelta(self.response.clone())),
+            Ok(StreamEvent::TokenUsage {
+                input_tokens: Some(1),
+                output_tokens: Some(1),
+                cache_read_input_tokens: None,
+                cache_creation_input_tokens: None,
+            }),
+            Ok(StreamEvent::MessageEnd {
+                stop_reason: Some("stop".to_string()),
+            }),
+        ];
+        Ok(Box::pin(futures::stream::iter(events)))
+    }
+
+    fn name(&self) -> &str {
+        "harness-mock"
+    }
+
+    fn model(&self) -> String {
+        "harness-mock-model".to_string()
+    }
+
+    fn fork(&self) -> Arc<dyn Provider> {
+        Arc::new(Self {
+            response: self.response.clone(),
+        })
+    }
+
+    fn available_models_display(&self) -> Vec<String> {
+        vec![self.model()]
+    }
+
     async fn prefetch_models(&self) -> Result<()> {
         Ok(())
     }
@@ -304,7 +359,9 @@ async fn run_goal(args: RunArgs) -> Result<()> {
         return Ok(());
     }
 
-    let provider = if args.json || args.ndjson {
+    let provider: Arc<dyn Provider> = if let Some(response) = args.mock_response.clone() {
+        Arc::new(MockRunProvider { response })
+    } else if args.json || args.ndjson {
         jcode::cli::provider_init::init_provider_quiet(&provider_choice, args.model.as_deref())
             .await?
     } else {
