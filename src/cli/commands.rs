@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use serde::Serialize;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Read, Write};
 use std::net::ToSocketAddrs;
 
@@ -773,6 +773,16 @@ pub fn run_skills_doctor_command() -> Result<()> {
     let mut skills = registry.list();
     skills.sort_by(|a, b| a.name.cmp(&b.name));
     println!("skills loaded: {}", skills.len());
+
+    let discovered = discover_skill_candidates()?;
+    let mut by_name: BTreeMap<String, Vec<SkillCandidate>> = BTreeMap::new();
+    for candidate in discovered {
+        by_name
+            .entry(candidate.name.clone())
+            .or_default()
+            .push(candidate);
+    }
+
     for builtin in crate::skill_pack::builtin_skills() {
         let status = if registry.get(builtin.name).is_some() {
             "ok"
@@ -784,6 +794,23 @@ pub fn run_skills_doctor_command() -> Result<()> {
             builtin.name, status, builtin.relative_path
         );
     }
+
+    let duplicates: Vec<_> = by_name
+        .iter()
+        .filter(|(_, entries)| entries.len() > 1)
+        .collect();
+    if duplicates.is_empty() {
+        println!("duplicates: none");
+    } else {
+        println!("duplicates: {} name(s)", duplicates.len());
+        for (name, entries) in duplicates {
+            println!("duplicate {}:", name);
+            for entry in entries {
+                println!("  - {} {}", entry.origin, entry.path.display());
+            }
+        }
+    }
+
     for skill in skills {
         println!(
             "{} [{}] {}",
@@ -791,6 +818,81 @@ pub fn run_skills_doctor_command() -> Result<()> {
             skill.origin.label(),
             skill.path.display()
         );
+    }
+    Ok(())
+}
+
+#[derive(Debug)]
+struct SkillCandidate {
+    name: String,
+    origin: &'static str,
+    path: std::path::PathBuf,
+}
+
+#[derive(serde::Deserialize)]
+struct SkillDoctorFrontmatter {
+    name: String,
+}
+
+fn discover_skill_candidates() -> Result<Vec<SkillCandidate>> {
+    let mut candidates = Vec::new();
+    for builtin in crate::skill_pack::builtin_skills() {
+        candidates.push(SkillCandidate {
+            name: builtin.name.to_string(),
+            origin: "built-in",
+            path: std::path::PathBuf::from(format!("<builtin>/{}", builtin.relative_path)),
+        });
+    }
+
+    let cwd = std::env::current_dir()?;
+    collect_skill_candidates_from_dir(
+        &cwd.join(".claude/skills"),
+        "claude-compat",
+        &mut candidates,
+    )?;
+    if let Ok(jcode_dir) = crate::storage::jcode_dir() {
+        collect_skill_candidates_from_dir(&jcode_dir.join("skills"), "global", &mut candidates)?;
+    }
+    collect_skill_candidates_from_dir(
+        &cwd.join(".jcode/skills"),
+        "project-local",
+        &mut candidates,
+    )?;
+
+    Ok(candidates)
+}
+
+fn collect_skill_candidates_from_dir(
+    dir: &std::path::Path,
+    origin: &'static str,
+    candidates: &mut Vec<SkillCandidate>,
+) -> Result<()> {
+    if !dir.is_dir() {
+        return Ok(());
+    }
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let skill_file = entry.path().join("SKILL.md");
+        if !skill_file.exists() {
+            continue;
+        }
+        let content = std::fs::read_to_string(&skill_file)?;
+        let yaml = content
+            .trim_start()
+            .strip_prefix("---")
+            .and_then(|rest| rest.find("---").map(|end| &rest[..end]));
+        let Some(yaml) = yaml else {
+            println!("invalid frontmatter: {}", skill_file.display());
+            continue;
+        };
+        match serde_yaml::from_str::<SkillDoctorFrontmatter>(yaml) {
+            Ok(frontmatter) => candidates.push(SkillCandidate {
+                name: frontmatter.name,
+                origin,
+                path: skill_file,
+            }),
+            Err(err) => println!("invalid frontmatter: {} ({})", skill_file.display(), err),
+        }
     }
     Ok(())
 }

@@ -39,6 +39,8 @@ jcode-harness skills doctor
 
 `sync` copies built-in skills to `~/.jcode/skills` and does not overwrite existing files unless `--force` is used.
 
+`skills doctor` reports loaded skills, built-in availability, invalid frontmatter found while scanning standard paths, duplicate names across origins, and the final effective path for each loaded skill.
+
 ## Harness run
 
 ```bash
@@ -47,7 +49,7 @@ jcode-harness run "optimize memory usage" --skills always --dry-run
 jcode-harness run "review this diff" --skill karpathy-guidelines --max-turns 3 --json
 ```
 
-`jcode-harness run` delegates to the existing `jcode run` path so providers, sessions, tools, and the agent loop stay compatible. It prepends selected skill context before delegation.
+`jcode-harness run` uses the same provider initialization, tool registry, and `Agent` runtime as `jcode run`, while remaining script-friendly. It prepends selected skill context before starting the agent loop.
 
 ## Skill router
 

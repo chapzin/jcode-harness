@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
+use jcode::cli::provider_init::ProviderChoice;
 use jcode::id::new_id;
 use jcode::message::{Message, ToolDefinition};
 use jcode::provider::{EventStream, Provider};
@@ -140,12 +141,34 @@ async fn main() -> Result<()> {
         include_network: false,
     })) {
         Command::Smoke(args) => run_smoke(args).await,
-        Command::Run(args) => run_goal(args),
+        Command::Run(args) => run_goal(args).await,
         Command::Skills(args) => run_skills(args),
     }
 }
 
-fn run_goal(args: RunArgs) -> Result<()> {
+async fn run_goal(args: RunArgs) -> Result<()> {
+    if let Some(cwd) = &args.cwd {
+        std::env::set_current_dir(cwd)?;
+    }
+    if let Some(profile_name) = args
+        .provider_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        jcode::provider_catalog::apply_named_provider_profile_env(profile_name)?;
+        jcode::env::set_var("JCODE_PROVIDER_PROFILE_NAME", profile_name);
+        jcode::env::set_var("JCODE_PROVIDER_PROFILE_ACTIVE", "1");
+    }
+
+    let provider_choice = if args.provider_profile.is_some() {
+        ProviderChoice::OpenaiCompatible
+    } else if let Some(provider) = args.provider.as_deref() {
+        ProviderChoice::from_str(provider, true)
+            .map_err(|err| anyhow::anyhow!("invalid provider '{}': {}", provider, err))?
+    } else {
+        ProviderChoice::Auto
+    };
     let message =
         jcode::cli::commands::with_auto_skill_preface(&args.goal, &args.skill, args.skills.into());
     if args.dry_run {
@@ -153,45 +176,73 @@ fn run_goal(args: RunArgs) -> Result<()> {
         return Ok(());
     }
 
-    let mut cmd = std::process::Command::new(jcode_binary_path());
-    if let Some(cwd) = args.cwd {
-        cmd.arg("--cwd").arg(cwd);
-    }
-    if let Some(provider) = args.provider {
-        cmd.arg("--provider").arg(provider);
-    }
-    if let Some(profile) = args.provider_profile {
-        cmd.arg("--provider-profile").arg(profile);
-    }
-    if let Some(model) = args.model {
-        cmd.arg("--model").arg(model);
-    }
-    if let Some(max_turns) = args.max_turns {
-        cmd.env("JCODE_RUN_AUTO_POKE_MAX_TURNS", max_turns.to_string());
-    }
-    cmd.arg("run");
-    if args.json {
-        cmd.arg("--json");
-    }
+    let provider = if args.json || args.ndjson {
+        jcode::cli::provider_init::init_provider_quiet(&provider_choice, args.model.as_deref())
+            .await?
+    } else {
+        jcode::cli::provider_init::init_provider_for_validation(
+            &provider_choice,
+            args.model.as_deref(),
+        )
+        .await?
+    };
+    let registry = Registry::new(provider.clone()).await;
+    let mut agent = jcode::agent::Agent::new(provider.clone(), registry);
+
     if args.ndjson {
-        cmd.arg("--ndjson");
+        println!(
+            "{}",
+            serde_json::to_string(&json!({
+                "type": "start",
+                "session_id": agent.session_id(),
+                "provider": provider.name(),
+                "model": provider.model(),
+            }))?
+        );
     }
-    cmd.arg(message);
-    let status = cmd.status()?;
-    if !status.success() {
-        anyhow::bail!("jcode run exited with status {}", status);
+
+    let max_turns = args.max_turns.unwrap_or(1).max(1);
+    let mut text = String::new();
+    for turn in 0..max_turns {
+        let prompt = if turn == 0 {
+            message.as_str()
+        } else {
+            "Continue if needed, otherwise summarize completion."
+        };
+        if args.json || args.ndjson {
+            let output = agent.run_once_capture(prompt).await?;
+            if !text.is_empty() {
+                text.push_str("\n\n");
+            }
+            text.push_str(&output);
+        } else {
+            agent.run_once(prompt).await?;
+        }
+    }
+
+    if args.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "session_id": agent.session_id(),
+                "provider": provider.name(),
+                "model": provider.model(),
+                "text": text,
+                "usage": agent.last_usage(),
+            }))?
+        );
+    } else if args.ndjson {
+        println!(
+            "{}",
+            serde_json::to_string(&json!({
+                "type": "done",
+                "session_id": agent.session_id(),
+                "text": text,
+                "usage": agent.last_usage(),
+            }))?
+        );
     }
     Ok(())
-}
-
-fn jcode_binary_path() -> PathBuf {
-    std::env::current_exe()
-        .ok()
-        .and_then(|path| {
-            path.parent()
-                .map(|parent| parent.join(format!("jcode{}", std::env::consts::EXE_SUFFIX)))
-        })
-        .unwrap_or_else(|| PathBuf::from("jcode"))
 }
 
 fn run_skills(args: SkillsArgs) -> Result<()> {
