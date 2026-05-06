@@ -514,6 +514,52 @@ fn skills_json_commands_are_machine_readable() -> Result<()> {
 }
 
 #[test]
+fn skills_match_json_reports_task_and_repo_scoped_selection() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-cli-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+    write_skill(
+        &cwd,
+        ".jcode",
+        "clean-code-guardian",
+        "Project-specific clean code policy",
+    )?;
+    write_skill(&cwd, ".jcode", "repo-skill", "Repo scoped helper")?;
+
+    let output = harness_command(&home, &cwd)
+        .args([
+            "skills",
+            "match",
+            "fix this Rust bug and review the diff",
+            "--skill",
+            "repo-skill",
+            "--json",
+        ])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    let selected = report["selected"].as_array().expect("selected array");
+    assert_eq!(selected[0]["name"], "repo-skill");
+    assert_eq!(selected[0]["origin"], "project-local");
+    assert!(
+        selected
+            .iter()
+            .any(|skill| skill["name"] == "clean-code-guardian"
+                && skill["origin"] == "project-local"
+                && skill["description"] == "Project-specific clean code policy"),
+        "stdout: {stdout}"
+    );
+
+    Ok(())
+}
+
+#[test]
 fn clean_code_check_json_reports_findings_without_failing_below_threshold() -> Result<()> {
     let temp = tempfile::Builder::new()
         .prefix("jcode-clean-code-cli-")

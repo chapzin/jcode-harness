@@ -43,6 +43,8 @@ jcode-harness skills show karpathy-guidelines --json
 jcode-harness skills sync
 jcode-harness skills doctor
 jcode-harness skills doctor --json
+jcode-harness skills match "fix this Rust bug" --json
+jcode-harness skills match "review this diff" --skill repo-reviewer --cwd /path/to/repo
 ```
 
 Quality gate commands:
@@ -59,6 +61,8 @@ jcode-harness clean-code check --json
 `skills doctor` reports loaded skills, built-in availability, invalid frontmatter found while scanning standard paths, duplicate names across origins, and the final effective path for each loaded skill.
 
 `skills list --json`, `skills show <name> --json`, and `skills doctor --json` provide stable machine-readable output for automation. JSON entries include skill `name`, `description`, `origin`, `path`, and `allowed_tools`; `show` also includes `content`; `doctor` includes `skills_loaded`, `builtins`, `duplicates`, and final effective `skills`. See `docs/JCODE_HARNESS_JSON_SCHEMAS.md` for the stable schema contract.
+
+`skills match <goal>` previews task-scoped skill routing without invoking a provider. It uses the same deterministic router as `jcode-harness run`, includes explicit `--skill <name>` values first, and resolves effective skill metadata with the same source priority described above. Use `--cwd <repo>` to inspect repo-local `.jcode/skills` overrides from automation that is not already running inside the repository. This is the offline bridge for repo and task-level skill scoping.
 
 ## Harness run
 

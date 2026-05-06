@@ -1,0 +1,44 @@
+{
+  "id": "gate-2026-05-06-7b6af3",
+  "ts": "2026-05-06T22:38:08.746Z",
+  "contractId": "2026-05-06-embedded-skills-scoping-improvement-87c1a0",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/skill*.rs",
+      "exists": false
+    },
+    {
+      "path": "src/bin/harness.rs",
+      "exists": true
+    },
+    {
+      "path": "docs/SKILLS_HARNESS*.md",
+      "exists": false
+    },
+    {
+      "path": "tests/",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Implementada melhoria offline de task/repo skill scoping via skills match",
+    "Teste e2e cobre skill explícita, seleção automática e override project-local",
+    "Docs e schema JSON atualizados",
+    "Validações direcionadas, smoke JSON e selfdev build passaram"
+  ],
+  "uncheckedConditions": [
+    "Implementar melhoria relacionada a escopo/seleção de skills sem rede obrigatória",
+    "Adicionar ou ajustar testes cobrindo o comportamento",
+    "Atualizar documentação/status relevante",
+    "Executar validações direcionadas e selfdev build",
+    "Commitar apenas as mudanças desta rodada"
+  ],
+  "evidence": [
+    "trace-2026-05-06-fa63625f",
+    "tests/e2e/harness_cli.rs::skills_match_json_reports_task_and_repo_scoped_selection",
+    "docs/SKILLS_HARNESS.md",
+    "docs/JCODE_HARNESS_JSON_SCHEMAS.md"
+  ],
+  "notes": "Reload selfdev falhou por erro ambiental conhecido, build passou."
+}

@@ -87,6 +87,22 @@ enum SkillsCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Preview task-scoped skill selection for a goal without invoking a model
+    Match {
+        goal: String,
+        /// Project directory for resolving repo-local skills
+        #[arg(long)]
+        cwd: Option<String>,
+        /// Automatic skill routing mode
+        #[arg(long, default_value = "auto")]
+        skills: HarnessSkillMode,
+        /// Explicit task-level skill to include before automatic matches
+        #[arg(long = "skill")]
+        skill: Vec<String>,
+        /// Emit JSON report
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Parser)]
@@ -438,7 +454,77 @@ fn run_skills(args: SkillsArgs) -> Result<()> {
         }
         SkillsCommand::Sync { force } => jcode::cli::commands::run_skills_sync_command(force),
         SkillsCommand::Doctor { json } => jcode::cli::commands::run_skills_doctor_command(json),
+        SkillsCommand::Match {
+            goal,
+            cwd,
+            skills,
+            skill,
+            json,
+        } => run_skills_match(&goal, cwd, skills.into(), &skill, json),
     }
+}
+
+fn run_skills_match(
+    goal: &str,
+    cwd: Option<String>,
+    mode: jcode::skill_router::SkillMode,
+    explicit: &[String],
+    json_output: bool,
+) -> Result<()> {
+    let working_dir = cwd.map(PathBuf::from);
+    let registry = jcode::skill::SkillRegistry::load_for_working_dir(working_dir.as_deref())?;
+    let selected = jcode::skill_router::select_skills(goal, explicit, mode);
+
+    if json_output {
+        let entries = selected
+            .iter()
+            .map(|name| {
+                if let Some(skill) = registry.get(name) {
+                    json!({
+                        "name": skill.name,
+                        "description": skill.description,
+                        "origin": skill.origin.label(),
+                        "path": skill.path.display().to_string(),
+                        "allowed_tools": skill.allowed_tools,
+                    })
+                } else {
+                    json!({
+                        "name": name,
+                        "missing": true,
+                    })
+                }
+            })
+            .collect::<Vec<_>>();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "goal": goal,
+                "mode": format!("{:?}", mode).to_ascii_lowercase(),
+                "selected": entries,
+            }))?
+        );
+        return Ok(());
+    }
+
+    if selected.is_empty() {
+        println!("No skills selected for this task.");
+        return Ok(());
+    }
+
+    println!("Selected skills for task:");
+    for name in selected {
+        if let Some(skill) = registry.get(&name) {
+            println!(
+                "- {}\t{}\t{}",
+                skill.name,
+                skill.origin.label(),
+                skill.description
+            );
+        } else {
+            println!("- {name}\tmissing");
+        }
+    }
+    Ok(())
 }
 
 fn run_clean_code(args: CleanCodeArgs) -> Result<()> {

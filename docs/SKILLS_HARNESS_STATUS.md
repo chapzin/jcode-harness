@@ -13,6 +13,7 @@ This checklist tracks the fork proposal described in `docs/SKILLS_HARNESS.md` an
 | `jcode-harness run` | Done | `src/bin/harness.rs` delegates to provider init, `Registry::new`, and `Agent` runtime, with JSON/NDJSON/dry-run modes; e2e dry-run tests cover skill preface selection; `--mock-response` e2e tests cover JSON/NDJSON without network credentials. | Add live-provider smoke only as an opt-in integration test. |
 | `/init` swarm bootstrap | Done | `/init` writes deterministic scaffold files, queues an LLM-driven swarm analysis prompt by default, requires parallel discovery roles, and blocks synthesis on an await/report barrier; tests cover default swarm queueing, `--no-swarm`, invalid usage, and generated swarm analysis files. | Add end-to-end live TUI/provider smoke when UI automation can verify full swarm completion. |
 | Deterministic skill router | Done | `src/skill_router.rs` supports `auto`, `off`, `always`, explicit skills, coding terms, perf terms, and LLM wiki/project-memory terms, with unit and CLI dry-run coverage for proposal guarantees. | Keep trigger vocabulary conservative and test every expansion. |
+| Repo/task skill scoping preview | Done | `jcode-harness skills match <goal>` previews selected skills without provider calls, preserves explicit task-level skills first, resolves repo-local overrides via `--cwd`, and emits JSON for automation. | Extend only with backward-compatible fields and keep router order deterministic. |
 | Harness smoke | Done | `jcode-harness smoke` executes deterministic tool cases without model calls. | Add CI-friendly smoke assertion or e2e wrapper. |
 | LLM wiki memory integration | Partial | `llmwiki-memory` is an embedded skill that documents safe local LLM wiki MCP usage for durable project memory, provenance, transcript sync, and secret boundaries; router auto-selects it for wiki/context-history tasks. | Add deeper CLI/MCP integration only after permission and credential-boundary review. |
 | Documentation and discoverability | Partial | README, `docs/SKILLS_HARNESS.md`, `docs/CODEX_BOOTSTRAP.md`, `docs/JCODE_HARNESS_PRODUCT_PLAN.md`, `docs/JCODE_HARNESS_RELEASE_GATES.md`, `docs/JCODE_HARNESS_JSON_SCHEMAS.md`, `docs/JCODE_HARNESS_INIT_SWARM.md`, and `.jcode/SKILLS_PLAN.md`. | Keep this status checklist updated after each implementation slice. |
@@ -34,6 +35,7 @@ Commands recently run successfully:
 - `cargo test --test e2e harness_cli -- --nocapture`
 - `cargo run -q -p jcode --bin jcode-harness -- skills show llmwiki-memory --json | python3 -m json.tool >/dev/null`
 - `cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m json.tool >/dev/null`
+- `cargo run -q -p jcode --bin jcode-harness -- skills match "fix this Rust bug" --json | python3 -m json.tool >/dev/null`
 
 ## Next implementation slices
 

@@ -1,0 +1,48 @@
+{
+  "id": "2026-05-06-embedded-skills-scoping-improvement-87c1a0",
+  "title": "Embedded skills scoping improvement",
+  "goal": "Improve the embedded skills harness based on public issue research, focusing on task/repo-level skill scoping or deterministic skill discovery with tests and docs.",
+  "createdAt": "2026-05-06T22:32:31.223Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 60,
+    "maxToolCalls": 30
+  },
+  "permissions": [
+    "read repository",
+    "write source/docs/tests",
+    "run cargo checks/tests",
+    "selfdev build",
+    "git commit"
+  ],
+  "completionConditions": [
+    "Implementar melhoria relacionada a escopo/seleção de skills sem rede obrigatória",
+    "Adicionar ou ajustar testes cobrindo o comportamento",
+    "Atualizar documentação/status relevante",
+    "Executar validações direcionadas e selfdev build",
+    "Commitar apenas as mudanças desta rodada"
+  ],
+  "outputPaths": [
+    "src/bin/harness.rs",
+    "tests/e2e/harness_cli.rs",
+    "docs/SKILLS_HARNESS.md",
+    "docs/JCODE_HARNESS_JSON_SCHEMAS.md",
+    "docs/SKILLS_HARNESS_STATUS.md"
+  ],
+  "verificationCommands": [
+    "cargo test -p jcode skill_router --lib",
+    "cargo test -p jcode skill::tests --lib",
+    "cargo test --test e2e harness_cli -- --nocapture",
+    "cargo check -p jcode",
+    "selfdev build target=auto"
+  ],
+  "failureTaxonomy": [
+    "Quebra de compatibilidade JSON existente",
+    "Seleção automática de skill agressiva demais",
+    "Falha em testes existentes de skill/harness",
+    "Mudanças fora do escopo permitido"
+  ],
+  "notes": "Pesquisa externa identificou issue #141 Add repo and task-level skill scoping como alinhada ao branch feature/embedded-skills-harness."
+}

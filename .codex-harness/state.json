@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "CLI quality security UX optimization",
+  "focus": "Embedded skills scoping improvement",
   "status": "done",
-  "activeContractId": "2026-05-06-cli-quality-security-ux-optimization-50bbc2",
+  "activeContractId": "2026-05-06-embedded-skills-scoping-improvement-87c1a0",
   "counters": {
-    "contracts": 1,
-    "traces": 1,
-    "gates": 1,
-    "verifications": 1,
+    "contracts": 2,
+    "traces": 2,
+    "gates": 2,
+    "verifications": 2,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -57,6 +57,27 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-06-cli-quality-security-ux-optimization-50bbc2",
       "gateId": "gate-2026-05-06-5c9d00",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-06T22:32:31.224Z",
+      "type": "contract_created",
+      "contractId": "2026-05-06-embedded-skills-scoping-improvement-87c1a0",
+      "summary": "Embedded skills scoping improvement"
+    },
+    {
+      "ts": "2026-05-06T22:37:58.750Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-06-fa63625f",
+      "contractId": "2026-05-06-embedded-skills-scoping-improvement-87c1a0",
+      "status": "pass",
+      "summary": "Validações direcionadas, smoke JSON e selfdev build passaram."
+    },
+    {
+      "ts": "2026-05-06T22:38:08.746Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-06-embedded-skills-scoping-improvement-87c1a0",
+      "gateId": "gate-2026-05-06-7b6af3",
       "verdict": "pass"
     }
   ]

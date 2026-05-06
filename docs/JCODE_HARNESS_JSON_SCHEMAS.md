@@ -4,7 +4,7 @@ This document records the stable machine-readable contracts exposed by `jcode-ha
 
 ## Shared skill entry
 
-Used by `skills list --json`, `skills show <name> --json`, and `skills doctor --json`.
+Used by `skills list --json`, `skills show <name> --json`, `skills doctor --json`, and resolved entries in `skills match <goal> --json`.
 
 ```json
 {
@@ -122,6 +122,46 @@ Guarantees:
 - `builtins` reports required embedded skill availability with `status` `ok` or `missing`.
 - `duplicates` reports discovered duplicate names across standard origins before precedence resolution.
 - `skills` is the same effective-entry shape as `skills list --json`.
+
+## `skills match <goal> --json`
+
+Command:
+
+```bash
+jcode-harness skills match "fix this Rust bug" --skill repo-reviewer --json
+```
+
+Shape:
+
+```json
+{
+  "goal": "fix this Rust bug",
+  "mode": "auto",
+  "selected": [
+    {
+      "name": "repo-reviewer",
+      "description": "Repo review policy",
+      "origin": "project-local",
+      "path": "/repo/.jcode/skills/repo-reviewer/SKILL.md",
+      "allowed_tools": null
+    },
+    {
+      "name": "karpathy-guidelines",
+      "description": "Skill description",
+      "origin": "built-in",
+      "path": "<builtin>/.jcode/skills/karpathy-guidelines/SKILL.md",
+      "allowed_tools": null
+    }
+  ]
+}
+```
+
+Guarantees:
+
+- `selected` preserves router order: explicit `--skill` values first, followed by automatic matches.
+- Resolved entries use the shared skill entry shape after source precedence resolution.
+- Missing explicit skills are reported as `{ "name": "...", "missing": true }` instead of failing, so automation can decide whether to block.
+- `--cwd` changes repo-local skill resolution without requiring a provider call.
 
 ## `run --json`
 
