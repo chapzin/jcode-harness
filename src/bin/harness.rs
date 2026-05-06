@@ -202,6 +202,8 @@ struct ToolCase {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    jcode::cli::terminal::install_panic_hook();
+
     let args = Args::parse();
     match args.command {
         None => jcode::run().await,

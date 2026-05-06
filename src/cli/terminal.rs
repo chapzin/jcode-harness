@@ -21,6 +21,10 @@ pub fn get_current_session() -> Option<String> {
 pub fn install_panic_hook() {
     let default_hook = panic::take_hook();
     panic::set_hook(Box::new(move |info| {
+        if is_stdout_broken_pipe_panic(info) {
+            std::process::exit(0);
+        }
+
         default_hook(info);
 
         if let Some(session_id) = get_current_session() {
@@ -36,6 +40,11 @@ pub fn install_panic_hook() {
             }
         }
     }));
+}
+
+fn is_stdout_broken_pipe_panic(info: &panic::PanicHookInfo<'_>) -> bool {
+    let message = info.to_string();
+    message.contains("failed printing to stdout") && message.contains("Broken pipe")
 }
 
 pub fn mark_current_session_crashed(message: String) {

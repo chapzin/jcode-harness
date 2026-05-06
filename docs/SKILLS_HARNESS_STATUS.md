@@ -8,7 +8,7 @@ This checklist tracks the fork proposal described in `docs/SKILLS_HARNESS.md` an
 | --- | --- | --- | --- |
 | Offline built-in skills | Done | `src/skill_pack.rs` embeds `karpathy-guidelines`, `optimization`, and `clean-code-guardian` with `include_str!`. | Add regression tests that assert all built-ins parse and are routable. |
 | Deterministic skill source priority | Done | `src/skill.rs` loads built-ins, `.claude/skills`, `~/.jcode/skills`, then project `.jcode/skills`. | Add tests for built-in override precedence and duplicate reporting. |
-| Skills CLI | Done | `jcode skills list/show/sync/doctor` and `jcode-harness skills ...` are wired through `src/cli/commands.rs` and `src/bin/harness.rs`. | Improve script UX for long output and broken-pipe consumers. |
+| Skills CLI | Done | `jcode skills list/show/sync/doctor` and `jcode-harness skills ...` are wired through `src/cli/commands.rs` and `src/bin/harness.rs`; broken-pipe consumers exit cleanly. | Add CLI regression tests for list/show/sync/doctor. |
 | Clean Code quality gate | Done | `src/clean_code.rs`, `.jcode/quality/clean-code-rules.yaml`, and `clean-code check/rules`. | Add focused CLI/integration tests for JSON and fail-on severity behavior. |
 | `jcode-harness run` | Done | `src/bin/harness.rs` delegates to provider init, `Registry::new`, and `Agent` runtime, with JSON/NDJSON/dry-run modes. | Add dry-run regression tests for skill preface selection. |
 | Deterministic skill router | Done | `src/skill_router.rs` supports `auto`, `off`, `always`, explicit skills, coding terms, and perf terms, with unit coverage for proposal guarantees. | Add CLI dry-run regression tests around the router integration. |
@@ -27,10 +27,12 @@ Commands recently run successfully:
 - `cargo run -q -p jcode --bin jcode-harness -- skills list`
 - `cargo run -q -p jcode --bin jcode-harness -- smoke`
 - `cargo test -p jcode skill_router --lib`
+- `cargo run -q -p jcode --bin jcode-harness -- skills doctor \| head -5`
+- `cargo run -q -p jcode --bin jcode -- skills list \| head -3`
 
 ## Next implementation slices
 
-1. Improve harness/script UX by handling long command output consumers, especially broken pipe behavior observed with `skills doctor | head`.
-2. Add dry-run tests for `jcode-harness run --skills auto/off/always --skill ...`.
-3. Add Clean Code CLI regression coverage for JSON and `--fail-on` thresholds.
-4. Add built-in skill parsing and override precedence regression tests.
+1. Add dry-run tests for `jcode-harness run --skills auto/off/always --skill ...`.
+2. Add Clean Code CLI regression coverage for JSON and `--fail-on` thresholds.
+3. Add built-in skill parsing and override precedence regression tests.
+4. Add CLI regression tests for broken-pipe consumers once a binary test harness is available.
