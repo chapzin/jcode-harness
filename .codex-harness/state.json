@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Inicialização do harness e contexto concluída",
-  "status": "done",
-  "activeContractId": "",
+  "focus": "CLI quality security UX optimization",
+  "status": "executing",
+  "activeContractId": "2026-05-06-cli-quality-security-ux-optimization-50bbc2",
   "counters": {
-    "contracts": 0,
-    "traces": 0,
+    "contracts": 1,
+    "traces": 1,
     "gates": 0,
-    "verifications": 0,
+    "verifications": 1,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -37,6 +37,20 @@
       "status": "done",
       "focus": "Inicialização do harness e contexto concluída",
       "activeContractId": ""
+    },
+    {
+      "ts": "2026-05-06T19:10:45.661Z",
+      "type": "contract_created",
+      "contractId": "2026-05-06-cli-quality-security-ux-optimization-50bbc2",
+      "summary": "CLI quality security UX optimization"
+    },
+    {
+      "ts": "2026-05-06T19:15:02.032Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-06-51f08970",
+      "contractId": "2026-05-06-cli-quality-security-ux-optimization-50bbc2",
+      "status": "pass",
+      "summary": "Testes do crate de estilo, check do CLI e build selfdev passaram."
     }
   ]
 }

@@ -54,9 +54,23 @@ pub fn header_session_color() -> Color {
 // Spinner frames for animated status
 const SPINNER_FRAMES: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const STATIC_ACTIVITY_INDICATOR: &str = "•";
+const TOOL_ACTIVITY_WIDTH: usize = 5;
+
+fn safe_animation_fps(fps: f32) -> f32 {
+    if fps.is_finite() && fps > 0.0 {
+        fps.min(120.0)
+    } else {
+        1.0
+    }
+}
 
 pub fn spinner_frame_index(elapsed: f32, fps: f32) -> usize {
-    ((elapsed * fps) as usize) % SPINNER_FRAMES.len()
+    let elapsed = if elapsed.is_finite() {
+        elapsed.max(0.0)
+    } else {
+        0.0
+    };
+    ((elapsed * safe_animation_fps(fps)) as usize) % SPINNER_FRAMES.len()
 }
 
 pub fn spinner_frame(elapsed: f32, fps: f32) -> &'static str {
@@ -85,6 +99,40 @@ pub fn activity_indicator(
     } else {
         STATIC_ACTIVITY_INDICATOR
     }
+}
+
+pub fn tool_activity_bars(elapsed: f32, enable_decorative_animations: bool) -> (String, String) {
+    if !enable_decorative_animations {
+        let idle = "·".repeat(TOOL_ACTIVITY_WIDTH);
+        return (idle.clone(), idle);
+    }
+
+    let elapsed = if elapsed.is_finite() {
+        elapsed.max(0.0)
+    } else {
+        0.0
+    };
+    let head = ((elapsed * 8.0) as usize) % TOOL_ACTIVITY_WIDTH;
+
+    let build = |mirror: bool| -> String {
+        (0..TOOL_ACTIVITY_WIDTH)
+            .map(|i| {
+                let i = if mirror {
+                    TOOL_ACTIVITY_WIDTH - 1 - i
+                } else {
+                    i
+                };
+                let dist = (TOOL_ACTIVITY_WIDTH + i - head) % TOOL_ACTIVITY_WIDTH;
+                match dist {
+                    0 => '●',
+                    1 | 4 => '◆',
+                    _ => '·',
+                }
+            })
+            .collect()
+    };
+
+    (build(false), build(true))
 }
 
 /// Convert HSL to RGB (h in 0-360, s and l in 0-1)
@@ -187,4 +235,39 @@ pub fn animated_tool_color(elapsed: f32, enable_decorative_animations: bool) -> 
     let b = (220.0 + t * 35.0) as u8; // 220 -> 255
 
     rgb(r, g, b)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn spinner_frame_index_tolerates_invalid_timing_inputs() {
+        assert_eq!(spinner_frame_index(f32::NAN, 12.5), 0);
+        assert_eq!(spinner_frame_index(1.0, f32::NAN), 1);
+        assert_eq!(spinner_frame_index(-10.0, 12.5), 0);
+        assert!(spinner_frame_index(10_000.0, 10_000.0) < SPINNER_FRAMES.len());
+    }
+
+    #[test]
+    fn activity_indicator_respects_reduced_motion() {
+        assert_eq!(
+            activity_indicator(10.0, 12.5, false),
+            STATIC_ACTIVITY_INDICATOR
+        );
+        assert_eq!(activity_indicator_frame_index(10.0, 12.5, false), 0);
+    }
+
+    #[test]
+    fn tool_activity_bars_are_stable_and_symmetric() {
+        let (left, right) = tool_activity_bars(0.0, true);
+        assert_eq!(left.chars().count(), TOOL_ACTIVITY_WIDTH);
+        assert_eq!(right.chars().count(), TOOL_ACTIVITY_WIDTH);
+        assert!(left.contains('●'));
+        assert_eq!(right, left.chars().rev().collect::<String>());
+
+        let (reduced_left, reduced_right) = tool_activity_bars(0.0, false);
+        assert_eq!(reduced_left, "·".repeat(TOOL_ACTIVITY_WIDTH));
+        assert_eq!(reduced_right, reduced_left);
+    }
 }

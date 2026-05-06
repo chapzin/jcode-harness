@@ -3,7 +3,7 @@ use super::tools_ui::{get_tool_summary, summarize_batch_running_tools_compact};
 use super::visual_debug::{self, FrameCaptureBuilder};
 use super::{
     ProcessingStatus, TuiState, accent_color, ai_color, animated_tool_color, asap_color, dim_color,
-    pending_color, queued_color, rainbow_prompt_color, user_color,
+    pending_color, queued_color, rainbow_prompt_color, tool_activity_bars, user_color,
 };
 use crate::message::ConnectionPhase;
 use crate::tui::app;
@@ -557,27 +557,10 @@ pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pen
                 Line::from(spans)
             }
             ProcessingStatus::RunningTool(ref name) => {
-                let half_width = 3;
-                let (left_bar, right_bar) =
-                    if crate::perf::tui_policy().enable_decorative_animations {
-                        let progress = elapsed * 2.0 % 1.0;
-                        let filled_pos = ((progress * half_width as f32) as usize) % half_width;
-                        let left_bar: String = (0..half_width)
-                            .map(|i| if i == filled_pos { '●' } else { '·' })
-                            .collect();
-                        let right_bar: String = (0..half_width)
-                            .map(|i| {
-                                if i == (half_width - 1 - filled_pos) {
-                                    '●'
-                                } else {
-                                    '·'
-                                }
-                            })
-                            .collect();
-                        (left_bar, right_bar)
-                    } else {
-                        ("···".to_string(), "···".to_string())
-                    };
+                let (left_bar, right_bar) = tool_activity_bars(
+                    elapsed,
+                    crate::perf::tui_policy().enable_decorative_animations,
+                );
 
                 let anim_color = animated_tool_color(elapsed);
                 let batch_prog = app.batch_progress();

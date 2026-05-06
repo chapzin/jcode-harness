@@ -1,0 +1,39 @@
+{
+  "id": "2026-05-06-cli-quality-security-ux-optimization-50bbc2",
+  "title": "CLI quality security UX optimization",
+  "goal": "Iniciar uma rodada ampla de melhorias no Jcode CLI/TUI cobrindo testes, segurança, performance e interface de forma incremental e verificável.",
+  "createdAt": "2026-05-06T19:10:45.660Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 10,
+    "maxMinutes": 90,
+    "maxToolCalls": 60
+  },
+  "permissions": [
+    "Editar código e docs do repositório",
+    "Executar builds/testes locais",
+    "Commitar mudanças"
+  ],
+  "completionConditions": [
+    "Plano incremental registrado",
+    "Pelo menos uma melhoria concreta implementada no CLI/TUI ou segurança/testes",
+    "Verificações relevantes executadas",
+    "Mudanças commitadas"
+  ],
+  "outputPaths": [
+    ".context/plans/cli-quality-security-ux.md"
+  ],
+  "verificationCommands": [
+    "cargo check -p jcode",
+    "focused tests as applicable",
+    "git status --short --branch after commit"
+  ],
+  "failureTaxonomy": [
+    "Escopo excessivo sem recorte",
+    "Build/testes falham",
+    "Alteração visual regressiva",
+    "Mudança insegura em permissões"
+  ],
+  "notes": "Escopo do usuário é muito amplo, então executar a primeira fatia segura e estabelecer base para continuidade."
+}
