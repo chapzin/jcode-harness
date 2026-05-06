@@ -10,6 +10,14 @@
 - **Bump version for releases** - Update version in `Cargo.toml` when making releases. When cutting a new release, look at all the changes that happened since the last release and determine what the version bump should be ie patch or minor, etc. 
 - **Remote builds available** - Use `scripts/remote_build.sh` to offload heavy cargo work to another machine. If your build is terminated, likely is because there are not enough resources on this machine to build. use remote build in that case. Try checking the resource avaliablity on the machine before you run a build. 
 
+## Embedded Skills Harness Fork
+
+- Built-in skills must remain usable without runtime network access, Node, Claude Code, Cursor, Codex CLI, or plugin marketplaces.
+- Preserve vendored attribution under `third_party/andrej-karpathy-skills/` and `NOTICE.md` when updating `karpathy-guidelines`.
+- Prefer `include_str!` and small registry changes over broad abstractions.
+- Keep `jcode run`, `jcode serve`, `jcode connect`, and existing providers compatible.
+- Use `docs/SKILLS_HARNESS.md` and `docs/CODEX_BOOTSTRAP.md` as the operating docs for this fork.
+
 ## Logs
 - Logs are written to `~/.jcode/logs/` (daily files like `jcode-YYYY-MM-DD.log`).
 
@@ -24,4 +32,3 @@
 - `~/.jcode/builds/canary/jcode` still exists for canary/testing flows, but it is not the primary self-dev install path.
 - On Windows, the equivalents are `%LOCALAPPDATA%\\jcode\\bin\\jcode.exe` for the launcher, `%LOCALAPPDATA%\\jcode\\builds\\stable\\jcode.exe` for stable, and `%LOCALAPPDATA%\\jcode\\builds\\versions\\<version>\\jcode.exe` for immutable installs; `scripts/install.ps1` currently installs the stable channel.
 - Ensure `~/.local/bin` is **before** `~/.cargo/bin` in `PATH`.
-

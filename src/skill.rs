@@ -16,7 +16,29 @@ pub struct Skill {
     pub allowed_tools: Option<Vec<String>>,
     pub content: String,
     pub path: PathBuf,
+    pub origin: SkillOrigin,
     search_text: String,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum SkillOrigin {
+    Builtin,
+    Global,
+    ProjectLocal,
+    ClaudeCompat,
+    Unknown,
+}
+
+impl SkillOrigin {
+    pub fn label(self) -> &'static str {
+        match self {
+            SkillOrigin::Builtin => "built-in",
+            SkillOrigin::Global => "global",
+            SkillOrigin::ProjectLocal => "project-local",
+            SkillOrigin::ClaudeCompat => "claude-compat",
+            SkillOrigin::Unknown => "unknown",
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -211,11 +233,20 @@ impl SkillRegistry {
 
         let mut registry = Self::default();
 
+        registry.load_builtin_skills()?;
+
+        // Compatibility: ./.claude/skills/ can override built-ins, but is lower
+        // priority than jcode global and project-local skills.
+        let local_claude = Self::project_local_dir(working_dir, ".claude");
+        if local_claude.exists() {
+            registry.load_from_dir_with_origin(&local_claude, SkillOrigin::ClaudeCompat)?;
+        }
+
         // Load from ~/.jcode/skills/ (jcode's own global skills)
         if let Ok(jcode_dir) = crate::storage::jcode_dir() {
             let jcode_skills = jcode_dir.join("skills");
             if jcode_skills.exists() {
-                registry.load_from_dir(&jcode_skills)?;
+                registry.load_from_dir_with_origin(&jcode_skills, SkillOrigin::Global)?;
             }
         }
 
@@ -233,20 +264,13 @@ impl SkillRegistry {
         // Load from ./.jcode/skills/ (project-local jcode skills)
         let local_jcode = Self::project_local_dir(working_dir, ".jcode");
         if local_jcode.exists() {
-            self.load_from_dir(&local_jcode)?;
-        }
-
-        // Fallback: ./.claude/skills/ (project-local Claude skills for compatibility)
-        let local_claude = Self::project_local_dir(working_dir, ".claude");
-        if local_claude.exists() {
-            self.load_from_dir(&local_claude)?;
+            self.load_from_dir_with_origin(&local_jcode, SkillOrigin::ProjectLocal)?;
         }
 
         Ok(())
     }
 
-    /// Load skills from a directory
-    fn load_from_dir(&mut self, dir: &Path) -> Result<()> {
+    fn load_from_dir_with_origin(&mut self, dir: &Path, origin: SkillOrigin) -> Result<()> {
         if !dir.is_dir() {
             return Ok(());
         }
@@ -258,7 +282,7 @@ impl SkillRegistry {
             if path.is_dir() {
                 let skill_file = path.join("SKILL.md");
                 if skill_file.exists()
-                    && let Ok(skill) = Self::parse_skill(&skill_file)
+                    && let Ok(skill) = Self::parse_skill_with_origin(&skill_file, origin)
                 {
                     self.skills.insert(skill.name.clone(), skill);
                 }
@@ -270,10 +294,17 @@ impl SkillRegistry {
 
     /// Parse a SKILL.md file
     fn parse_skill(path: &Path) -> Result<Skill> {
-        let content = std::fs::read_to_string(path)?;
+        Self::parse_skill_with_origin(path, SkillOrigin::Unknown)
+    }
 
+    fn parse_skill_with_origin(path: &Path, origin: SkillOrigin) -> Result<Skill> {
+        let content = std::fs::read_to_string(path)?;
+        Self::parse_skill_content(&content, path.to_path_buf(), origin)
+    }
+
+    fn parse_skill_content(content: &str, path: PathBuf, origin: SkillOrigin) -> Result<Skill> {
         // Parse YAML frontmatter
-        let (frontmatter, body) = Self::parse_frontmatter(&content)?;
+        let (frontmatter, body) = Self::parse_frontmatter(content)?;
 
         let SkillFrontmatter {
             name,
@@ -290,9 +321,21 @@ impl SkillRegistry {
             description,
             allowed_tools,
             content: body,
-            path: path.to_path_buf(),
+            path,
+            origin,
             search_text,
         })
+    }
+
+    fn load_builtin_skills(&mut self) -> Result<usize> {
+        let mut count = 0;
+        for builtin in crate::skill_pack::builtin_skills() {
+            let path = PathBuf::from(format!("<builtin>/{}", builtin.relative_path));
+            let skill = Self::parse_skill_content(builtin.content, path, SkillOrigin::Builtin)?;
+            self.skills.insert(skill.name.clone(), skill);
+            count += 1;
+        }
+        Ok(count)
     }
 
     /// Parse YAML frontmatter from markdown
@@ -358,31 +401,38 @@ impl SkillRegistry {
 
         let mut count = 0;
 
+        count += self.load_builtin_skills()?;
+
+        let local_claude = Self::project_local_dir(working_dir, ".claude");
+        if local_claude.exists() {
+            count +=
+                self.load_from_dir_count_with_origin(&local_claude, SkillOrigin::ClaudeCompat)?;
+        }
+
         // Load from ~/.jcode/skills/ (jcode's own global skills)
         if let Ok(jcode_dir) = crate::storage::jcode_dir() {
             let jcode_skills = jcode_dir.join("skills");
             if jcode_skills.exists() {
-                count += self.load_from_dir_count(&jcode_skills)?;
+                count +=
+                    self.load_from_dir_count_with_origin(&jcode_skills, SkillOrigin::Global)?;
             }
         }
 
         // Load from ./.jcode/skills/ (project-local jcode skills)
         let local_jcode = Self::project_local_dir(working_dir, ".jcode");
         if local_jcode.exists() {
-            count += self.load_from_dir_count(&local_jcode)?;
-        }
-
-        // Fallback: ./.claude/skills/ (project-local Claude skills for compatibility)
-        let local_claude = Self::project_local_dir(working_dir, ".claude");
-        if local_claude.exists() {
-            count += self.load_from_dir_count(&local_claude)?;
+            count +=
+                self.load_from_dir_count_with_origin(&local_jcode, SkillOrigin::ProjectLocal)?;
         }
 
         Ok(count)
     }
 
-    /// Load skills from a directory and return count
-    fn load_from_dir_count(&mut self, dir: &Path) -> Result<usize> {
+    fn load_from_dir_count_with_origin(
+        &mut self,
+        dir: &Path,
+        origin: SkillOrigin,
+    ) -> Result<usize> {
         if !dir.is_dir() {
             return Ok(0);
         }
@@ -395,7 +445,7 @@ impl SkillRegistry {
             if path.is_dir() {
                 let skill_file = path.join("SKILL.md");
                 if skill_file.exists()
-                    && let Ok(skill) = Self::parse_skill(&skill_file)
+                    && let Ok(skill) = Self::parse_skill_with_origin(&skill_file, origin)
                 {
                     self.skills.insert(skill.name.clone(), skill);
                     count += 1;
@@ -494,6 +544,7 @@ mod tests {
             allowed_tools: None,
             content: content.to_string(),
             path: PathBuf::from(format!("/tmp/{name}/SKILL.md")),
+            origin: SkillOrigin::Unknown,
             search_text: build_skill_search_text(name, description, content),
         }
     }
@@ -540,6 +591,32 @@ mod tests {
             .expect("working-dir local skill should load");
         assert_eq!(skill.description, "Test skill wd-only");
         assert!(skill.path.starts_with(temp.path()));
+        assert_eq!(skill.origin, SkillOrigin::ProjectLocal);
+    }
+
+    #[test]
+    fn load_for_working_dir_includes_builtin_karpathy_in_empty_tempdir() {
+        let temp = tempfile::tempdir().expect("tempdir");
+
+        let registry = SkillRegistry::load_for_working_dir(Some(temp.path())).expect("load skills");
+        let skill = registry
+            .get("karpathy-guidelines")
+            .expect("built-in karpathy skill should load");
+
+        assert_eq!(skill.origin, SkillOrigin::Builtin);
+        assert!(skill.content.contains("Think Before Coding"));
+    }
+
+    #[test]
+    fn project_local_skill_overrides_builtin_by_name() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        write_test_skill(temp.path(), ".jcode", "karpathy-guidelines");
+
+        let registry = SkillRegistry::load_for_working_dir(Some(temp.path())).expect("load skills");
+        let skill = registry.get("karpathy-guidelines").expect("skill");
+
+        assert_eq!(skill.origin, SkillOrigin::ProjectLocal);
+        assert_eq!(skill.description, "Test skill karpathy-guidelines");
     }
 
     #[test]

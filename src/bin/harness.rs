@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::Parser;
+use clap::{Parser, Subcommand, ValueEnum};
 use jcode::id::new_id;
 use jcode::message::{Message, ToolDefinition};
 use jcode::provider::{EventStream, Provider};
@@ -10,8 +10,24 @@ use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "jcode-harness")]
-#[command(about = "Run a deterministic tool harness smoke test")]
+#[command(about = "Standalone jcode harness utilities")]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Run the deterministic tool harness smoke test
+    Smoke(SmokeArgs),
+    /// Run a single goal by delegating to the jcode run path with skill routing
+    Run(RunArgs),
+    /// Manage embedded and local skills
+    Skills(SkillsArgs),
+}
+
+#[derive(Parser, Clone)]
+struct SmokeArgs {
     /// Use an explicit working directory (defaults to a temp folder).
     #[arg(long)]
     cwd: Option<String>,
@@ -19,6 +35,67 @@ struct Args {
     /// Include network-backed tools (webfetch/websearch/codesearch).
     #[arg(long)]
     include_network: bool,
+}
+
+#[derive(Parser)]
+struct SkillsArgs {
+    #[command(subcommand)]
+    command: SkillsCommand,
+}
+
+#[derive(Subcommand)]
+enum SkillsCommand {
+    List,
+    Show {
+        name: String,
+    },
+    Sync {
+        #[arg(long)]
+        force: bool,
+    },
+    Doctor,
+}
+
+#[derive(Parser)]
+struct RunArgs {
+    goal: String,
+    #[arg(long)]
+    cwd: Option<String>,
+    #[arg(long)]
+    provider: Option<String>,
+    #[arg(long)]
+    provider_profile: Option<String>,
+    #[arg(long)]
+    model: Option<String>,
+    #[arg(long, default_value = "auto")]
+    skills: HarnessSkillMode,
+    #[arg(long = "skill")]
+    skill: Vec<String>,
+    #[arg(long)]
+    max_turns: Option<usize>,
+    #[arg(long, conflicts_with = "ndjson")]
+    json: bool,
+    #[arg(long, conflicts_with = "json")]
+    ndjson: bool,
+    #[arg(long)]
+    dry_run: bool,
+}
+
+#[derive(Clone, ValueEnum)]
+enum HarnessSkillMode {
+    Auto,
+    Off,
+    Always,
+}
+
+impl From<HarnessSkillMode> for jcode::skill_router::SkillMode {
+    fn from(value: HarnessSkillMode) -> Self {
+        match value {
+            HarnessSkillMode::Auto => Self::Auto,
+            HarnessSkillMode::Off => Self::Off,
+            HarnessSkillMode::Always => Self::Always,
+        }
+    }
 }
 
 struct NoopProvider;
@@ -38,15 +115,12 @@ impl Provider for NoopProvider {
     fn name(&self) -> &str {
         "noop"
     }
-
     fn fork(&self) -> Arc<dyn Provider> {
         Arc::new(NoopProvider)
     }
-
     fn available_models_display(&self) -> Vec<String> {
         vec![]
     }
-
     async fn prefetch_models(&self) -> Result<()> {
         Ok(())
     }
@@ -61,7 +135,75 @@ struct ToolCase {
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
+    match args.command.unwrap_or(Command::Smoke(SmokeArgs {
+        cwd: None,
+        include_network: false,
+    })) {
+        Command::Smoke(args) => run_smoke(args).await,
+        Command::Run(args) => run_goal(args),
+        Command::Skills(args) => run_skills(args),
+    }
+}
 
+fn run_goal(args: RunArgs) -> Result<()> {
+    let message =
+        jcode::cli::commands::with_auto_skill_preface(&args.goal, &args.skill, args.skills.into());
+    if args.dry_run {
+        println!("{}", message);
+        return Ok(());
+    }
+
+    let mut cmd = std::process::Command::new(jcode_binary_path());
+    if let Some(cwd) = args.cwd {
+        cmd.arg("--cwd").arg(cwd);
+    }
+    if let Some(provider) = args.provider {
+        cmd.arg("--provider").arg(provider);
+    }
+    if let Some(profile) = args.provider_profile {
+        cmd.arg("--provider-profile").arg(profile);
+    }
+    if let Some(model) = args.model {
+        cmd.arg("--model").arg(model);
+    }
+    if let Some(max_turns) = args.max_turns {
+        cmd.env("JCODE_RUN_AUTO_POKE_MAX_TURNS", max_turns.to_string());
+    }
+    cmd.arg("run");
+    if args.json {
+        cmd.arg("--json");
+    }
+    if args.ndjson {
+        cmd.arg("--ndjson");
+    }
+    cmd.arg(message);
+    let status = cmd.status()?;
+    if !status.success() {
+        anyhow::bail!("jcode run exited with status {}", status);
+    }
+    Ok(())
+}
+
+fn jcode_binary_path() -> PathBuf {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| {
+            path.parent()
+                .map(|parent| parent.join(format!("jcode{}", std::env::consts::EXE_SUFFIX)))
+        })
+        .unwrap_or_else(|| PathBuf::from("jcode"))
+}
+
+fn run_skills(args: SkillsArgs) -> Result<()> {
+    match args.command {
+        SkillsCommand::List => jcode::cli::commands::run_skills_list_command(),
+        SkillsCommand::Show { name } => jcode::cli::commands::run_skills_show_command(&name),
+        SkillsCommand::Sync { force } => jcode::cli::commands::run_skills_sync_command(force),
+        SkillsCommand::Doctor => jcode::cli::commands::run_skills_doctor_command(),
+    }
+}
+
+async fn run_smoke(args: SmokeArgs) -> Result<()> {
     let workspace = if let Some(cwd) = args.cwd {
         PathBuf::from(cwd)
     } else {
@@ -86,88 +228,78 @@ async fn main() -> Result<()> {
         execution_mode: ToolExecutionMode::Direct,
     };
 
-    let mut cases = Vec::new();
-    cases.push(ToolCase {
-        name: "write",
-        label: "write sample.txt",
-        input: json!({"file_path": "sample.txt", "content": "alpha\nbeta\n"}),
-    });
-    cases.push(ToolCase {
-        name: "read",
-        label: "read sample.txt",
-        input: json!({"file_path": "sample.txt"}),
-    });
-    cases.push(ToolCase {
-        name: "edit",
-        label: "edit sample.txt (alpha -> alpha1)",
-        input: json!({"file_path": "sample.txt", "old_string": "alpha", "new_string": "alpha1"}),
-    });
-    cases.push(ToolCase {
-        name: "multiedit",
-        label: "multiedit sample.txt",
-        input: json!({
-            "file_path": "sample.txt",
-            "edits": [
-                {"old_string": "alpha1", "new_string": "alpha2"},
-                {"old_string": "beta", "new_string": "beta1"}
-            ]
-        }),
-    });
-    cases.push(ToolCase {
-        name: "patch",
-        label: "patch sample.txt",
-        input: json!({"patch_text": "--- a/sample.txt\n+++ b/sample.txt\n@@ -1,2 +1,3 @@\n alpha2\n beta1\n+gamma\n"}),
-    });
-    cases.push(ToolCase {
-        name: "apply_patch",
-        label: "apply_patch add file",
-        input: json!({"patch_text": "*** Begin Patch\n*** Add File: added.txt\n+added\n*** End Patch\n"}),
-    });
-    cases.push(ToolCase {
-        name: "ls",
-        label: "ls .",
-        input: json!({"path": "."}),
-    });
-    cases.push(ToolCase {
-        name: "glob",
-        label: "glob *.txt",
-        input: json!({"pattern": "*.txt"}),
-    });
-    cases.push(ToolCase {
-        name: "grep",
-        label: "grep gamma",
-        input: json!({"pattern": "gamma", "path": "."}),
-    });
-    cases.push(ToolCase {
-        name: "bash",
-        label: "bash pwd",
-        input: json!({"command": "pwd"}),
-    });
-    cases.push(ToolCase {
-        name: "invalid",
-        label: "invalid tool call",
-        input: json!({"tool": "unknown", "error": "missing required field"}),
-    });
-    cases.push(ToolCase {
-        name: "todo",
-        label: "todo write",
-        input: json!({"todos": [{"content": "harness task", "status": "pending", "priority": "low", "id": "1"}]}),
-    });
-    cases.push(ToolCase {
-        name: "todo",
-        label: "todo read",
-        input: json!({}),
-    });
-    cases.push(ToolCase {
-        name: "batch",
-        label: "batch ls + read",
-        input: json!({
-            "tool_calls": [
-                {"tool": "ls", "parameters": {"path": "."}},
-                {"tool": "read", "parameters": {"file_path": "sample.txt"}}
-            ]
-        }),
-    });
+    let mut cases = vec![
+        ToolCase {
+            name: "write",
+            label: "write sample.txt",
+            input: json!({"file_path": "sample.txt", "content": "alpha\nbeta\n"}),
+        },
+        ToolCase {
+            name: "read",
+            label: "read sample.txt",
+            input: json!({"file_path": "sample.txt"}),
+        },
+        ToolCase {
+            name: "edit",
+            label: "edit sample.txt (alpha -> alpha1)",
+            input: json!({"file_path": "sample.txt", "old_string": "alpha", "new_string": "alpha1"}),
+        },
+        ToolCase {
+            name: "multiedit",
+            label: "multiedit sample.txt",
+            input: json!({"file_path": "sample.txt", "edits": [{"old_string": "alpha1", "new_string": "alpha2"}, {"old_string": "beta", "new_string": "beta1"}]}),
+        },
+        ToolCase {
+            name: "patch",
+            label: "patch sample.txt",
+            input: json!({"patch_text": "--- a/sample.txt\n+++ b/sample.txt\n@@ -1,2 +1,3 @@\n alpha2\n beta1\n+gamma\n"}),
+        },
+        ToolCase {
+            name: "apply_patch",
+            label: "apply_patch add file",
+            input: json!({"patch_text": "*** Begin Patch\n*** Add File: added.txt\n+added\n*** End Patch\n"}),
+        },
+        ToolCase {
+            name: "ls",
+            label: "ls .",
+            input: json!({"path": "."}),
+        },
+        ToolCase {
+            name: "glob",
+            label: "glob *.txt",
+            input: json!({"pattern": "*.txt"}),
+        },
+        ToolCase {
+            name: "grep",
+            label: "grep gamma",
+            input: json!({"pattern": "gamma", "path": "."}),
+        },
+        ToolCase {
+            name: "bash",
+            label: "bash pwd",
+            input: json!({"command": "pwd"}),
+        },
+        ToolCase {
+            name: "invalid",
+            label: "invalid tool call",
+            input: json!({"tool": "unknown", "error": "missing required field"}),
+        },
+        ToolCase {
+            name: "todo",
+            label: "todo write",
+            input: json!({"todos": [{"content": "harness task", "status": "pending", "priority": "low", "id": "1"}]}),
+        },
+        ToolCase {
+            name: "todo",
+            label: "todo read",
+            input: json!({}),
+        },
+        ToolCase {
+            name: "batch",
+            label: "batch ls + read",
+            input: json!({"tool_calls": [{"tool": "ls", "parameters": {"path": "."}}, {"tool": "read", "parameters": {"file_path": "sample.txt"}}]}),
+        },
+    ];
 
     if args.include_network {
         cases.push(ToolCase {
@@ -200,9 +332,7 @@ async fn main() -> Result<()> {
                 }
                 println!("{}", output.output);
             }
-            Err(err) => {
-                println!("[error] {}", err);
-            }
+            Err(err) => println!("[error] {}", err),
         }
     }
 

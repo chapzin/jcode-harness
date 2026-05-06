@@ -137,6 +137,7 @@ impl SkillTool {
         for skill in skills {
             output.push_str(&format!("## /{}\n", skill.name));
             output.push_str(&format!("  {}\n", skill.description));
+            output.push_str(&format!("  Origin: {}\n", skill.origin.label()));
             output.push_str(&format!("  Path: {}\n", skill.path.display()));
             if let Some(ref tools) = skill.allowed_tools {
                 output.push_str(&format!("  Tools: {}\n", tools.join(", ")));
@@ -195,7 +196,12 @@ impl SkillTool {
                 let mut output = format!("Reloaded {} skills\n\n", count);
 
                 for skill in skills {
-                    output.push_str(&format!("- /{}: {}\n", skill.name, skill.description));
+                    output.push_str(&format!(
+                        "- /{} [{}]: {}\n",
+                        skill.name,
+                        skill.origin.label(),
+                        skill.description
+                    ));
                 }
 
                 Ok(ToolOutput::new(output).with_title(format!("Skills: Reloaded {}", count)))
@@ -219,6 +225,7 @@ impl SkillTool {
         if let Some(skill) = registry.get(&name) {
             let mut output = format!("# Skill: {}\n\n", skill.name);
             output.push_str(&format!("**Description:** {}\n", skill.description));
+            output.push_str(&format!("**Origin:** {}\n", skill.origin.label()));
             output.push_str(&format!("**Path:** {}\n", skill.path.display()));
             if let Some(ref tools) = skill.allowed_tools {
                 output.push_str(&format!("**Allowed tools:** {}\n", tools.join(", ")));

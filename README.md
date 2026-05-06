@@ -11,6 +11,8 @@
 The next generation coding agent harness to raise the skill ceiling. <br>
 Built for multi-session workflows, infinite customizability, and performance. 
 
+This fork also includes an embedded skills harness with built-in `karpathy-guidelines` and `optimization` skills. See [docs/SKILLS_HARNESS.md](docs/SKILLS_HARNESS.md).
+
 <br>
 
 <a href="https://github.com/1jehuang/jcode/releases/download/readme-assets/jcode-memory-demo.mp4">

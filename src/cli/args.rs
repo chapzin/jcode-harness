@@ -232,6 +232,10 @@ pub(crate) enum Command {
     #[command(subcommand)]
     Memory(MemoryCommand),
 
+    /// Skill management commands
+    #[command(subcommand)]
+    Skills(SkillCommand),
+
     /// Session management commands
     #[command(subcommand)]
     Session(SessionCommand),
@@ -382,6 +386,22 @@ pub(crate) enum Command {
         #[command(subcommand)]
         action: RestartCommand,
     },
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum SkillCommand {
+    /// List loaded skills and their origins
+    List,
+    /// Show a loaded skill by name
+    Show { name: String },
+    /// Copy built-in skills to ~/.jcode/skills
+    Sync {
+        /// Overwrite existing files in ~/.jcode/skills
+        #[arg(long)]
+        force: bool,
+    },
+    /// Validate skill loading and frontmatter health
+    Doctor,
 }
 
 #[derive(Subcommand, Debug)]

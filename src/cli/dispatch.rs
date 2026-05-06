@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use super::args::{
     AmbientCommand, Args, AuthCommand, Command, MemoryCommand, ModelCommand, ProviderCommand,
-    RestartCommand, SessionCommand, TranscriptModeArg,
+    RestartCommand, SessionCommand, SkillCommand, TranscriptModeArg,
 };
 use crate::{
     agent, auth, build, provider, provider_catalog, server, session, setup_hints, startup_profile,
@@ -201,6 +201,12 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
         Some(Command::Memory(subcmd)) => {
             commands::run_memory_command(map_memory_subcommand(subcmd))?;
         }
+        Some(Command::Skills(subcmd)) => match subcmd {
+            SkillCommand::List => commands::run_skills_list_command()?,
+            SkillCommand::Show { name } => commands::run_skills_show_command(&name)?,
+            SkillCommand::Sync { force } => commands::run_skills_sync_command(force)?,
+            SkillCommand::Doctor => commands::run_skills_doctor_command()?,
+        },
         Some(Command::Session(subcmd)) => match subcmd {
             SessionCommand::Rename {
                 session,

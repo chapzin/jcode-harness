@@ -722,6 +722,79 @@ pub async fn run_usage_command(emit_json: bool) -> Result<()> {
     report_info::run_usage_command(emit_json).await
 }
 
+pub fn run_skills_list_command() -> Result<()> {
+    let registry = crate::skill::SkillRegistry::load()?;
+    let mut skills = registry.list();
+    skills.sort_by(|a, b| a.name.cmp(&b.name));
+    for skill in skills {
+        println!(
+            "{}\t{}\t{}\t{}",
+            skill.name,
+            skill.origin.label(),
+            skill.path.display(),
+            skill.description
+        );
+    }
+    Ok(())
+}
+
+pub fn run_skills_show_command(name: &str) -> Result<()> {
+    let registry = crate::skill::SkillRegistry::load()?;
+    let skill = registry
+        .get(name)
+        .ok_or_else(|| anyhow::anyhow!("Skill '{}' not found", name))?;
+    println!("---");
+    println!("name: {}", skill.name);
+    println!("description: {}", skill.description);
+    println!("origin: {}", skill.origin.label());
+    println!("path: {}", skill.path.display());
+    if let Some(tools) = &skill.allowed_tools {
+        println!("allowed-tools: {}", tools.join(", "));
+    }
+    println!("---\n");
+    println!("{}", skill.content);
+    Ok(())
+}
+
+pub fn run_skills_sync_command(force: bool) -> Result<()> {
+    let written = crate::skill_pack::sync_builtin_skills(force)?;
+    if written.is_empty() {
+        println!("No built-in skills copied. Use --force to overwrite existing global skills.");
+    } else {
+        for path in written {
+            println!("wrote {}", path.display());
+        }
+    }
+    Ok(())
+}
+
+pub fn run_skills_doctor_command() -> Result<()> {
+    let registry = crate::skill::SkillRegistry::load()?;
+    let mut skills = registry.list();
+    skills.sort_by(|a, b| a.name.cmp(&b.name));
+    println!("skills loaded: {}", skills.len());
+    for builtin in crate::skill_pack::builtin_skills() {
+        let status = if registry.get(builtin.name).is_some() {
+            "ok"
+        } else {
+            "missing"
+        };
+        println!(
+            "built-in {}: {} ({})",
+            builtin.name, status, builtin.relative_path
+        );
+    }
+    for skill in skills {
+        println!(
+            "{} [{}] {}",
+            skill.name,
+            skill.origin.label(),
+            skill.path.display()
+        );
+    }
+    Ok(())
+}
+
 pub async fn run_single_message_command(
     choice: &super::provider_init::ProviderChoice,
     model: Option<&str>,
@@ -738,9 +811,10 @@ pub async fn run_single_message_command(
     let registry = crate::tool::Registry::new(provider.clone()).await;
     let mut agent = crate::agent::Agent::new(provider.clone(), registry);
     restore_agent_session_if_requested(&mut agent, resume_session)?;
+    let message = with_auto_skill_preface(message, &[], crate::skill_router::SkillMode::Auto);
 
     if emit_json {
-        let text = run_single_message_command_capture_with_auto_poke(&mut agent, message).await?;
+        let text = run_single_message_command_capture_with_auto_poke(&mut agent, &message).await?;
         let report = RunCommandReport {
             session_id: agent.session_id().to_string(),
             provider: provider.name().to_string(),
@@ -750,12 +824,23 @@ pub async fn run_single_message_command(
         };
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else if emit_ndjson {
-        run_single_message_command_ndjson(&mut agent, provider.clone(), message).await?;
+        run_single_message_command_ndjson(&mut agent, provider.clone(), &message).await?;
     } else {
-        run_single_message_command_plain_with_auto_poke(&mut agent, message).await?;
+        run_single_message_command_plain_with_auto_poke(&mut agent, &message).await?;
     }
 
     Ok(())
+}
+
+pub fn with_auto_skill_preface(
+    message: &str,
+    explicit_skills: &[String],
+    mode: crate::skill_router::SkillMode,
+) -> String {
+    match crate::skill_router::build_skill_preface(message, explicit_skills, mode) {
+        Some(preface) => format!("{preface}\n---\n\nTask:\n{message}"),
+        None => message.to_string(),
+    }
 }
 
 fn run_command_auto_poke_enabled() -> bool {
