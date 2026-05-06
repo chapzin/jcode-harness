@@ -10,6 +10,7 @@ This document defines the minimum gates for calling this fork a releasable stand
 
 - `docs/JCODE_HARNESS_PRODUCT_PLAN.md` describes product thesis, principles, and next milestones.
 - `docs/SKILLS_HARNESS.md` documents public harness commands and examples.
+- `docs/JCODE_HARNESS_JSON_SCHEMAS.md` documents stable automation-facing JSON contracts.
 - `docs/SKILLS_HARNESS_STATUS.md` lists implemented pillars, remaining work, and validation snapshot.
 
 **Checks:**
@@ -17,6 +18,7 @@ This document defines the minimum gates for calling this fork a releasable stand
 ```bash
 test -s docs/JCODE_HARNESS_PRODUCT_PLAN.md
 test -s docs/SKILLS_HARNESS.md
+test -s docs/JCODE_HARNESS_JSON_SCHEMAS.md
 test -s docs/SKILLS_HARNESS_STATUS.md
 ```
 

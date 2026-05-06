@@ -57,7 +57,7 @@ jcode-harness clean-code check --json
 
 `skills doctor` reports loaded skills, built-in availability, invalid frontmatter found while scanning standard paths, duplicate names across origins, and the final effective path for each loaded skill.
 
-`skills list --json`, `skills show <name> --json`, and `skills doctor --json` provide stable machine-readable output for automation. JSON entries include skill `name`, `description`, `origin`, `path`, and `allowed_tools`; `show` also includes `content`; `doctor` includes `skills_loaded`, `builtins`, `duplicates`, and final effective `skills`.
+`skills list --json`, `skills show <name> --json`, and `skills doctor --json` provide stable machine-readable output for automation. JSON entries include skill `name`, `description`, `origin`, `path`, and `allowed_tools`; `show` also includes `content`; `doctor` includes `skills_loaded`, `builtins`, `duplicates`, and final effective `skills`. See `docs/JCODE_HARNESS_JSON_SCHEMAS.md` for the stable schema contract.
 
 ## Harness run
 

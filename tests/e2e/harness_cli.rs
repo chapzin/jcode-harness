@@ -1,5 +1,6 @@
 use crate::test_support::*;
 use serde_json::Value;
+use std::process::Stdio;
 
 fn harness_command(home: &std::path::Path, cwd: &std::path::Path) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_jcode-harness"));
@@ -17,6 +18,12 @@ fn stdout_text(output: &std::process::Output) -> String {
 
 fn stderr_text(output: &std::process::Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+fn harness_command_with_piped_stdout(home: &std::path::Path, cwd: &std::path::Path) -> Command {
+    let mut cmd = harness_command(home, cwd);
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    cmd
 }
 
 fn write_skill(root: &std::path::Path, scope: &str, name: &str, description: &str) -> Result<()> {
@@ -362,6 +369,36 @@ fn skills_list_and_sync_expose_builtin_harness_skills() -> Result<()> {
     assert!(
         second_stdout.contains("No built-in skills copied"),
         "second sync should not overwrite by default. stdout: {second_stdout}"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn skills_doctor_exits_cleanly_when_stdout_pipe_closes() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-cli-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let mut child = harness_command_with_piped_stdout(&home, &cwd)
+        .args(["skills", "doctor"])
+        .spawn()?;
+    drop(child.stdout.take());
+
+    let output = child.wait_with_output()?;
+    let stderr = stderr_text(&output);
+    assert!(
+        output.status.success(),
+        "broken stdout pipe should exit cleanly. status: {:?} stderr: {stderr}",
+        output.status.code()
+    );
+    assert!(
+        !stderr.contains("panicked") && !stderr.contains("Broken pipe"),
+        "broken pipe should not print panic output. stderr: {stderr}"
     );
 
     Ok(())
