@@ -126,8 +126,27 @@ jcode
 ```bash
 jcode-harness
 jcode-harness smoke
+jcode-harness safe-eval
+jcode-harness safe-eval --json
 jcode-harness init --yes
 ```
+
+### Safe first run
+
+For a cautious first evaluation, create an isolated profile before importing
+credentials or enabling high-impact integrations:
+
+```bash
+jcode-harness safe-eval
+source .jcode/safe-eval/safe-eval.env
+jcode-harness run "say hello" --json --mock-response "safe eval ok"
+```
+
+The generated profile uses an isolated `JCODE_HOME`, disables telemetry,
+ambient/proactive work, swarm auto-coordination, persistent semantic memory,
+autoreview, autojudge, gateway exposure, and external credential auto-trust. It
+also writes `.jcode/safe-eval/README.md` with a trust checklist and PowerShell
+activation file.
 
 ### Skills
 
@@ -196,9 +215,8 @@ curl -fsSL https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/insta
 For this fork or local development, build from source:
 
 ```bash
-git clone https://github.com/1jehuang/jcode.git
-cd jcode
-git checkout feature/embedded-skills-harness
+git clone https://github.com/chapzin/jcode-harness.git
+cd jcode-harness
 cargo build -p jcode --bin jcode
 cargo build -p jcode --bin jcode-harness
 ```

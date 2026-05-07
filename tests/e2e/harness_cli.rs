@@ -228,6 +228,78 @@ fn harness_run_ndjson_uses_mock_provider_without_network() -> Result<()> {
 }
 
 #[test]
+fn safe_eval_creates_isolated_profile_files_and_json_contract() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-cli-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .args(["safe-eval", "--json"])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["profile"], "safe-eval");
+    assert!(
+        report["source_command"]
+            .as_str()
+            .unwrap()
+            .contains("safe-eval.env")
+    );
+    assert!(
+        report["powershell_command"]
+            .as_str()
+            .unwrap()
+            .contains("safe-eval.ps1")
+    );
+    assert!(
+        report["disabled_surfaces"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|value| value == "telemetry")
+    );
+
+    let env_file = cwd.join(".jcode/safe-eval/safe-eval.env");
+    let ps1_file = cwd.join(".jcode/safe-eval/safe-eval.ps1");
+    let guide_file = cwd.join(".jcode/safe-eval/README.md");
+    let safe_home = cwd.join(".jcode/safe-eval/home");
+    assert!(env_file.is_file());
+    assert!(ps1_file.is_file());
+    assert!(guide_file.is_file());
+    assert!(safe_home.is_dir());
+
+    let env_content = std::fs::read_to_string(env_file)?;
+    assert!(env_content.contains("export JCODE_NO_TELEMETRY='1'"));
+    assert!(env_content.contains("export DO_NOT_TRACK='1'"));
+    assert!(env_content.contains("export JCODE_AMBIENT_ENABLED='false'"));
+    assert!(env_content.contains("export JCODE_TRUSTED_EXTERNAL_AUTH_SOURCES=''"));
+
+    let guide_content = std::fs::read_to_string(guide_file)?;
+    assert!(guide_content.contains("Trust checklist before leaving safe-eval"));
+    assert!(guide_content.contains("jcode-harness smoke"));
+
+    let print_env_output = harness_command(&home, &cwd)
+        .args(["safe-eval", "--print-env"])
+        .output()?;
+    let print_env_stdout = stdout_text(&print_env_output);
+    assert!(
+        print_env_output.status.success(),
+        "stderr: {}",
+        stderr_text(&print_env_output)
+    );
+    assert!(print_env_stdout.starts_with("source "));
+    assert!(print_env_stdout.contains("safe-eval.env"));
+
+    Ok(())
+}
+
+#[test]
 fn skills_doctor_reports_duplicate_names_across_origins() -> Result<()> {
     let temp = tempfile::Builder::new()
         .prefix("jcode-harness-cli-")

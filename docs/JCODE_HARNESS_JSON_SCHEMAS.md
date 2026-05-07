@@ -2,6 +2,45 @@
 
 This document records the stable machine-readable contracts exposed by `jcode-harness`. Fields may be added in future releases, but existing fields should not be removed or renamed without a migration note.
 
+## `safe-eval --json`
+
+Command:
+
+```bash
+jcode-harness safe-eval --json
+```
+
+Shape:
+
+```json
+{
+  "profile": "safe-eval",
+  "root": "/repo",
+  "jcode_home": "/repo/.jcode/safe-eval/home",
+  "runtime_dir": "/repo/.jcode/safe-eval/home/runtime",
+  "env_file": "/repo/.jcode/safe-eval/safe-eval.env",
+  "powershell_env_file": "/repo/.jcode/safe-eval/safe-eval.ps1",
+  "guide_file": "/repo/.jcode/safe-eval/README.md",
+  "source_command": "source '/repo/.jcode/safe-eval/safe-eval.env'",
+  "powershell_command": ". '/repo/.jcode/safe-eval/safe-eval.ps1'",
+  "env": [
+    { "name": "JCODE_HOME", "value": "/repo/.jcode/safe-eval/home" },
+    { "name": "JCODE_NO_TELEMETRY", "value": "1" }
+  ],
+  "disabled_surfaces": ["telemetry", "ambient autonomous cycles"],
+  "files_written": ["/repo/.jcode/safe-eval/safe-eval.env"],
+  "files_skipped": []
+}
+```
+
+Guarantees:
+
+- `profile` is always `safe-eval`.
+- `env` lists the environment variables written to both activation files.
+- `source_command` is a POSIX shell activation hint; `powershell_command` is a PowerShell activation hint.
+- `files_written` and `files_skipped` are absolute or cwd-relative paths matching the operator-provided `--cwd`/`--home` values.
+- The command is deterministic and does not contact model providers or start MCP/browser/Gmail integrations.
+
 ## Shared skill entry
 
 Used by `skills list --json`, `skills show <name> --json`, `skills doctor --json`, and resolved entries in `skills match <goal> --json`.

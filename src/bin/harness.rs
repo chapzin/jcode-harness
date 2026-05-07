@@ -21,6 +21,9 @@ struct Args {
 enum Command {
     /// Initialize a project for the full jcode-harness experience
     Init(InitArgs),
+    /// Create an isolated safe-evaluation profile for first-time local testing
+    #[command(name = "safe-eval")]
+    SafeEval(SafeEvalArgs),
     /// Run the deterministic tool harness smoke test
     Smoke(SmokeArgs),
     /// Run a single goal by delegating to the jcode run path with skill routing
@@ -49,6 +52,25 @@ struct InitArgs {
     /// Emit JSON report
     #[arg(long)]
     json: bool,
+}
+
+#[derive(Parser)]
+struct SafeEvalArgs {
+    /// Project directory to configure (defaults to current directory)
+    #[arg(long)]
+    cwd: Option<String>,
+    /// Isolated JCODE_HOME to create (defaults to <cwd>/.jcode/safe-eval/home)
+    #[arg(long)]
+    home: Option<PathBuf>,
+    /// Overwrite existing generated profile files
+    #[arg(long)]
+    force: bool,
+    /// Emit JSON report
+    #[arg(long)]
+    json: bool,
+    /// Print only the shell command needed to activate the profile
+    #[arg(long)]
+    print_env: bool,
 }
 
 #[derive(Parser, Clone)]
@@ -293,6 +315,7 @@ async fn main() -> Result<()> {
     match args.command {
         None => jcode::run().await,
         Some(Command::Init(args)) => run_init(args),
+        Some(Command::SafeEval(args)) => run_safe_eval(args),
         Some(Command::Smoke(args)) => run_smoke(args).await,
         Some(Command::Run(args)) => run_goal(args).await,
         Some(Command::Skills(args)) => run_skills(args),
@@ -348,6 +371,292 @@ fn run_init(args: InitArgs) -> Result<()> {
             println!("  - {}", step);
         }
     }
+    Ok(())
+}
+
+fn run_safe_eval(args: SafeEvalArgs) -> Result<()> {
+    let root = args
+        .cwd
+        .as_deref()
+        .map(PathBuf::from)
+        .unwrap_or(std::env::current_dir()?);
+    if !root.is_dir() {
+        anyhow::bail!(
+            "safe-eval cwd does not exist or is not a directory: {}",
+            root.display()
+        );
+    }
+
+    let profile_dir = root.join(".jcode").join("safe-eval");
+    let safe_home = args
+        .home
+        .clone()
+        .unwrap_or_else(|| profile_dir.join("home"));
+    let runtime_dir = safe_home.join("runtime");
+    let env_file = profile_dir.join("safe-eval.env");
+    let ps1_file = profile_dir.join("safe-eval.ps1");
+    let guide_file = profile_dir.join("README.md");
+
+    std::fs::create_dir_all(&profile_dir)?;
+    std::fs::create_dir_all(&safe_home)?;
+    std::fs::create_dir_all(&runtime_dir)?;
+    harden_private_dir(&safe_home)?;
+
+    let env_vars = safe_eval_env_vars(&safe_home, &runtime_dir);
+    let disabled = safe_eval_disabled_surfaces();
+    let env_content = render_posix_safe_eval_env(&env_vars);
+    let ps1_content = render_powershell_safe_eval_env(&env_vars);
+    let guide_content = render_safe_eval_guide(&root, &safe_home, &env_file, &ps1_file, &disabled);
+
+    let mut files_written = Vec::new();
+    let mut files_skipped = Vec::new();
+    write_profile_file(
+        &env_file,
+        &env_content,
+        args.force,
+        &mut files_written,
+        &mut files_skipped,
+    )?;
+    write_profile_file(
+        &ps1_file,
+        &ps1_content,
+        args.force,
+        &mut files_written,
+        &mut files_skipped,
+    )?;
+    write_profile_file(
+        &guide_file,
+        &guide_content,
+        args.force,
+        &mut files_written,
+        &mut files_skipped,
+    )?;
+
+    let source_command = format!("source {}", shell_quote(&env_file.display().to_string()));
+    let powershell_command = format!(". {}", powershell_quote(&ps1_file.display().to_string()));
+
+    if args.print_env {
+        println!("{source_command}");
+        return Ok(());
+    }
+
+    if args.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "profile": "safe-eval",
+                "root": root,
+                "jcode_home": safe_home,
+                "runtime_dir": runtime_dir,
+                "env_file": env_file,
+                "powershell_env_file": ps1_file,
+                "guide_file": guide_file,
+                "source_command": source_command,
+                "powershell_command": powershell_command,
+                "env": env_vars
+                    .iter()
+                    .map(|(name, value)| json!({ "name": name, "value": value }))
+                    .collect::<Vec<_>>(),
+                "disabled_surfaces": disabled,
+                "files_written": files_written,
+                "files_skipped": files_skipped,
+            }))?
+        );
+        return Ok(());
+    }
+
+    println!(
+        "Created jcode-harness safe-eval profile at {}",
+        profile_dir.display()
+    );
+    println!("Isolated JCODE_HOME: {}", safe_home.display());
+    println!("Files written: {}", files_written.len());
+    for path in &files_written {
+        println!("  wrote {}", path.display());
+    }
+    if !files_skipped.is_empty() {
+        println!(
+            "Files skipped: {} (use --force to overwrite)",
+            files_skipped.len()
+        );
+        for path in &files_skipped {
+            println!("  skipped {}", path.display());
+        }
+    }
+    println!("\nActivate on POSIX shells:");
+    println!("  {source_command}");
+    println!("Activate on PowerShell:");
+    println!("  {powershell_command}");
+    println!("\nSmoke test without provider credentials:");
+    println!("  jcode-harness run \"say hello\" --json --mock-response \"safe eval ok\"");
+    println!(
+        "\nSee {} for the trust boundary checklist.",
+        guide_file.display()
+    );
+    Ok(())
+}
+
+fn safe_eval_env_vars(
+    home: &std::path::Path,
+    runtime_dir: &std::path::Path,
+) -> Vec<(&'static str, String)> {
+    vec![
+        ("JCODE_HOME", home.display().to_string()),
+        ("JCODE_RUNTIME_DIR", runtime_dir.display().to_string()),
+        ("JCODE_NO_TELEMETRY", "1".to_string()),
+        ("DO_NOT_TRACK", "1".to_string()),
+        ("JCODE_AMBIENT_ENABLED", "false".to_string()),
+        ("JCODE_AMBIENT_PROACTIVE", "false".to_string()),
+        ("JCODE_SWARM_ENABLED", "false".to_string()),
+        ("JCODE_MEMORY_ENABLED", "false".to_string()),
+        ("JCODE_MEMORY_BACKEND", "off".to_string()),
+        ("JCODE_AUTOREVIEW_ENABLED", "false".to_string()),
+        ("JCODE_AUTOJUDGE_ENABLED", "false".to_string()),
+        ("JCODE_GATEWAY_ENABLED", "false".to_string()),
+        ("JCODE_TRUSTED_EXTERNAL_AUTH_SOURCES", String::new()),
+    ]
+}
+
+fn safe_eval_disabled_surfaces() -> Vec<&'static str> {
+    vec![
+        "telemetry",
+        "ambient autonomous cycles",
+        "proactive ambient work",
+        "swarm auto-coordination",
+        "persistent semantic memory",
+        "autoreview",
+        "autojudge",
+        "web/iOS gateway",
+        "external credential auto-trust",
+    ]
+}
+
+fn write_profile_file(
+    path: &std::path::Path,
+    content: &str,
+    force: bool,
+    files_written: &mut Vec<PathBuf>,
+    files_skipped: &mut Vec<PathBuf>,
+) -> Result<()> {
+    if path.exists() && !force {
+        files_skipped.push(path.to_path_buf());
+        return Ok(());
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, content)?;
+    files_written.push(path.to_path_buf());
+    Ok(())
+}
+
+fn render_posix_safe_eval_env(env_vars: &[(&'static str, String)]) -> String {
+    let mut out =
+        String::from("# Source this file to activate the jcode-harness safe-eval profile.\n");
+    out.push_str("# It intentionally avoids importing existing credentials or long-lived state.\n");
+    for (name, value) in env_vars {
+        out.push_str(&format!("export {name}={}\n", shell_quote(value)));
+    }
+    out
+}
+
+fn render_powershell_safe_eval_env(env_vars: &[(&'static str, String)]) -> String {
+    let mut out =
+        String::from("# Dot-source this file to activate the jcode-harness safe-eval profile.\n");
+    out.push_str("# It intentionally avoids importing existing credentials or long-lived state.\n");
+    for (name, value) in env_vars {
+        out.push_str(&format!("$env:{name} = {}\n", powershell_quote(value)));
+    }
+    out
+}
+
+fn render_safe_eval_guide(
+    root: &std::path::Path,
+    safe_home: &std::path::Path,
+    env_file: &std::path::Path,
+    ps1_file: &std::path::Path,
+    disabled: &[&str],
+) -> String {
+    let disabled_list = disabled
+        .iter()
+        .map(|item| format!("- {item}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!(
+        r#"# jcode-harness Safe Evaluation Profile
+
+This profile is for first-time evaluation in a disposable or low-risk project checkout.
+
+## Scope
+
+- Project root: `{}`
+- Isolated `JCODE_HOME`: `{}`
+- POSIX activation file: `{}`
+- PowerShell activation file: `{}`
+
+## Activate
+
+POSIX shells:
+
+```bash
+source {}
+```
+
+PowerShell:
+
+```powershell
+. {}
+```
+
+## What this disables or isolates
+
+{}
+
+The profile also points runtime files at the isolated home, so provider credentials, sessions, logs, memory, and transient sockets do not mix with the user's normal `~/.jcode` state.
+
+## Suggested smoke tests
+
+```bash
+jcode-harness run "say hello" --json --mock-response "safe eval ok"
+jcode-harness skills doctor --json
+jcode-harness smoke
+```
+
+## Trust checklist before leaving safe-eval
+
+1. Review any project-local `.jcode/mcp.json` or `.claude/mcp.json` before starting MCP servers.
+2. Avoid importing credentials from Claude, Codex, Gemini, Copilot, browsers, Gmail, or other tools until you understand the trust boundary.
+3. Prefer disposable repos, worktrees, containers, or VMs for unknown projects.
+4. Do not enable ambient/autonomous/self-dev workflows until the basic smoke tests pass.
+5. Keep secrets out of prompts, transcripts, wiki pages, side panels, and generated skills.
+"#,
+        root.display(),
+        safe_home.display(),
+        env_file.display(),
+        ps1_file.display(),
+        env_file.display(),
+        ps1_file.display(),
+        disabled_list
+    )
+}
+
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
+
+fn powershell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+#[cfg(unix)]
+fn harden_private_dir(path: &std::path::Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn harden_private_dir(_path: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
