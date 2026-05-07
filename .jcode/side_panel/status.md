@@ -2,36 +2,56 @@
 
 ## Current goal
 
-Scoped autonomous increment completed for proposal: Jcode + local LLM wiki + `forrestchang/andrej-karpathy-skills`.
+Continue the `feature/embedded-skills-harness` branch with current `/init` context, release gates, and side-panel scaffolds aligned to the implemented `jcode-harness` surfaces.
 
-## Completed this slice
+## Current branch state
 
-- Added built-in `llmwiki-memory` skill at `.jcode/skills/llmwiki-memory/SKILL.md`.
-- Embedded it through `src/skill_pack.rs` with `include_str!`, preserving offline skill loading.
-- Updated `src/skill_router.rs` to route LLM wiki/project-memory/provenance/transcript/context-history tasks to `llmwiki-memory`.
-- Fixed a router false positive where the old `"pr"` trigger matched inside words like `prior`/`project`.
-- Fixed the deprecated-provider test warning with a scoped `#[allow(deprecated)]` only on the legacy compatibility assertion.
-- Updated `/init` Skills Plan generation so bootstrap includes `llmwiki-memory` and wiki secret-safety notes.
-- Updated bootstrap/docs/release gates/status/README to keep future work inside the Jcode + LLM wiki + Karpathy skills scope.
+- Branch: `feature/embedded-skills-harness`.
+- Last pushed implementation/doc slices before this context refresh:
+  - `78987bbf` Fix selfdev reload repo discovery.
+  - `30456878` Add opt-in live provider smoke.
+  - `b8f81d27` Add CI-friendly harness smoke e2e.
+  - `cd4ec520` Document init and clean-code JSON schemas.
+  - `db46a4dc` Sync release gates and product plan.
+- Offline `jcode-harness init --yes --no-memory-wiki --json` reported no files written and detected Rust.
 
-## Validation passed
+## Stable harness surfaces
+
+- Offline embedded skills and deterministic source precedence.
+- `jcode-harness skills` list/show/sync/doctor/match/llmwiki-bridge JSON surfaces.
+- `jcode-harness run` JSON, NDJSON, dry-run, mock-response, and opt-in live-provider smoke coverage.
+- `jcode-harness smoke` deterministic offline tool cases.
+- `/init` static scaffolding plus queued swarm bootstrap contract.
+- `clean-code check/rules` offline quality gate with documented JSON output.
+
+## Validation snapshot to prefer
 
 ```bash
 cargo fmt --check
-cargo test -p jcode test_provider_choice_arg_values --lib -- --nocapture
-cargo test -p jcode skill_router --lib
-cargo test -p jcode skill::tests --lib
+cargo check -p jcode
 cargo test -p jcode project_init --lib -- --nocapture
+cargo test -p jcode test_init_command --lib -- --nocapture
+cargo test -p jcode skill::tests --lib
+cargo test -p jcode clean_code --lib
 cargo test --test e2e harness_cli -- --nocapture
-cargo run -q -p jcode --bin jcode-harness -- skills show llmwiki-memory --json | python3 -m json.tool >/dev/null
-cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m json.tool >/dev/null
-selfdev build target=auto
+cargo test --test e2e harness_init_json -- --nocapture
+cargo test --test e2e harness_smoke -- --nocapture
+cargo test --test e2e clean_code_check_json -- --nocapture
+cargo test --test e2e harness_live_provider -- --nocapture
 ```
 
-Selfdev build passed. `selfdev reload` was attempted but the reload tool returned `Could not find jcode repository directory`; `selfdev status` still sees the build channel and recent build.
+For runtime changes, finish with `selfdev build` and reload when appropriate. For docs/context-only changes, use `git diff --check`, targeted grep/schema checks, and JSON parsing of `.codex-harness/**/*.json` when governance files changed.
+
+## Current risks
+
+- Live provider and live `/init` swarm smokes must remain opt-in until credentials, quota, isolation, and UI/provider automation are reviewed.
+- MCP remains disabled by default. Do not add network or credentialed servers without explicit scope review.
+- Generated `.context/` is advisory and must be verified against `Cargo.toml`, `src/`, `crates/`, and current docs.
+- Telemetry/deployment workflows involve external services and secrets; do not deploy or migrate databases without explicit confirmation.
 
 ## Next recommended slices
 
-1. Add permission-reviewed bridge points from `llmwiki-memory` to concrete wiki commands without making remote MCP/network dependencies mandatory.
-2. Add JSON schema docs/examples for `llmwiki-memory` in `docs/JCODE_HARNESS_JSON_SCHEMAS.md`.
-3. Add release-note template for upstream divergence and harness-specific behavior.
+1. Keep schema docs, release gates, release-note template, and status snapshots aligned with any new stable harness fields.
+2. Expand Clean Code Guardian fixtures only alongside documented severity-policy changes.
+3. Consider adding `cargo test --lib --bins` or `python3 scripts/test_ci_suites.py lib-bins` as a measured CI gate after runtime cost review.
+4. Add telemetry-worker test/lint scripts before treating telemetry deploy workflows as fully gated.

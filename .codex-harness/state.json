@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Sync release gates and product plan",
-  "status": "done",
-  "activeContractId": "2026-05-07-sync-release-gates-and-product-plan-2d0524",
+  "focus": "Refresh init context scaffolds",
+  "status": "verifying",
+  "activeContractId": "2026-05-07-refresh-init-context-scaffolds-19bd29",
   "counters": {
-    "contracts": 12,
-    "traces": 11,
-    "gates": 13,
-    "verifications": 11,
+    "contracts": 13,
+    "traces": 13,
+    "gates": 14,
+    "verifications": 12,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -22,6 +22,11 @@
       "id": "decision-2026-05-06-1c16f8",
       "ts": "2026-05-06T19:09:22.556Z",
       "text": "Responder ao usuário em português conforme preferência global registrada."
+    },
+    {
+      "id": "decision-2026-05-07-f58c86",
+      "ts": "2026-05-07T20:33:22.024Z",
+      "text": "Refresh init and side-panel scaffolds as docs/context-only slice after offline /init reported no file writes."
     }
   ],
   "events": [
@@ -296,6 +301,43 @@
       "contractId": "2026-05-07-sync-release-gates-and-product-plan-2d0524",
       "gateId": "gate-2026-05-07-f4650c",
       "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-07T20:29:37.822Z",
+      "type": "contract_created",
+      "contractId": "2026-05-07-refresh-init-context-scaffolds-19bd29",
+      "summary": "Refresh init context scaffolds"
+    },
+    {
+      "ts": "2026-05-07T20:32:51.942Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-07-d467d773",
+      "contractId": "2026-05-07-refresh-init-context-scaffolds-19bd29",
+      "kind": "success",
+      "summary": "Refreshed stale init/context scaffolds"
+    },
+    {
+      "ts": "2026-05-07T20:33:01.248Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-07-refresh-init-context-scaffolds-19bd29",
+      "gateId": "gate-2026-05-07-8dc8a3",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-07T20:33:17.517Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-07-24074dcb",
+      "contractId": "2026-05-07-refresh-init-context-scaffolds-19bd29",
+      "status": "pass",
+      "summary": "Context refresh validation passed"
+    },
+    {
+      "ts": "2026-05-07T20:33:22.024Z",
+      "type": "state_update",
+      "note": "Validation passed; committing and pushing next.",
+      "status": "verifying",
+      "focus": "Refresh init context scaffolds",
+      "activeContractId": "2026-05-07-refresh-init-context-scaffolds-19bd29"
     }
   ]
 }
