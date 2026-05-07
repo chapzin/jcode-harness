@@ -32,6 +32,27 @@ use model::{
     progress_event_record, progress_wait_reason, push_task_event, task_dir, terminal_event_record,
 };
 
+fn emit_user_attention_for_background_completion(notify: bool, wake: bool) {
+    // Emit at the completion source, before server/TUI fan-out, so a single
+    // notify+wake event only produces one user-attention alert.
+    let config = crate::user_attention::UserAttentionConfig::from_env();
+
+    #[cfg(test)]
+    let result = {
+        let mut sink = Vec::new();
+        config.notify_background_completion_with_writer(notify, wake, &mut sink)
+    };
+
+    #[cfg(not(test))]
+    let result = config.notify_background_completion_stderr(notify, wake);
+
+    if let Err(err) = result {
+        crate::logging::warn(&format!(
+            "Failed to emit background task user-attention alert: {err}"
+        ));
+    }
+}
+
 /// Manages background task execution
 pub struct BackgroundTaskManager {
     tasks: Arc<RwLock<HashMap<String, RunningTask>>>,
@@ -167,6 +188,7 @@ impl BackgroundTaskManager {
         } else {
             output
         };
+        emit_user_attention_for_background_completion(status.notify, status.wake);
         Bus::global().publish(BusEvent::BackgroundTaskCompleted(BackgroundTaskCompleted {
             task_id: status.task_id.clone(),
             tool_name: status.tool_name.clone(),
@@ -374,6 +396,7 @@ impl BackgroundTaskManager {
                 .unwrap_or_default();
 
             // Publish completion event to the bus
+            emit_user_attention_for_background_completion(notify_flag, wake_flag);
             Bus::global().publish(BusEvent::BackgroundTaskCompleted(BackgroundTaskCompleted {
                 task_id: task_id_clone,
                 tool_name: tool_name_owned,
@@ -535,6 +558,7 @@ impl BackgroundTaskManager {
                 output_text
             };
 
+            emit_user_attention_for_background_completion(notify_flag, wake_flag);
             Bus::global().publish(BusEvent::BackgroundTaskCompleted(BackgroundTaskCompleted {
                 task_id: task_id_clone,
                 tool_name: tool_name_owned,

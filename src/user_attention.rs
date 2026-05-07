@@ -125,6 +125,35 @@ impl UserAttentionConfig {
             }
         }
     }
+
+    pub fn notify_background_completion_with_writer<W: Write>(
+        &self,
+        notify: bool,
+        wake: bool,
+        writer: &mut W,
+    ) -> io::Result<UserAttentionDelivery> {
+        if !(notify || wake) {
+            return Ok(UserAttentionDelivery {
+                backend: self.mode.backend(),
+                would_emit: false,
+                attempted: false,
+                delivered: false,
+                dry_run: false,
+                bytes_written: 0,
+            });
+        }
+
+        self.notify_with_writer(writer)
+    }
+
+    pub fn notify_background_completion_stderr(
+        &self,
+        notify: bool,
+        wake: bool,
+    ) -> io::Result<UserAttentionDelivery> {
+        let mut stderr = io::stderr().lock();
+        self.notify_background_completion_with_writer(notify, wake, &mut stderr)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -287,5 +316,55 @@ mod tests {
         assert!(!delivery.delivered);
         assert!(delivery.dry_run);
         assert_eq!(delivery.backend, Some("terminal_bell"));
+    }
+
+    #[test]
+    fn background_completion_requires_notify_or_wake() {
+        let config = UserAttentionConfig::from_env_values(Some("bell"), None);
+        let mut output = Vec::new();
+
+        let delivery = config
+            .notify_background_completion_with_writer(false, false, &mut output)
+            .unwrap();
+
+        assert!(output.is_empty());
+        assert_eq!(delivery.backend, Some("terminal_bell"));
+        assert!(!delivery.would_emit);
+        assert!(!delivery.attempted);
+        assert!(!delivery.delivered);
+        assert_eq!(delivery.bytes_written, 0);
+    }
+
+    #[test]
+    fn background_completion_notify_and_wake_emit_one_bell() {
+        let config = UserAttentionConfig::from_env_values(Some("bell"), None);
+        let mut output = Vec::new();
+
+        let delivery = config
+            .notify_background_completion_with_writer(true, true, &mut output)
+            .unwrap();
+
+        assert_eq!(output, TERMINAL_BELL);
+        assert!(delivery.would_emit);
+        assert!(delivery.attempted);
+        assert!(delivery.delivered);
+        assert_eq!(delivery.bytes_written, 1);
+    }
+
+    #[test]
+    fn background_completion_respects_off_mode() {
+        let config = UserAttentionConfig::from_env_values(Some("off"), None);
+        let mut output = Vec::new();
+
+        let delivery = config
+            .notify_background_completion_with_writer(true, true, &mut output)
+            .unwrap();
+
+        assert!(output.is_empty());
+        assert_eq!(delivery.backend, None);
+        assert!(!delivery.would_emit);
+        assert!(!delivery.attempted);
+        assert!(!delivery.delivered);
+        assert_eq!(delivery.bytes_written, 0);
     }
 }

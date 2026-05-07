@@ -335,6 +335,8 @@ Guarantees:
 - Default config is silent/off unless `JCODE_USER_ATTENTION=bell` or `JCODE_NOTIFY_SOUND=1` is set.
 - `--dry-run` never emits a terminal bell and is suitable for tests and diagnostics.
 - Without `--dry-run`, the initial backend writes only the terminal bell byte (`\a`) to stderr so JSON stdout remains parseable.
+- The runtime background-task completion path uses the same opt-in config and writes at most one stderr bell for a single
+  `notify`/`wake` completion event before fan-out.
 
 ## `session list --json`
 
