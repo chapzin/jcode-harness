@@ -212,6 +212,72 @@ Guarantees:
 - Session entries are sorted by most recent message time descending and expose stable metadata needed by future headless orchestration clients.
 - `resume_target.kind` is one of `jcode_session`, `claude_code_session`, `codex_session`, `pi_session`, or `opencode_session`.
 
+## `session spawn --dry-run --json`
+
+Command:
+
+```bash
+jcode-harness session spawn "draft the release plan" --cwd /repo --provider openai --model gpt-test --dry-run --json
+```
+
+Shape:
+
+```json
+{
+  "status": "ok",
+  "command": "session spawn",
+  "offline": true,
+  "read_only": true,
+  "dry_run": true,
+  "executed": false,
+  "source": "jcode",
+  "goal": "draft the release plan",
+  "spawn": {
+    "supported_by": "jcode-cli-run",
+    "execution_supported_by_harness": false,
+    "creates_new_session": true,
+    "requires_terminal": false,
+    "starts_tui": false,
+    "starts_provider": "on_execution",
+    "program": "jcode",
+    "argv": [
+      "jcode",
+      "-C",
+      "/repo",
+      "-p",
+      "openai",
+      "-m",
+      "gpt-test",
+      "run",
+      "--json",
+      "draft the release plan"
+    ],
+    "cwd": "/repo",
+    "cwd_source": "argument",
+    "output_mode": "json",
+    "provider": "openai",
+    "provider_profile": null,
+    "model": "gpt-test"
+  },
+  "safety": {
+    "executed": false,
+    "writes": false,
+    "network_required_for_dry_run": false,
+    "credentials_required_for_dry_run": false,
+    "note": "Use the returned argv/cwd outside dry-run only after choosing an execution surface."
+  }
+}
+```
+
+Guarantees:
+
+- `session spawn` is dry-run only in `jcode-harness`; omitting `--dry-run` fails before a provider, TUI, network, or credential flow is started.
+- `offline`, `read_only`, `dry_run`, and `executed` describe the harness command itself: it validates inputs, prints the safe envelope, and does not create a session.
+- `spawn.argv` and `spawn.cwd` are execution hints for an operator-selected surface. They are not executed by the harness.
+- `spawn.cwd_source` is `argument` when `--cwd` is supplied and `current_dir` otherwise.
+- `spawn.provider` is the validated provider argument or `auto`; `spawn.provider_profile` is mutually exclusive with `spawn.provider`.
+- `safety.writes`, `network_required_for_dry_run`, and `credentials_required_for_dry_run` are always `false` for the dry-run report.
+
 ## `session show --json`
 
 Command:

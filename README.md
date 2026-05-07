@@ -140,6 +140,7 @@ jcode-harness demo run mock-provider-run-json --json
 jcode-harness demo run all --sandbox --json
 jcode-harness session list --json
 jcode-harness session list --source jcode --json
+jcode-harness session spawn "draft a release plan" --dry-run --json
 jcode-harness session show <session-id> --json
 jcode-harness session show <session-id> --preview 3 --json
 jcode-harness session resume <session-id> --dry-run --json
@@ -181,10 +182,16 @@ TUI:
 ```bash
 jcode-harness session list --json
 jcode-harness session list --source jcode --json
+jcode-harness session spawn "draft a release plan" --dry-run --json
 jcode-harness session show <session-id> --json
 jcode-harness session show <session-id> --preview 3 --json
 jcode-harness session resume <session-id> --dry-run --json
 ```
+
+`session spawn --dry-run --json` returns a safe `jcode run --json <goal>`
+argv/cwd envelope for creating a new headless run/session without starting a
+provider, TUI, network, or credential flow. Omitting `--dry-run` fails safely
+because the harness does not execute spawn flows yet.
 
 `session show` currently supports local jcode sessions. It emits metadata only by
 default, and transcript content appears only when a bounded `--preview N` is

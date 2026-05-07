@@ -588,6 +588,90 @@ fn harness_session_list_json_reports_local_sessions_without_tui() -> Result<()> 
 }
 
 #[test]
+fn harness_session_spawn_dry_run_json_returns_safe_envelope() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-session-spawn-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let blocked = harness_command(&home, &cwd)
+        .args(["session", "spawn", "draft the release plan", "--json"])
+        .output()?;
+    assert!(
+        !blocked.status.success(),
+        "spawn execution should require --dry-run"
+    );
+    assert!(
+        stderr_text(&blocked).contains("--dry-run"),
+        "stderr: {}",
+        stderr_text(&blocked)
+    );
+
+    let output = harness_command(&home, &cwd)
+        .args(["session", "spawn", "draft the release plan", "--cwd"])
+        .arg(&cwd)
+        .args([
+            "--provider",
+            "openai",
+            "--model",
+            "gpt-test",
+            "--dry-run",
+            "--json",
+        ])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["command"], "session spawn");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["read_only"], true);
+    assert_eq!(report["dry_run"], true);
+    assert_eq!(report["executed"], false);
+    assert_eq!(report["source"], "jcode");
+    assert_eq!(report["goal"], "draft the release plan");
+    assert_eq!(report["spawn"]["supported_by"], "jcode-cli-run");
+    assert_eq!(report["spawn"]["execution_supported_by_harness"], false);
+    assert_eq!(report["spawn"]["creates_new_session"], true);
+    assert_eq!(report["spawn"]["requires_terminal"], false);
+    assert_eq!(report["spawn"]["starts_tui"], false);
+    assert_eq!(report["spawn"]["starts_provider"], "on_execution");
+    assert_eq!(report["spawn"]["program"], "jcode");
+    assert_eq!(report["spawn"]["cwd"], cwd.to_string_lossy().as_ref());
+    assert_eq!(report["spawn"]["cwd_source"], "argument");
+    assert_eq!(report["spawn"]["output_mode"], "json");
+    assert_eq!(report["spawn"]["provider"], "openai");
+    assert_eq!(report["spawn"]["provider_profile"], Value::Null);
+    assert_eq!(report["spawn"]["model"], "gpt-test");
+    let argv = report["spawn"]["argv"].as_array().expect("argv array");
+    assert_eq!(
+        argv,
+        &vec![
+            "jcode",
+            "-C",
+            cwd.to_string_lossy().as_ref(),
+            "-p",
+            "openai",
+            "-m",
+            "gpt-test",
+            "run",
+            "--json",
+            "draft the release plan",
+        ]
+    );
+    assert_eq!(report["safety"]["executed"], false);
+    assert_eq!(report["safety"]["writes"], false);
+    assert_eq!(report["safety"]["network_required_for_dry_run"], false);
+    assert_eq!(report["safety"]["credentials_required_for_dry_run"], false);
+
+    Ok(())
+}
+
+#[test]
 fn harness_session_show_json_reports_metadata_and_opt_in_preview() -> Result<()> {
     let temp = tempfile::Builder::new()
         .prefix("jcode-harness-session-show-")

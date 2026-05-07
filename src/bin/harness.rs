@@ -139,6 +139,8 @@ struct SessionArgs {
 enum SessionCommand {
     /// List local and imported sessions discovered by the session picker
     List(SessionListArgs),
+    /// Validate and print a safe new-session spawn plan without starting a provider
+    Spawn(SessionSpawnArgs),
     /// Show one local jcode session without starting the TUI
     Show(SessionShowArgs),
     /// Validate and print a safe resume plan without starting the TUI
@@ -159,6 +161,30 @@ struct SessionListArgs {
     /// Maximum number of sessions to print after filtering
     #[arg(long)]
     limit: Option<usize>,
+}
+
+#[derive(Parser)]
+struct SessionSpawnArgs {
+    /// Goal/message for the new jcode run envelope
+    goal: String,
+    /// Working directory for the spawned run envelope (defaults to current directory)
+    #[arg(long)]
+    cwd: Option<String>,
+    /// Provider to request when the returned envelope is executed
+    #[arg(long, conflicts_with = "provider_profile")]
+    provider: Option<String>,
+    /// Named OpenAI-compatible provider profile for the returned envelope
+    #[arg(long, conflicts_with = "provider")]
+    provider_profile: Option<String>,
+    /// Model to request when the returned envelope is executed
+    #[arg(long)]
+    model: Option<String>,
+    /// Validate and print the spawn plan without executing it
+    #[arg(long)]
+    dry_run: bool,
+    /// Emit JSON report
+    #[arg(long)]
+    json: bool,
 }
 
 #[derive(Parser)]
@@ -900,9 +926,120 @@ fn harden_private_dir(_path: &std::path::Path) -> Result<()> {
 fn run_session(args: SessionArgs) -> Result<()> {
     match args.command {
         SessionCommand::List(args) => run_session_list(args),
+        SessionCommand::Spawn(args) => run_session_spawn(args),
         SessionCommand::Show(args) => run_session_show(args),
         SessionCommand::Resume(args) => run_session_resume(args),
     }
+}
+
+fn run_session_spawn(args: SessionSpawnArgs) -> Result<()> {
+    if !args.dry_run {
+        anyhow::bail!(
+            "session spawn execution is not supported by jcode-harness yet; rerun with --dry-run to inspect the safe spawn envelope"
+        );
+    }
+    if args.goal.trim().is_empty() {
+        anyhow::bail!("session spawn goal must not be empty");
+    }
+    if let Some(provider) = args.provider.as_deref() {
+        ProviderChoice::from_str(provider, true)
+            .map_err(|err| anyhow::anyhow!("invalid provider '{}': {}", provider, err))?;
+    }
+
+    let root = resolve_existing_root(args.cwd.as_deref(), "session spawn")?;
+    let working_dir = root.to_string_lossy().to_string();
+    let working_dir_source = if args.cwd.is_some() {
+        "argument"
+    } else {
+        "current_dir"
+    };
+    let provider = args
+        .provider
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("auto");
+    let output_mode = if args.json { "json" } else { "text" };
+
+    let mut argv = vec!["jcode".to_string(), "-C".to_string(), working_dir.clone()];
+    if let Some(profile) = args
+        .provider_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        argv.push("--provider-profile".to_string());
+        argv.push(profile.to_string());
+    } else if provider != "auto" {
+        argv.push("-p".to_string());
+        argv.push(provider.to_string());
+    }
+    if let Some(model) = args
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        argv.push("-m".to_string());
+        argv.push(model.to_string());
+    }
+    argv.push("run".to_string());
+    if args.json {
+        argv.push("--json".to_string());
+    }
+    argv.push(args.goal.clone());
+    let command_display = argv
+        .iter()
+        .map(|arg| shell_quote(arg))
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let report = json!({
+        "status": "ok",
+        "command": "session spawn",
+        "offline": true,
+        "read_only": true,
+        "dry_run": true,
+        "executed": false,
+        "source": "jcode",
+        "goal": &args.goal,
+        "spawn": {
+            "supported_by": "jcode-cli-run",
+            "execution_supported_by_harness": false,
+            "creates_new_session": true,
+            "requires_terminal": false,
+            "starts_tui": false,
+            "starts_provider": "on_execution",
+            "program": "jcode",
+            "argv": argv,
+            "cwd": &working_dir,
+            "cwd_source": working_dir_source,
+            "output_mode": output_mode,
+            "provider": provider,
+            "provider_profile": args.provider_profile.as_deref(),
+            "model": args.model.as_deref(),
+        },
+        "safety": {
+            "executed": false,
+            "writes": false,
+            "network_required_for_dry_run": false,
+            "credentials_required_for_dry_run": false,
+            "note": "Use the returned argv/cwd outside dry-run only after choosing an execution surface."
+        },
+    });
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        println!("jcode-harness session spawn dry-run");
+        println!("Offline: true");
+        println!("Read only: true");
+        println!("Executed: false");
+        println!("Command: {command_display}");
+        println!("Working directory: {working_dir}");
+    }
+
+    Ok(())
 }
 
 fn run_session_resume(args: SessionResumeArgs) -> Result<()> {

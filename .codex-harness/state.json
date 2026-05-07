@@ -1,11 +1,11 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Add offline session resume dry-run JSON",
+  "focus": "Add offline session spawn dry-run JSON",
   "status": "executing",
-  "activeContractId": "2026-05-07-add-offline-session-resume-dry-run-json-2fd640",
+  "activeContractId": "2026-05-07-add-offline-session-spawn-dry-run-json-3962c1",
   "counters": {
-    "contracts": 22,
+    "contracts": 23,
     "traces": 23,
     "gates": 22,
     "verifications": 19,
@@ -627,6 +627,12 @@
       "type": "contract_created",
       "contractId": "2026-05-07-add-offline-session-resume-dry-run-json-2fd640",
       "summary": "Add offline session resume dry-run JSON"
+    },
+    {
+      "ts": "2026-05-07T22:14:11.239Z",
+      "type": "contract_created",
+      "contractId": "2026-05-07-add-offline-session-spawn-dry-run-json-3962c1",
+      "summary": "Add offline session spawn dry-run JSON"
     }
   ]
 }
