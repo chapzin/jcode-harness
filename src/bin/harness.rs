@@ -22,6 +22,8 @@ struct Args {
 enum Command {
     /// Initialize a project for the full jcode-harness experience
     Init(InitArgs),
+    /// Preview and serve the Agent Client Protocol integration surface
+    Acp(AcpArgs),
     /// Create an isolated safe-evaluation profile for first-time local testing
     #[command(name = "safe-eval")]
     SafeEval(SafeEvalArgs),
@@ -59,6 +61,28 @@ struct InitArgs {
     /// Emit JSON report
     #[arg(long)]
     json: bool,
+}
+
+#[derive(Parser)]
+struct AcpArgs {
+    #[command(subcommand)]
+    command: AcpCommand,
+}
+
+#[derive(Subcommand)]
+enum AcpCommand {
+    /// Print the preview ACP manifest and registry readiness checklist
+    Manifest {
+        /// Emit JSON report
+        #[arg(long)]
+        json: bool,
+    },
+    /// Serve the preview ACP JSON-RPC protocol over newline-delimited stdio
+    Serve {
+        /// Read JSON-RPC requests from stdin and write responses to stdout
+        #[arg(long)]
+        stdio: bool,
+    },
 }
 
 #[derive(Parser)]
@@ -597,6 +621,7 @@ async fn main() -> Result<()> {
     match args.command {
         None => jcode::run().await,
         Some(Command::Init(args)) => run_init(args),
+        Some(Command::Acp(args)) => run_acp(args),
         Some(Command::SafeEval(args)) => run_safe_eval(args),
         Some(Command::Doctor(args)) => run_doctor(args),
         Some(Command::Demo(args)) => run_demo(args),
@@ -657,6 +682,203 @@ fn run_init(args: InitArgs) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn run_acp(args: AcpArgs) -> Result<()> {
+    match args.command {
+        AcpCommand::Manifest { json } => run_acp_manifest(json),
+        AcpCommand::Serve { stdio } => run_acp_serve(stdio),
+    }
+}
+
+fn acp_manifest_json() -> serde_json::Value {
+    json!({
+        "status": "ok",
+        "command": "acp manifest",
+        "offline": true,
+        "read_only": true,
+        "protocol": {
+            "id": "acp",
+            "name": "Agent Client Protocol",
+            "jsonrpc": "2.0",
+            "transport": ["stdio"],
+            "framing": "newline-delimited-json",
+            "status": "preview"
+        },
+        "implementation": {
+            "name": "jcode-harness",
+            "version": env!("CARGO_PKG_VERSION"),
+            "repository": "https://github.com/chapzin/jcode-harness"
+        },
+        "capabilities": acp_capabilities_json(),
+        "methods": [
+            {"name": "initialize", "kind": "request", "status": "implemented"},
+            {"name": "shutdown", "kind": "request", "status": "implemented"},
+            {"name": "initialized", "kind": "notification", "status": "implemented_noop"},
+            {"name": "jcode/session.list", "kind": "request", "status": "planned"},
+            {"name": "jcode/session.spawn", "kind": "request", "status": "planned_via_dry_run_envelope"},
+            {"name": "jcode/session.attach", "kind": "request", "status": "planned_via_dry_run_envelope"},
+            {"name": "jcode/session.resume", "kind": "request", "status": "planned_via_dry_run_envelope"},
+            {"name": "$/cancelRequest", "kind": "notification", "status": "planned"}
+        ],
+        "registry": {
+            "ready": false,
+            "status": "preview_not_registry_ready",
+            "missing": [
+                "session request handlers beyond initialize/shutdown",
+                "tool event streaming contract",
+                "cancellation semantics",
+                "versioned ACP conformance fixture"
+            ]
+        },
+        "safety": {
+            "starts_tui": false,
+            "starts_provider": false,
+            "starts_tools": false,
+            "network_required": false,
+            "credentials_required": false
+        }
+    })
+}
+
+fn acp_capabilities_json() -> serde_json::Value {
+    json!({
+        "initialize": true,
+        "shutdown": true,
+        "session": {
+            "list": {"status": "available_via_cli", "command": "jcode-harness session list --json"},
+            "spawn": {"status": "available_via_cli_dry_run", "command": "jcode-harness session spawn <goal> --dry-run --json|--ndjson"},
+            "attach": {"status": "available_via_cli_dry_run", "command": "jcode-harness session attach <id> --dry-run --json|--ndjson"},
+            "show": {"status": "available_via_cli", "command": "jcode-harness session show <id> --json"},
+            "resume": {"status": "available_via_cli_dry_run", "command": "jcode-harness session resume <id> --dry-run --json|--ndjson"}
+        },
+        "events": {
+            "session_envelopes_ndjson": true,
+            "session_updates": false,
+            "tool_events": false
+        },
+        "cancellation": {"supported": false},
+        "registry_submission": {"ready": false}
+    })
+}
+
+fn run_acp_manifest(json_output: bool) -> Result<()> {
+    let manifest = acp_manifest_json();
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(&manifest)?);
+    } else {
+        println!("jcode-harness ACP manifest: preview");
+        println!("Transport: stdio JSON-RPC 2.0");
+        println!("Implemented methods: initialize, initialized, shutdown");
+        println!("Registry ready: false");
+    }
+    Ok(())
+}
+
+fn run_acp_serve(stdio: bool) -> Result<()> {
+    if !stdio {
+        anyhow::bail!(
+            "ACP serve currently supports only --stdio newline-delimited JSON-RPC preview mode"
+        );
+    }
+
+    use std::io::{self, BufRead};
+
+    let stdin = io::stdin();
+    for line in stdin.lock().lines() {
+        let line = line?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let response = match serde_json::from_str::<serde_json::Value>(trimmed) {
+            Ok(request) => acp_handle_jsonrpc_request(&request),
+            Err(error) => Some(acp_jsonrpc_error(
+                serde_json::Value::Null,
+                -32700,
+                "parse error",
+                Some(json!({"detail": error.to_string()})),
+            )),
+        };
+        if let Some(response) = response {
+            println!("{}", serde_json::to_string(&response)?);
+            if response
+                .get("result")
+                .and_then(|result| result.get("shutdown"))
+                .and_then(serde_json::Value::as_bool)
+                == Some(true)
+            {
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn acp_handle_jsonrpc_request(request: &serde_json::Value) -> Option<serde_json::Value> {
+    let id = request.get("id").cloned();
+    let method = request
+        .get("method")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+
+    if method.is_empty()
+        || request.get("jsonrpc").and_then(serde_json::Value::as_str) != Some("2.0")
+    {
+        return Some(acp_jsonrpc_error(
+            id.unwrap_or(serde_json::Value::Null),
+            -32600,
+            "invalid request",
+            None,
+        ));
+    }
+
+    if id.is_none() {
+        return None;
+    }
+    let id = id.unwrap_or(serde_json::Value::Null);
+
+    match method {
+        "initialize" => Some(json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "protocol": "acp",
+                "serverInfo": {
+                    "name": "jcode-harness",
+                    "version": env!("CARGO_PKG_VERSION")
+                },
+                "capabilities": acp_capabilities_json(),
+                "manifest": acp_manifest_json(),
+            }
+        })),
+        "shutdown" => Some(json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {"shutdown": true}
+        })),
+        "initialized" => None,
+        _ => Some(acp_jsonrpc_error(id, -32601, "method not found", None)),
+    }
+}
+
+fn acp_jsonrpc_error(
+    id: serde_json::Value,
+    code: i64,
+    message: &str,
+    data: Option<serde_json::Value>,
+) -> serde_json::Value {
+    let mut error = serde_json::Map::new();
+    error.insert("code".to_string(), json!(code));
+    error.insert("message".to_string(), json!(message));
+    if let Some(data) = data {
+        error.insert("data".to_string(), data);
+    }
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": error,
+    })
 }
 
 fn run_safe_eval(args: SafeEvalArgs) -> Result<()> {

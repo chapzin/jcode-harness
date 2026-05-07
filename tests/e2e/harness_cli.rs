@@ -113,6 +113,87 @@ fn harness_init_json_reports_scaffold_and_detected_stack_offline() -> Result<()>
 }
 
 #[test]
+fn harness_acp_stdio_initialize_shutdown() -> Result<()> {
+    use std::io::Write;
+
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-acp-stdio-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let manifest_output = harness_command(&home, &cwd)
+        .args(["acp", "manifest", "--json"])
+        .output()?;
+    assert!(
+        manifest_output.status.success(),
+        "stderr: {}",
+        stderr_text(&manifest_output)
+    );
+    let manifest: Value = serde_json::from_str(&stdout_text(&manifest_output))?;
+    assert_eq!(manifest["status"], "ok");
+    assert_eq!(manifest["protocol"]["id"], "acp");
+    assert_eq!(manifest["protocol"]["jsonrpc"], "2.0");
+    assert_eq!(manifest["protocol"]["transport"][0], "stdio");
+    assert_eq!(manifest["registry"]["ready"], false);
+    assert_eq!(manifest["safety"]["starts_provider"], false);
+
+    let mut child = harness_command(&home, &cwd)
+        .args(["acp", "serve", "--stdio"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin");
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"fixture"}}})
+        )?;
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":2,"method":"jcode/session.list"})
+        )?;
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","method":"initialized"})
+        )?;
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":3,"method":"shutdown"})
+        )?;
+    }
+    let output = child.wait_with_output()?;
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let responses = parse_ndjson(&output)?;
+    assert_eq!(responses.len(), 3, "stdout: {}", stdout_text(&output));
+    assert_eq!(responses[0]["jsonrpc"], "2.0");
+    assert_eq!(responses[0]["id"], 1);
+    assert_eq!(responses[0]["result"]["protocol"], "acp");
+    assert_eq!(
+        responses[0]["result"]["serverInfo"]["name"],
+        "jcode-harness"
+    );
+    assert_eq!(
+        responses[0]["result"]["capabilities"]["session"]["spawn"]["status"],
+        "available_via_cli_dry_run"
+    );
+    assert_eq!(responses[1]["id"], 2);
+    assert_eq!(responses[1]["error"]["code"], -32601);
+    assert_eq!(responses[1]["error"]["message"], "method not found");
+    assert_eq!(responses[2]["id"], 3);
+    assert_eq!(responses[2]["result"]["shutdown"], true);
+
+    Ok(())
+}
+
+#[test]
 fn harness_run_dry_run_auto_routes_optimization_only_for_perf_task() -> Result<()> {
     let temp = tempfile::Builder::new()
         .prefix("jcode-harness-cli-")

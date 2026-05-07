@@ -1,11 +1,11 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Add session dry-run NDJSON envelope events",
+  "focus": "Add ACP preview manifest and stdio handshake",
   "status": "executing",
-  "activeContractId": "2026-05-07-add-session-dry-run-ndjson-envelope-events-3dc47d",
+  "activeContractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
   "counters": {
-    "contracts": 25,
+    "contracts": 26,
     "traces": 23,
     "gates": 22,
     "verifications": 19,
@@ -65,12 +65,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-06T19:10:45.661Z",
-      "type": "contract_created",
-      "contractId": "2026-05-06-cli-quality-security-ux-optimization-50bbc2",
-      "summary": "CLI quality security UX optimization"
-    },
     {
       "ts": "2026-05-06T19:15:02.032Z",
       "type": "verification_recorded",
@@ -632,6 +626,12 @@
       "type": "contract_created",
       "contractId": "2026-05-07-add-session-dry-run-ndjson-envelope-events-3dc47d",
       "summary": "Add session dry-run NDJSON envelope events"
+    },
+    {
+      "ts": "2026-05-07T22:30:40.092Z",
+      "type": "contract_created",
+      "contractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
+      "summary": "Add ACP preview manifest and stdio handshake"
     }
   ]
 }

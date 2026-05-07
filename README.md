@@ -135,6 +135,8 @@ jcode
 ```bash
 jcode-harness
 jcode-harness smoke
+jcode-harness acp manifest --json
+jcode-harness acp serve --stdio
 jcode-harness demo --json
 jcode-harness demo run mock-provider-run-json --json
 jcode-harness demo run all --sandbox --json
@@ -223,6 +225,21 @@ the harness does not execute resume flows yet.
 The commands are offline/read-only, hide debug and canary sessions by default, and
 support `--include-test`, `--source all|jcode|claude-code|codex|pi|opencode`, and
 `--limit N` for deterministic automation.
+
+### ACP preview
+
+Issue #3 starts with a conservative ACP preview surface. It does not claim full
+registry readiness yet, and it does not start providers, tools, or the TUI:
+
+```bash
+jcode-harness acp manifest --json
+jcode-harness acp serve --stdio
+```
+
+`acp manifest --json` prints supported preview methods, safety guarantees, and
+registry gaps. `acp serve --stdio` speaks newline-delimited JSON-RPC 2.0 for the
+implemented `initialize`, `initialized` notification, and `shutdown` handshake;
+unknown methods return standard method-not-found errors.
 
 ### Reproducible demos without credentials
 

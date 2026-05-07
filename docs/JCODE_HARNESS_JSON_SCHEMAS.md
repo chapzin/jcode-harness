@@ -38,6 +38,96 @@ Guarantees:
 - The command is deterministic for a given project file set, except generated Markdown contents may include timestamps.
 - The command does not initialize model providers, MCP servers, browser, Gmail, or network-backed tools.
 
+## `acp manifest --json`
+
+Command:
+
+```bash
+jcode-harness acp manifest --json
+```
+
+Shape:
+
+```json
+{
+  "status": "ok",
+  "command": "acp manifest",
+  "offline": true,
+  "read_only": true,
+  "protocol": {
+    "id": "acp",
+    "name": "Agent Client Protocol",
+    "jsonrpc": "2.0",
+    "transport": ["stdio"],
+    "framing": "newline-delimited-json",
+    "status": "preview"
+  },
+  "implementation": {
+    "name": "jcode-harness",
+    "version": "0.11.4",
+    "repository": "https://github.com/chapzin/jcode-harness"
+  },
+  "capabilities": {
+    "initialize": true,
+    "shutdown": true,
+    "session": {
+      "list": { "status": "available_via_cli" },
+      "spawn": { "status": "available_via_cli_dry_run" },
+      "attach": { "status": "available_via_cli_dry_run" },
+      "show": { "status": "available_via_cli" },
+      "resume": { "status": "available_via_cli_dry_run" }
+    },
+    "events": {
+      "session_envelopes_ndjson": true,
+      "session_updates": false,
+      "tool_events": false
+    },
+    "cancellation": { "supported": false },
+    "registry_submission": { "ready": false }
+  },
+  "registry": {
+    "ready": false,
+    "status": "preview_not_registry_ready"
+  },
+  "safety": {
+    "starts_tui": false,
+    "starts_provider": false,
+    "starts_tools": false,
+    "network_required": false,
+    "credentials_required": false
+  }
+}
+```
+
+Guarantees:
+
+- `acp manifest --json` is offline/read-only and does not initialize providers, tools, MCP servers, browser/Gmail integrations, or the TUI.
+- `protocol.status` is `preview`; registry submission remains explicitly not ready until session/tool/cancel semantics are implemented.
+- Capability entries describe currently available harness CLI surfaces and planned ACP methods, not full ACP conformance.
+
+## `acp serve --stdio`
+
+Command:
+
+```bash
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize"}' '{"jsonrpc":"2.0","id":2,"method":"shutdown"}' | jcode-harness acp serve --stdio
+```
+
+Shape:
+
+```jsonl
+{"jsonrpc":"2.0","id":1,"result":{"protocol":"acp","serverInfo":{"name":"jcode-harness","version":"0.11.4"},"capabilities":{"initialize":true,"shutdown":true}}}
+{"jsonrpc":"2.0","id":2,"result":{"shutdown":true}}
+```
+
+Guarantees:
+
+- Transport is newline-delimited JSON-RPC 2.0 over stdin/stdout.
+- Implemented request methods are `initialize` and `shutdown`; `initialized` is accepted as a notification/no-op.
+- Unsupported request methods return JSON-RPC `-32601` method-not-found errors.
+- Invalid JSON returns `-32700`; malformed JSON-RPC requests return `-32600`.
+- The preview stdio server does not start providers, tools, network-backed integrations, or the TUI.
+
 ## `safe-eval --json`
 
 Command:
