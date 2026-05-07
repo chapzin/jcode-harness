@@ -20,6 +20,7 @@ import requests
 DEBUG_SOCKET = f"/run/user/{os.getuid()}/jcode-debug.sock"
 MAIN_SOCKET = f"/run/user/{os.getuid()}/jcode.sock"
 TEST_PROMPT = "What is 2+2? Reply with just the number."
+REDACTED_OAUTH_QUOTA = "[redacted-oauth-quota]"
 CREDENTIALS_PATH = os.path.expanduser("~/.claude/.credentials.json")
 USAGE_API_URL = "https://api.anthropic.com/api/oauth/usage"
 
@@ -218,7 +219,7 @@ def main():
     print(f"{'='*60}")
     usage_before = get_oauth_usage()
     five_hour_before = usage_before.get('five_hour', {}).get('utilization', 0)
-    print(f"5-hour utilization: {five_hour_before:.2f}%")
+    print(f"5-hour utilization: {REDACTED_OAUTH_QUOTA}")
 
     # Test Claude CLI
     cli_result = run_claude_cli(TEST_PROMPT)
@@ -228,7 +229,7 @@ def main():
     usage_after_cli = get_oauth_usage()
     five_hour_after_cli = usage_after_cli.get('five_hour', {}).get('utilization', 0)
     cli_quota_delta = five_hour_after_cli - five_hour_before
-    print(f"\nQuota after Claude CLI: {five_hour_after_cli:.2f}% (delta: +{cli_quota_delta:.4f}%)")
+    print(f"\nQuota after Claude CLI: {REDACTED_OAUTH_QUOTA}")
 
     # Test jcode OAuth
     jcode_result = run_jcode_oauth(TEST_PROMPT)
@@ -238,7 +239,7 @@ def main():
     usage_after_jcode = get_oauth_usage()
     five_hour_after_jcode = usage_after_jcode.get('five_hour', {}).get('utilization', 0)
     jcode_quota_delta = five_hour_after_jcode - five_hour_after_cli
-    print(f"\nQuota after jcode: {five_hour_after_jcode:.2f}% (delta: +{jcode_quota_delta:.4f}%)")
+    print(f"\nQuota after jcode: {REDACTED_OAUTH_QUOTA}")
 
     # Summary
     print(f"\n{'='*60}")
@@ -305,9 +306,9 @@ PERFORMANCE COMPARISON:
   Estimated cost:   ${cli_result.get('cost', 0):.4f}         (not calculated)
 
 ACTUAL QUOTA CONSUMPTION (from OAuth API):
-  Before tests:     {five_hour_before:.2f}%
-  After Claude CLI: {five_hour_after_cli:.2f}%  (+{cli_quota_delta:.4f}%)
-  After jcode:      {five_hour_after_jcode:.2f}%  (+{jcode_quota_delta:.4f}%)
+  Before tests:     [redacted]
+  After Claude CLI: [redacted]
+  After jcode:      [redacted]
 
 NOTES:
 - The quota API shows percentage of a large 5-hour window (likely millions of tokens)

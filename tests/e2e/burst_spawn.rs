@@ -242,8 +242,7 @@ async fn run_burst_resume_attach_stress(burst_size: usize) -> Result<()> {
         assert_eq!(client_metrics.done_count, 1);
         assert!(
             client_metrics.history_message_count >= 2,
-            "expected resumed history for {} to include persisted messages",
-            client_metrics.target_session_id
+            "expected resumed history for target session to include persisted messages"
         );
         assert_eq!(
             client_metrics.provider_model.as_deref(),

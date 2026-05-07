@@ -9,29 +9,24 @@ pub(super) fn can_prompt_for_external_auth() -> bool {
 pub(super) fn external_auth_blocked_message(
     provider_name: &str,
     source_name: &str,
-    path: &std::path::Path,
+    _path: &std::path::Path,
     login_hint: &str,
 ) -> String {
     format!(
-        "Found existing {} credentials from {} at {} but jcode will not read them without confirmation. Re-run in an interactive terminal to approve this auth source for future jcode sessions, or run `{}`.",
-        provider_name,
-        source_name,
-        path.display(),
-        login_hint
+        "Found existing {} credentials from {} at [redacted path] but jcode will not read them without confirmation. Re-run in an interactive terminal to approve this auth source for future jcode sessions, or run `{}`.",
+        provider_name, source_name, login_hint
     )
 }
 
 pub(super) fn prompt_to_trust_external_auth(
     provider_name: &str,
     source_name: &str,
-    path: &std::path::Path,
+    _path: &std::path::Path,
 ) -> Result<bool> {
     eprintln!();
     eprintln!(
-        "Found existing {} credentials from {} at {}.",
-        provider_name,
-        source_name,
-        path.display()
+        "Found existing {} credentials from {} at [redacted path].",
+        provider_name, source_name
     );
     eprintln!("jcode will only read that source in place after you approve it.");
     eprintln!("It will not move, delete, or rewrite the original auth there.");

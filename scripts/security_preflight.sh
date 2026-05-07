@@ -45,7 +45,7 @@ cd "$repo_root"
 echo "=== Security Preflight ==="
 
 echo "[1/3] Scanning for likely secrets"
-secret_regex='(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN (RSA|OPENSSH|EC|DSA|PGP) PRIVATE KEY-----|AIza[0-9A-Za-z_-]{35})'
+secret_regex='(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN (RSA|OPENSSH|EC|DSA|PGP) PRIVATE KEY-----|AIza[0-9A-Za-z_-]{35}|GOCSPX-[0-9A-Za-z_-]{10,}|[0-9]{12,}-[0-9A-Za-z_-]+\.apps\.googleusercontent\.com)'
 
 set +e
 mapfile -d '' tracked_files < <(git ls-files -z)

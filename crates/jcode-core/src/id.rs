@@ -257,8 +257,7 @@ mod tests {
         let icon = session_icon(&short_name);
         assert_ne!(
             icon, "💫",
-            "Name '{}' should have a specific icon",
-            short_name
+            "generated session name should have a specific icon"
         );
     }
 
@@ -300,8 +299,8 @@ mod tests {
     fn test_all_names_have_icons() {
         for (name, expected_icon) in SESSION_NAMES {
             let icon = session_icon(name);
-            assert_eq!(icon, *expected_icon, "Icon mismatch for '{}'", name);
-            assert_ne!(icon, "💫", "Name '{}' should have a specific icon", name);
+            assert_eq!(icon, *expected_icon, "icon mismatch for known session name");
+            assert_ne!(icon, "💫", "known session name should have a specific icon");
         }
     }
 

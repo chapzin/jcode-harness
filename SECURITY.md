@@ -1,21 +1,20 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+Security fixes are applied to the default branch of `chapzin/jcode-harness`. Until formal releases are cut, consumers should track the latest published `master` commit.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+## Reporting a vulnerability
 
-## Reporting a Vulnerability
+Please report vulnerabilities privately through GitHub Security Advisories or by opening a minimal issue that does not include secrets, tokens, private keys, or exploit details. Include affected commit/version, impact, reproduction steps, and whether the issue is already public.
 
-Use this section to tell people how to report a vulnerability.
+## Secret handling
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+- Do not commit credentials, OAuth client secrets, API keys, private keys, `.env` contents, or personal access tokens.
+- Google OAuth client IDs and client secrets must be supplied through user-controlled environment variables or local credential files. The project must not embed shared Google OAuth client credentials in source code, docs, or tests.
+- `scripts/security_preflight.sh` scans tracked source/docs/scripts for common secret patterns, including Google OAuth client IDs/secrets.
+- Auth/token files are written through hardened storage helpers where available.
+
+## Code scanning triage policy
+
+CodeQL findings that expose real secret material or missing least-privilege controls should be fixed in code. Findings that are verified false positives, such as test-only assert messages, user-facing CLI output, or HTTP request-builder flows that never log request headers/bodies, may be dismissed in GitHub with an explicit rationale after review.

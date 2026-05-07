@@ -317,13 +317,9 @@ pub(super) async fn complete_scriptable_claude_login(
     )?;
     if !options.json {
         eprintln!("Successfully logged in to Claude!");
-        eprintln!(
-            "Account '{}' stored at {}",
-            account_label,
-            auth::claude::jcode_path()?.display()
-        );
-        if let Some(email) = profile_email {
-            eprintln!("Profile email: {}", email);
+        eprintln!("Account [redacted] stored in the local jcode auth store");
+        if profile_email.is_some() {
+            eprintln!("Profile email: [redacted]");
         }
     }
     Ok(LoginFlowOutcome::Completed)
@@ -375,11 +371,7 @@ pub(super) async fn complete_scriptable_openai_login(
         },
     )?;
     if !options.json {
-        eprintln!(
-            "Successfully logged in to OpenAI! Account '{}' saved to {}",
-            account_label,
-            credentials_path.display()
-        );
+        eprintln!("Successfully logged in to OpenAI! Account [redacted] saved locally.");
     }
     Ok(LoginFlowOutcome::Completed)
 }
@@ -573,7 +565,7 @@ pub(super) async fn complete_scriptable_copilot_login(
         },
     )?;
     if !options.json {
-        eprintln!("✓ Authenticated as {} via GitHub Copilot", username);
+        eprintln!("✓ Authenticated as [redacted] via GitHub Copilot");
         eprintln!("Saved at {}", auth::copilot::saved_hosts_path().display());
     }
     Ok(LoginFlowOutcome::Completed)

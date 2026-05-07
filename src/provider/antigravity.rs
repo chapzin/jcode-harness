@@ -296,7 +296,19 @@ fn parse_fetch_available_models_response(
         }
     }
 
-    ordered_ids
+    let default_agent_model_id = response
+        .default_agent_model_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let known_rank = |id: &str| {
+        AVAILABLE_MODELS
+            .iter()
+            .position(|known| *known == id)
+            .unwrap_or(usize::MAX)
+    };
+
+    let mut catalog: Vec<CatalogModel> = ordered_ids
         .into_iter()
         .map(|id| {
             by_id.remove(&id).unwrap_or(CatalogModel {
@@ -312,7 +324,27 @@ fn parse_fetch_available_models_response(
                 remaining_fraction_milli: None,
             })
         })
-        .collect()
+        .collect();
+
+    catalog.sort_by(|left, right| {
+        let left_key = (
+            !left.recommended,
+            Some(left.id.as_str()) != default_agent_model_id,
+            !left.available,
+            known_rank(&left.id),
+            left.id.as_str(),
+        );
+        let right_key = (
+            !right.recommended,
+            Some(right.id.as_str()) != default_agent_model_id,
+            !right.available,
+            known_rank(&right.id),
+            right.id.as_str(),
+        );
+        left_key.cmp(&right_key)
+    });
+
+    catalog
 }
 
 fn catalog_model_detail(model: &CatalogModel) -> String {
@@ -372,11 +404,15 @@ impl AntigravityProvider {
         Ok(crate::storage::app_config_dir()?.join("antigravity_models_cache.json"))
     }
 
-    fn load_persisted_catalog() -> Option<PersistedCatalog> {
-        let path = Self::persisted_catalog_path().ok()?;
-        crate::storage::read_json(&path)
+    fn load_persisted_catalog_from_path(path: &std::path::Path) -> Option<PersistedCatalog> {
+        crate::storage::read_json(path)
             .ok()
             .filter(|catalog: &PersistedCatalog| !catalog.models.is_empty())
+    }
+
+    fn load_persisted_catalog() -> Option<PersistedCatalog> {
+        let path = Self::persisted_catalog_path().ok()?;
+        Self::load_persisted_catalog_from_path(&path)
     }
 
     fn persist_catalog(models: &[CatalogModel]) {
@@ -400,9 +436,20 @@ impl AntigravityProvider {
     }
 
     fn seed_cached_catalog(&self) {
-        if let Some(catalog) = Self::load_persisted_catalog()
-            && let Ok(mut models) = self.fetched_catalog.write()
-        {
+        if let Some(catalog) = Self::load_persisted_catalog() {
+            self.seed_cached_catalog_payload(catalog);
+        }
+    }
+
+    #[cfg(test)]
+    fn seed_cached_catalog_from_path(&self, path: &std::path::Path) {
+        if let Some(catalog) = Self::load_persisted_catalog_from_path(path) {
+            self.seed_cached_catalog_payload(catalog);
+        }
+    }
+
+    fn seed_cached_catalog_payload(&self, catalog: PersistedCatalog) {
+        if let Ok(mut models) = self.fetched_catalog.write() {
             if catalog_is_stale(&catalog.fetched_at_rfc3339) {
                 crate::logging::info(
                     "Loaded stale persisted Antigravity model catalog; a refresh will update it on next prefetch",

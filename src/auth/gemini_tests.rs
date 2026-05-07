@@ -128,20 +128,27 @@ fn resolve_callback_or_manual_code_validates_state_for_callback_input() {
 }
 
 #[test]
-fn uses_hardcoded_credentials_when_env_missing() {
+fn native_oauth_requires_env_credentials_when_missing() {
     let _guard = lock_test_env();
     crate::env::remove_var(GEMINI_CLIENT_ID_ENV);
     crate::env::remove_var(GEMINI_CLIENT_SECRET_ENV);
 
-    // Should succeed with hardcoded credentials
-    let url = build_manual_auth_url(GEMINI_MANUAL_REDIRECT_URI, "challenge-123", "state-123")
-        .expect("should use hardcoded credentials");
-    assert!(url.contains("codeassist.google.com%2Fauthcode"));
-    assert!(url.contains("code_challenge=challenge-123"));
-    // Should contain the hardcoded client ID
-    assert!(
-        url.contains("681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com")
-    );
+    let err = build_manual_auth_url(GEMINI_MANUAL_REDIRECT_URI, "challenge-123", "state-123")
+        .expect_err("native OAuth should require caller-provided credentials");
+    assert!(err.to_string().contains(GEMINI_CLIENT_ID_ENV));
+}
+
+#[test]
+fn blank_oauth_env_credentials_are_rejected() {
+    let _guard = lock_test_env();
+    crate::env::set_var(GEMINI_CLIENT_ID_ENV, "   ");
+    crate::env::set_var(GEMINI_CLIENT_SECRET_ENV, "   ");
+
+    assert!(gemini_client_id().is_err());
+    assert!(gemini_client_secret().is_err());
+
+    crate::env::remove_var(GEMINI_CLIENT_ID_ENV);
+    crate::env::remove_var(GEMINI_CLIENT_SECRET_ENV);
 }
 
 #[test]

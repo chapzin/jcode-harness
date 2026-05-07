@@ -189,9 +189,10 @@ The Azure env file may contain:
 1. Run `jcode login --provider gemini` or `/login gemini` inside the TUI.
    - For headless / SSH use: `jcode login --provider gemini --no-browser`
    - For scriptable remote flows: `jcode login --provider gemini --print-auth-url`, then later complete with `--auth-code`
-2. jcode opens a browser to the Google OAuth flow used for Gemini Code Assist unless you use `--no-browser`.
-3. If local callback binding is unavailable, jcode falls back to a manual paste flow using `https://codeassist.google.com/authcode`.
-4. Tokens are saved to `~/.jcode/gemini_oauth.json`.
+2. Export `GEMINI_CLIENT_ID` and `GEMINI_CLIENT_SECRET` before native jcode login/refresh. jcode does not embed shared Google OAuth client credentials.
+3. jcode opens a browser to the Google OAuth flow used for Gemini Code Assist unless you use `--no-browser`.
+4. If local callback binding is unavailable, jcode falls back to a manual paste flow using `https://codeassist.google.com/authcode`.
+5. Tokens are saved to `~/.jcode/gemini_oauth.json`.
 
 ### Credential discovery order
 1. Native jcode Gemini tokens: `~/.jcode/gemini_oauth.json`
@@ -201,6 +202,7 @@ The Azure env file may contain:
 ### Runtime notes
 - jcode uses native Google OAuth and talks to the Google Code Assist backend directly.
 - Expired tokens are refreshed automatically using the Google refresh token.
+- Native token refresh also requires `GEMINI_CLIENT_ID` and `GEMINI_CLIENT_SECRET`; imported trusted Gemini CLI/OpenCode/pi tokens can still be discovered without embedding shared client credentials.
 - Some school / Workspace accounts may require `GOOGLE_CLOUD_PROJECT` or `GOOGLE_CLOUD_PROJECT_ID` for Code Assist entitlement checks.
 
 ### Troubleshooting
@@ -322,10 +324,10 @@ Cursor uses jcode's native HTTPS transport. Copilot uses GitHub device-flow auth
   2. trusted OpenCode/pi OAuth entries when present
 - Runtime:
   - jcode authenticates directly and stores/refreshes Antigravity OAuth tokens itself
-  - the provider transport still shells out to the Antigravity CLI for completions if you choose `--provider antigravity`
+  - the provider transport uses jcode's native HTTPS path for completions when you choose `--provider antigravity`
 - Env vars:
-  - `JCODE_ANTIGRAVITY_CLIENT_ID` (optional override for OAuth client id)
-  - `JCODE_ANTIGRAVITY_CLIENT_SECRET` (optional override for OAuth client secret)
+  - `JCODE_ANTIGRAVITY_CLIENT_ID` (required for native OAuth login/refresh)
+  - `JCODE_ANTIGRAVITY_CLIENT_SECRET` (required for native OAuth login/refresh)
   - `JCODE_ANTIGRAVITY_VERSION` (optional override for Antigravity request fingerprint/version)
   - `JCODE_ANTIGRAVITY_CLI_PATH` (default: `antigravity`, runtime only)
   - `JCODE_ANTIGRAVITY_MODEL` (default: `default`)

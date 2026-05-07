@@ -361,7 +361,7 @@ fn test_local_model_picker_surfaces_antigravity_models_from_multiprovider() {
         .expect("antigravity model should be shown after login");
 
     assert!(antigravity_entry.options.iter().any(|route| {
-        route.provider == "Antigravity" && route.api_method == "cli" && route.available
+        route.provider == "Antigravity" && route.api_method == "https" && route.available
     }));
 }
 
@@ -491,7 +491,7 @@ fn test_local_model_picker_render_shows_antigravity_models_exactly_as_user_sees_
         text
     );
     assert!(
-        text.contains("cli"),
+        text.contains("https"),
         "rendered /model view should show the route transport column, got:
 {}",
         text

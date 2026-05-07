@@ -61,7 +61,7 @@ fn disabled_animation_names() -> HashSet<String> {
 
 fn choose_animation_variant_from_disabled<'a>(
     variants: &'a [&'a str],
-    salt: u64,
+    namespace: &str,
     disabled: &HashSet<String>,
 ) -> &'a str {
     let available: Vec<&str> = variants
@@ -75,13 +75,16 @@ fn choose_animation_variant_from_disabled<'a>(
     } else {
         &available
     };
-    let idx = ((animation_seed() ^ salt) as usize) % pool.len();
+    let mut hasher = DefaultHasher::new();
+    animation_seed().hash(&mut hasher);
+    namespace.hash(&mut hasher);
+    let idx = (hasher.finish() as usize) % pool.len();
     pool[idx]
 }
 
-fn choose_animation_variant<'a>(variants: &'a [&'a str], salt: u64) -> &'a str {
+fn choose_animation_variant<'a>(variants: &'a [&'a str], namespace: &str) -> &'a str {
     let disabled = disabled_animation_names();
-    choose_animation_variant_from_disabled(variants, salt, &disabled)
+    choose_animation_variant_from_disabled(variants, namespace, &disabled)
 }
 
 struct IdleBuffers {
@@ -292,7 +295,7 @@ fn sample_donut(
 }
 
 fn idle_animation_variant() -> &'static str {
-    choose_animation_variant(IDLE_VARIANTS, 0x4944_4c45_414e_494d)
+    choose_animation_variant(IDLE_VARIANTS, "idle-animation")
 }
 
 fn sample_black_hole(
@@ -907,7 +910,11 @@ mod tests {
     #[test]
     fn variant_selection_avoids_disabled_entries_when_possible() {
         let disabled = expand_disabled_animation_names(["donut", "three_rings"]);
-        let variant = choose_animation_variant_from_disabled(IDLE_VARIANTS, 7, &disabled);
+        let variant = choose_animation_variant_from_disabled(
+            IDLE_VARIANTS,
+            "variant-selection-test",
+            &disabled,
+        );
         assert_ne!(variant, "donut");
         assert_ne!(variant, "three_rings");
     }

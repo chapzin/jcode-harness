@@ -133,7 +133,7 @@ pub fn hot_rebuild(session_id: &str) -> Result<()> {
     let repo_dir =
         build::get_repo_dir().ok_or_else(|| anyhow::anyhow!("Could not find jcode repository"))?;
 
-    eprintln!("Rebuilding jcode with session {}...", session_id);
+    eprintln!("Rebuilding jcode with active session [redacted]...");
 
     eprintln!("Pulling latest changes...");
     if let Err(e) = update::run_git_pull_ff_only(&repo_dir, true) {
@@ -176,7 +176,7 @@ pub fn hot_rebuild(session_id: &str) -> Result<()> {
         anyhow::bail!("Binary not found at {:?}", exe);
     }
 
-    update::print_centered(&format!("Restarting with session {}...", session_id));
+    update::print_centered("Restarting with active session [redacted]...");
 
     crate::env::set_var("JCODE_RESUMING", "1");
 
@@ -358,7 +358,7 @@ pub fn hot_update(session_id: &str) -> Result<()> {
                         .map(|(p, _)| p)
                         .unwrap_or(path);
 
-                    update::print_centered(&format!("Restarting with session {}...", session_id));
+                    update::print_centered("Restarting with active session [redacted]...");
 
                     crate::env::set_var("JCODE_RESUMING", "1");
 

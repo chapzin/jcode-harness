@@ -34,10 +34,7 @@ pub async fn run_restart_save_command(auto_restore: bool) -> Result<()> {
         } else {
             ""
         };
-        println!(
-            "- {} ({}){}",
-            session.display_name, session.session_id, suffix
-        );
+        println!("- {} ([redacted]){}", session.display_name, suffix);
     }
     if auto_restore {
         println!("\nAutomatic restore is armed for the next plain `jcode` launch.");
@@ -74,10 +71,7 @@ pub fn run_restart_status_command() -> Result<()> {
         } else {
             ""
         };
-        println!(
-            "- {} ({}){}",
-            session.display_name, session.session_id, suffix
-        );
+        println!("- {} ([redacted]){}", session.display_name, suffix);
     }
 
     Ok(())

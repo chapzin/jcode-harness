@@ -8,15 +8,14 @@ use std::path::Path;
 
 pub fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T> {
     jcode_storage::read_json_with_recovery_handler(path, |event| match event {
-        jcode_storage::StorageRecoveryEvent::CorruptPrimary { path, error } => {
+        jcode_storage::StorageRecoveryEvent::CorruptPrimary { path: _, error } => {
             crate::logging::warn(&format!(
-                "Corrupt JSON at {}, trying backup: {}",
-                path.display(),
+                "Corrupt JSON at [redacted path], trying backup: {}",
                 error
             ));
         }
-        jcode_storage::StorageRecoveryEvent::RecoveredFromBackup { backup_path } => {
-            crate::logging::info(&format!("Recovered from backup: {}", backup_path.display()));
+        jcode_storage::StorageRecoveryEvent::RecoveredFromBackup { backup_path: _ } => {
+            crate::logging::info("Recovered from backup: [redacted path]");
         }
     })
 }

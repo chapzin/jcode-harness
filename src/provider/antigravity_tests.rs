@@ -92,12 +92,9 @@ fn available_models_display_includes_dynamic_cache_and_current_override() {
 
 #[test]
 fn available_models_display_seeds_from_persisted_catalog() {
-    let _guard = crate::storage::lock_test_env();
     let temp = tempfile::TempDir::new().expect("temp dir");
-    let previous = std::env::var_os("JCODE_HOME");
-    crate::env::set_var("JCODE_HOME", temp.path());
 
-    let path = AntigravityProvider::persisted_catalog_path().expect("catalog path");
+    let path = temp.path().join("antigravity_models_cache.json");
     crate::storage::write_json(
         &path,
         &PersistedCatalog {
@@ -119,17 +116,12 @@ fn available_models_display_seeds_from_persisted_catalog() {
     .expect("write persisted catalog");
 
     let provider = AntigravityProvider::new();
+    provider.seed_cached_catalog_from_path(&path);
     assert!(
         provider
             .available_models_display()
             .contains(&"claude-opus-4-6-thinking".to_string())
     );
-
-    if let Some(previous) = previous {
-        crate::env::set_var("JCODE_HOME", previous);
-    } else {
-        crate::env::remove_var("JCODE_HOME");
-    }
 }
 
 #[test]

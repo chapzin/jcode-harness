@@ -12,7 +12,7 @@ impl Agent {
         );
         self.session.save()?;
         if trace_enabled() {
-            eprintln!("[trace] session_id {}", self.session.id);
+            eprintln!("[trace] session_id [redacted]");
         }
         let _ = self.run_turn(true).await?;
         Ok(())
@@ -28,7 +28,7 @@ impl Agent {
         );
         self.session.save()?;
         if trace_enabled() {
-            eprintln!("[trace] session_id {}", self.session.id);
+            eprintln!("[trace] session_id [redacted]");
         }
         self.run_turn(false).await
     }

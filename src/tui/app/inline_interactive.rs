@@ -27,14 +27,12 @@ impl App {
         self.pending_model_picker_load = None;
         self.model_picker_load_request_id = self.model_picker_load_request_id.wrapping_add(1);
     }
-
     fn model_route_cache_marker(route: &crate::provider::ModelRoute) -> String {
         format!(
             "{}\u{1f}{}\u{1f}{}\u{1f}{}\u{1f}{}",
             route.model, route.provider, route.api_method, route.available, route.detail
         )
     }
-
     fn model_picker_cache_signature(
         &self,
         current_model: &str,
@@ -118,11 +116,7 @@ impl App {
         }
         true
     }
-
     fn should_cache_model_picker_entries(model_count: usize, route_count: usize) -> bool {
-        // A single model/route result is commonly a startup fallback (for example, the
-        // current model while the real provider catalog is still loading). Caching that
-        // fallback makes `/model` look permanently collapsed to just the active model.
         model_count > 1 && route_count > 1
     }
 
@@ -130,6 +124,12 @@ impl App {
         &self,
         current_model: &str,
     ) -> Vec<crate::provider::ModelRoute> {
+        if self.provider.name().eq_ignore_ascii_case("antigravity") {
+            let provider_routes = self.provider.model_routes();
+            if !provider_routes.is_empty() {
+                return provider_routes;
+            }
+        }
         let auth = crate::auth::AuthStatus::check_fast();
         let mut routes = Vec::new();
 

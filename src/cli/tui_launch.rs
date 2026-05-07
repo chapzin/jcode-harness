@@ -992,10 +992,12 @@ pub fn list_sessions() -> Result<()> {
                             );
                             warned_no_terminal = true;
                         }
-                        eprintln!("  jcode --resume {}", session_id);
+                        eprintln!(
+                            "  jcode --resume <session-id>  # run `jcode sessions` to copy the id"
+                        );
                     }
                     Err(e) => {
-                        eprintln!("Failed to spawn session {}: {}", session_id, e);
+                        eprintln!("Failed to spawn recovered session [redacted]: {}", e);
                     }
                 }
             }

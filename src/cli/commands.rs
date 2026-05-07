@@ -132,13 +132,13 @@ pub fn run_session_rename_command(
         println!("{}", serde_json::to_string_pretty(&output)?);
     } else if clear {
         println!(
-            "Cleared custom name for session {} ({}).",
-            output.display_name, output.session_id
+            "Cleared custom name for session {} ([redacted]).",
+            output.display_name
         );
     } else if let Some(title) = output.title.as_deref() {
         println!(
-            "Renamed session {} ({}) to \"{}\".",
-            output.display_name, output.session_id, title
+            "Renamed session {} ([redacted]) to \"{}\".",
+            output.display_name, title
         );
     }
 

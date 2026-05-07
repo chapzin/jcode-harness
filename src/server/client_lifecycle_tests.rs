@@ -294,21 +294,21 @@ fn reload_starting_rejects_new_turns_for_multiple_sessions() {
             .expect("reload event should be sent to client");
             assert!(
                 matches!(event, ServerEvent::Reloading { new_socket: None }),
-                "expected Reloading event for {session_id}, got {event:?}"
+                "expected Reloading event for test session, got {event:?}"
             );
             assert!(
                 client_event_rx.try_recv().is_err(),
-                "reload guard should only emit one reload notification for {session_id}"
+                "reload guard should only emit one reload notification for test session"
             );
             assert!(
                 !client_is_processing,
-                "{session_id} should not enter processing during reload"
+                "test session should not enter processing during reload"
             );
             assert_eq!(processing_message_id, None);
             assert_eq!(processing_session_id, None);
             assert!(
                 processing_task.is_none(),
-                "{session_id} should not spawn a processing task during reload"
+                "test session should not spawn a processing task during reload"
             );
             assert!(processing_done_rx.try_recv().is_err());
         }

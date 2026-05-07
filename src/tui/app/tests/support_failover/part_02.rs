@@ -294,7 +294,7 @@ impl Provider for AntigravityMockProvider {
             crate::provider::ModelRoute {
                 model: "claude-sonnet-4-6".to_string(),
                 provider: "Antigravity".to_string(),
-                api_method: "cli".to_string(),
+                api_method: "https".to_string(),
                 available: true,
                 detail: "cached catalog".to_string(),
                 cheapness: None,
@@ -302,7 +302,7 @@ impl Provider for AntigravityMockProvider {
             crate::provider::ModelRoute {
                 model: "gpt-oss-120b-medium".to_string(),
                 provider: "Antigravity".to_string(),
-                api_method: "cli".to_string(),
+                api_method: "https".to_string(),
                 available: true,
                 detail: "cached catalog".to_string(),
                 cheapness: None,
@@ -323,8 +323,6 @@ impl Provider for AntigravityMockProvider {
 }
 
 fn create_antigravity_picker_test_app() -> App {
-    ensure_test_jcode_home_if_unset();
-    clear_persisted_test_ui_state();
     crate::tui::ui::clear_test_render_state_for_tests();
 
     let provider: Arc<dyn Provider> = Arc::new(AntigravityMockProvider {

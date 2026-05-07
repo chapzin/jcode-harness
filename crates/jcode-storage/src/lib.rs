@@ -77,11 +77,8 @@ fn ensure_private_runtime_dir(path: &Path) {
     }
 }
 
-fn warn_storage_best_effort(context: &str, path: &Path, err: impl std::fmt::Display) {
-    eprintln!(
-        "warning: storage best-effort step failed: {context} {}: {err}",
-        path.display()
-    );
+fn warn_storage_best_effort(context: &str, _path: &Path, err: impl std::fmt::Display) {
+    eprintln!("warning: storage best-effort step failed: {context} [redacted path]: {err}",);
 }
 
 pub fn jcode_dir() -> Result<PathBuf> {
@@ -350,15 +347,11 @@ pub enum StorageRecoveryEvent<'a> {
 
 pub fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T> {
     read_json_with_recovery_handler(path, |event| match event {
-        StorageRecoveryEvent::CorruptPrimary { path, error } => {
-            eprintln!(
-                "Corrupt JSON at {}, trying backup: {}",
-                path.display(),
-                error
-            );
+        StorageRecoveryEvent::CorruptPrimary { path: _, error } => {
+            eprintln!("Corrupt JSON at [redacted path], trying backup: {}", error);
         }
-        StorageRecoveryEvent::RecoveredFromBackup { backup_path } => {
-            eprintln!("Recovered from backup: {}", backup_path.display());
+        StorageRecoveryEvent::RecoveredFromBackup { backup_path: _ } => {
+            eprintln!("Recovered from backup: [redacted path]");
         }
     })
 }

@@ -7,14 +7,6 @@ const GOOGLE_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL: &str = "https://www.googleapis.com/oauth2/v2/userinfo";
 pub const GEMINI_MANUAL_REDIRECT_URI: &str = "https://codeassist.google.com/authcode";
 pub const GEMINI_CLI_AUTH_SOURCE_ID: &str = "gemini_cli_oauth_creds";
-// OAuth credentials from Google's official Gemini CLI (@google/gemini-cli).
-// These are for a "Desktop app" OAuth type where the client secret is safe to embed.
-// See: https://developers.google.com/identity/protocols/oauth2#installed
-// gitleaks:allow - public desktop OAuth credentials, safe to embed
-const GEMINI_CLIENT_ID: &str =
-    "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"; // gitleaks:allow
-const GEMINI_CLIENT_SECRET: &str = "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"; // gitleaks:allow
-// Env vars can override the hardcoded credentials if needed
 const GEMINI_CLIENT_ID_ENV: &str = "GEMINI_CLIENT_ID";
 const GEMINI_CLIENT_SECRET_ENV: &str = "GEMINI_CLIENT_SECRET";
 const GEMINI_SCOPES: &[&str] = &[
@@ -23,12 +15,25 @@ const GEMINI_SCOPES: &[&str] = &[
     "https://www.googleapis.com/auth/userinfo.profile",
 ];
 
-fn gemini_client_id() -> String {
-    std::env::var(GEMINI_CLIENT_ID_ENV).unwrap_or_else(|_| GEMINI_CLIENT_ID.to_string())
+fn required_oauth_env(var_name: &str, provider: &str) -> Result<String> {
+    let value = match std::env::var(var_name) {
+        Ok(value) => value.trim().to_string(),
+        Err(_) => String::new(),
+    };
+    if value.is_empty() {
+        anyhow::bail!(
+            "{provider} OAuth requires {var_name}; export it before native login/refresh or import trusted external tokens. jcode no longer embeds shared OAuth credentials."
+        );
+    }
+    Ok(value)
 }
 
-fn gemini_client_secret() -> String {
-    std::env::var(GEMINI_CLIENT_SECRET_ENV).unwrap_or_else(|_| GEMINI_CLIENT_SECRET.to_string())
+fn gemini_client_id() -> Result<String> {
+    required_oauth_env(GEMINI_CLIENT_ID_ENV, "Gemini")
+}
+
+fn gemini_client_secret() -> Result<String> {
+    required_oauth_env(GEMINI_CLIENT_SECRET_ENV, "Gemini")
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -234,8 +239,8 @@ pub async fn load_or_refresh_tokens() -> Result<GeminiTokens> {
 
 pub async fn refresh_tokens(tokens: &GeminiTokens) -> Result<GeminiTokens> {
     let result: Result<GeminiTokens> = async {
-        let client_id = gemini_client_id();
-        let client_secret = gemini_client_secret();
+        let client_id = gemini_client_id()?;
+        let client_secret = gemini_client_secret()?;
         let client = reqwest::Client::new();
         let resp = client
             .post(GOOGLE_TOKEN_URL)
@@ -441,8 +446,8 @@ async fn exchange_authorization_code(
     verifier: Option<&str>,
     redirect_uri: &str,
 ) -> Result<GeminiTokens> {
-    let client_id = gemini_client_id();
-    let client_secret = gemini_client_secret();
+    let client_id = gemini_client_id()?;
+    let client_secret = gemini_client_secret()?;
     let client = reqwest::Client::new();
     let mut form = vec![
         ("grant_type", "authorization_code".to_string()),
@@ -512,7 +517,7 @@ pub async fn fetch_email(access_token: &str) -> Result<String> {
 
 pub fn build_web_auth_url(redirect_uri: &str, challenge: &str, state: &str) -> Result<String> {
     let scope = GEMINI_SCOPES.join(" ");
-    let client_id = gemini_client_id();
+    let client_id = gemini_client_id()?;
     Ok(format!(
         "{base}?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}&scope={scope}&code_challenge={challenge}&code_challenge_method=S256&state={state}&access_type=offline&prompt=consent",
         base = GOOGLE_AUTHORIZE_URL,
@@ -526,7 +531,7 @@ pub fn build_web_auth_url(redirect_uri: &str, challenge: &str, state: &str) -> R
 
 pub fn build_manual_auth_url(redirect_uri: &str, challenge: &str, state: &str) -> Result<String> {
     let scope = GEMINI_SCOPES.join(" ");
-    let client_id = gemini_client_id();
+    let client_id = gemini_client_id()?;
     Ok(format!(
         "{base}?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}&scope={scope}&code_challenge={challenge}&code_challenge_method=S256&state={state}&access_type=offline&prompt=consent",
         base = GOOGLE_AUTHORIZE_URL,
