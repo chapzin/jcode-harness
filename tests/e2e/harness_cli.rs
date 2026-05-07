@@ -456,6 +456,106 @@ fn skills_validate_json_flags_invalid_skill_and_exits_nonzero() -> Result<()> {
 }
 
 #[test]
+fn skills_import_json_previews_agents_skill_without_writing() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-cli-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+    write_skill(
+        &cwd,
+        ".agents",
+        "agent-reviewer",
+        "Agent ecosystem review skill",
+    )?;
+
+    let output = harness_command(&home, &cwd)
+        .args(["skills", "import", "--json"])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["dry_run"], true);
+    assert_eq!(report["target"]["scope"], "project");
+    assert_eq!(report["planned"], 1);
+    assert_eq!(report["copied"], 0);
+    let action = report["actions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|action| action["name"] == "agent-reviewer")
+        .expect("agent-reviewer import action");
+    assert_eq!(action["source_origin"], "agents");
+    assert_eq!(action["action"], "copy");
+    assert_eq!(action["applied"], false);
+    assert!(!cwd.join(".jcode/skills/agent-reviewer/SKILL.md").exists());
+
+    Ok(())
+}
+
+#[test]
+fn skills_import_apply_copies_claude_skill_into_project_scope() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-cli-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+    write_skill(
+        &cwd,
+        ".claude",
+        "claude-reviewer",
+        "Claude-compatible review skill",
+    )?;
+    std::fs::write(
+        cwd.join(".claude/skills/claude-reviewer/notes.md"),
+        "extra skill material\n",
+    )?;
+
+    let output = harness_command(&home, &cwd)
+        .args([
+            "skills",
+            "import",
+            "--from",
+            ".claude/skills",
+            "--apply",
+            "--json",
+        ])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["dry_run"], false);
+    assert_eq!(report["planned"], 1);
+    assert_eq!(report["copied"], 1);
+    let action = &report["actions"].as_array().unwrap()[0];
+    assert_eq!(action["name"], "claude-reviewer");
+    assert_eq!(action["source_origin"], "claude-compat");
+    assert_eq!(action["applied"], true);
+    assert!(cwd.join(".jcode/skills/claude-reviewer/SKILL.md").is_file());
+    assert!(cwd.join(".jcode/skills/claude-reviewer/notes.md").is_file());
+
+    let validate_output = harness_command(&home, &cwd)
+        .args(["skills", "validate", "--json"])
+        .output()?;
+    assert!(
+        validate_output.status.success(),
+        "stderr: {}",
+        stderr_text(&validate_output)
+    );
+
+    Ok(())
+}
+
+#[test]
 fn skills_doctor_reports_duplicate_names_across_origins() -> Result<()> {
     let temp = tempfile::Builder::new()
         .prefix("jcode-harness-cli-")

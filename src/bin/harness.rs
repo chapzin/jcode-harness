@@ -121,6 +121,30 @@ enum SkillsCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Preview or apply imports from other local skill ecosystems into jcode skills
+    Import {
+        /// Project directory for resolving default sources and project target
+        #[arg(long)]
+        cwd: Option<String>,
+        /// Source skills directory. Repeat to import from multiple dirs. Defaults to .agents/.claude/.codex/.jcode skills.
+        #[arg(long = "from", value_name = "DIR")]
+        from: Vec<PathBuf>,
+        /// Destination skill scope
+        #[arg(long, value_enum, default_value = "project")]
+        scope: HarnessSkillImportScope,
+        /// Preview only. This is also the default unless --apply is passed.
+        #[arg(long, conflicts_with = "apply")]
+        dry_run: bool,
+        /// Actually copy planned skills into the destination scope
+        #[arg(long, conflicts_with = "dry_run")]
+        apply: bool,
+        /// Allow apply mode to overwrite files for existing target skills
+        #[arg(long)]
+        force: bool,
+        /// Emit JSON report
+        #[arg(long)]
+        json: bool,
+    },
     /// Validate skill files, precedence, and risky prompt/tool patterns without invoking providers
     Validate {
         /// Project directory for resolving repo-local skills
@@ -231,6 +255,21 @@ enum HarnessSkillMode {
     Auto,
     Off,
     Always,
+}
+
+#[derive(Clone, ValueEnum)]
+enum HarnessSkillImportScope {
+    Project,
+    Global,
+}
+
+impl From<HarnessSkillImportScope> for jcode::skill_import::SkillImportScope {
+    fn from(value: HarnessSkillImportScope) -> Self {
+        match value {
+            HarnessSkillImportScope::Project => Self::Project,
+            HarnessSkillImportScope::Global => Self::Global,
+        }
+    }
 }
 
 impl From<HarnessSkillMode> for jcode::skill_router::SkillMode {
@@ -1024,6 +1063,15 @@ fn run_skills(args: SkillsArgs) -> Result<()> {
         }
         SkillsCommand::Sync { force } => jcode::cli::commands::run_skills_sync_command(force),
         SkillsCommand::Doctor { json } => jcode::cli::commands::run_skills_doctor_command(json),
+        SkillsCommand::Import {
+            cwd,
+            from,
+            scope,
+            dry_run,
+            apply,
+            force,
+            json,
+        } => run_skills_import(cwd, from, scope, dry_run, apply, force, json),
         SkillsCommand::Validate { cwd, json } => run_skills_validate(cwd, json),
         SkillsCommand::Match {
             goal,
@@ -1033,6 +1081,106 @@ fn run_skills(args: SkillsArgs) -> Result<()> {
             json,
         } => run_skills_match(&goal, cwd, skills.into(), &skill, json),
         SkillsCommand::LlmwikiBridge { json } => run_llmwiki_bridge(json),
+    }
+}
+
+fn run_skills_import(
+    cwd: Option<String>,
+    from: Vec<PathBuf>,
+    scope: HarnessSkillImportScope,
+    _dry_run: bool,
+    apply: bool,
+    force: bool,
+    json_output: bool,
+) -> Result<()> {
+    let root = cwd
+        .as_deref()
+        .map(PathBuf::from)
+        .unwrap_or(std::env::current_dir()?);
+    if !root.is_dir() {
+        anyhow::bail!(
+            "skills import cwd does not exist or is not a directory: {}",
+            root.display()
+        );
+    }
+
+    let sources = from
+        .into_iter()
+        .map(|path| {
+            if path.is_absolute() {
+                path
+            } else {
+                root.join(path)
+            }
+        })
+        .collect();
+    let report = jcode::skill_import::run_import(jcode::skill_import::SkillImportOptions {
+        root,
+        sources,
+        scope: scope.into(),
+        apply,
+        force,
+    })?;
+
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        print_skill_import_report(&report);
+    }
+
+    if report.should_fail() {
+        anyhow::bail!("skill import failed with {} error(s)", report.errors);
+    }
+    Ok(())
+}
+
+fn print_skill_import_report(report: &jcode::skill_import::SkillImportReport) {
+    println!("jcode-harness skills import: {}", report.status.label());
+    println!("Offline diagnostics: true");
+    println!("Dry run: {}", report.dry_run);
+    println!(
+        "Target: {} ({})",
+        report.target.scope.label(),
+        report.target.path
+    );
+    println!(
+        "Planned: {} write(s), copied {}, skipped {}",
+        report.planned, report.copied, report.skipped
+    );
+    println!(
+        "Findings: {} error(s), {} warning(s)",
+        report.errors, report.warnings
+    );
+    println!("Sources:");
+    for source in &report.sources {
+        println!(
+            "  - {}: {} checked, exists={} ({})",
+            source.origin, source.checked, source.exists, source.path
+        );
+    }
+
+    if report.actions.is_empty() {
+        println!("No skill import actions planned.");
+        return;
+    }
+
+    println!("Actions:");
+    for action in &report.actions {
+        let name = action.name.as_deref().unwrap_or("<invalid>");
+        let reason = action
+            .reason
+            .as_ref()
+            .map(|reason| format!(" ({reason})"))
+            .unwrap_or_default();
+        println!(
+            "  - {} {} -> {} [{} applied={}]{}",
+            action.action.label(),
+            action.source_path,
+            action.target_path,
+            name,
+            action.applied,
+            reason
+        );
     }
 }
 

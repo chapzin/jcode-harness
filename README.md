@@ -164,8 +164,17 @@ jcode-harness skills show karpathy-guidelines
 jcode-harness skills show llmwiki-memory --json
 jcode-harness skills sync
 jcode-harness skills doctor --json
+jcode-harness skills import --json
+jcode-harness skills import --from .claude/skills --apply --json
 jcode-harness skills validate --cwd . --json
 ```
+
+`skills import` is safe-by-default: without `--apply` it only previews a local
+import plan. By default it scans `.agents/skills`, `.claude/skills`,
+`.codex/skills`, and `.jcode/skills`, then targets project-local
+`.jcode/skills`. Use `--scope global` for `$JCODE_HOME/skills`, and `--force`
+with `--apply` only when you intentionally want to overwrite existing target
+files.
 
 `skills validate` is an offline CI-friendly gate for the Skill OS. It checks
 built-in, Claude-compatible, global, and project-local skill files for required

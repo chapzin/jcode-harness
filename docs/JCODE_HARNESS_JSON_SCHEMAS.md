@@ -227,6 +227,67 @@ Guarantees:
 - `duplicates` reports discovered duplicate names across standard origins before precedence resolution.
 - `skills` is the same effective-entry shape as `skills list --json`.
 
+## `skills import --json`
+
+Command:
+
+```bash
+jcode-harness skills import --json
+jcode-harness skills import --from .claude/skills --apply --json
+```
+
+Shape:
+
+```json
+{
+  "status": "ok",
+  "offline": true,
+  "dry_run": true,
+  "root": "/repo",
+  "target": {
+    "scope": "project",
+    "path": "/repo/.jcode/skills"
+  },
+  "force": false,
+  "planned": 1,
+  "copied": 0,
+  "skipped": 0,
+  "errors": 0,
+  "warnings": 0,
+  "sources": [
+    {
+      "origin": "agents",
+      "path": "/repo/.agents/skills",
+      "exists": true,
+      "checked": 1
+    }
+  ],
+  "findings": [],
+  "actions": [
+    {
+      "name": "repo-reviewer",
+      "source_origin": "agents",
+      "source_path": "/repo/.agents/skills/repo-reviewer",
+      "target_path": "/repo/.jcode/skills/repo-reviewer",
+      "action": "copy",
+      "applied": false,
+      "findings": []
+    }
+  ]
+}
+```
+
+Guarantees:
+
+- `offline` is always `true`; import planning never invokes providers, MCP servers, browser, or Gmail integrations.
+- The command is dry-run by default. Files are copied only when `--apply` is passed.
+- Default source discovery checks `./.agents/skills`, `./.claude/skills`, `./.codex/skills`, and `./.jcode/skills`; repeated `--from <dir>` values replace the default source set.
+- Relative `--from` values are resolved against `--cwd` or the current directory.
+- Default target is project scope at `./.jcode/skills`; `--scope global` targets `$JCODE_HOME/skills`.
+- Existing target skills are reported as `skip-existing` unless `--force` is passed with `--apply`.
+- Import refuses to copy symlinks during apply and reports copy failures as `errors`, causing a non-zero exit after printing JSON.
+- Action values currently include `copy`, `overwrite`, `skip-existing`, `skip-invalid`, `skip-same-target`, and `error`.
+
 ## `skills validate --json`
 
 Command:

@@ -70,6 +70,7 @@ pub mod setup_hints;
 pub mod side_panel;
 pub mod sidecar;
 pub mod skill;
+pub mod skill_import;
 pub mod skill_pack;
 pub mod skill_router;
 pub mod skill_validation;
