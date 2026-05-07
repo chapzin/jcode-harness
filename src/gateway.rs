@@ -132,6 +132,10 @@ pub struct GatewayClient {
 }
 
 /// Handle a single incoming TCP connection: upgrade to WebSocket, auth, bridge.
+#[expect(
+    clippy::result_large_err,
+    reason = "Tungstenite's handshake callback API requires returning ErrorResponse by value"
+)]
 async fn handle_ws_connection(
     tcp_stream: tokio::net::TcpStream,
     peer_addr: SocketAddr,
