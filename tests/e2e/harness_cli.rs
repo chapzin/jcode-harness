@@ -704,6 +704,89 @@ fn harness_session_show_json_reports_metadata_and_opt_in_preview() -> Result<()>
 }
 
 #[test]
+fn harness_session_resume_dry_run_json_returns_safe_envelope() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-session-resume-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    let sessions_dir = home.join("sessions");
+    std::fs::create_dir_all(&sessions_dir)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    std::fs::write(
+        sessions_dir.join("session_resume.json"),
+        serde_json::json!({
+            "id": "session_resume",
+            "title": "Resume local session",
+            "created_at": "2026-05-07T20:30:00Z",
+            "updated_at": "2026-05-07T20:40:00Z",
+            "last_active_at": "2026-05-07T20:41:00Z",
+            "working_dir": cwd,
+            "short_name": "resumer",
+            "provider_key": "openai",
+            "model": "gpt-test",
+            "status": "Closed",
+            "messages": [
+                {"id": "m1", "role": "user", "content": [{"type": "text", "text": "resume transcript should stay hidden"}]},
+                {"id": "m2", "role": "assistant", "content": [{"type": "text", "text": "resume answer should stay hidden"}]}
+            ]
+        })
+        .to_string(),
+    )?;
+
+    let blocked = harness_command(&home, &cwd)
+        .args(["session", "resume", "session_resume", "--json"])
+        .output()?;
+    assert!(
+        !blocked.status.success(),
+        "resume execution should require --dry-run"
+    );
+    assert!(
+        stderr_text(&blocked).contains("--dry-run"),
+        "stderr: {}",
+        stderr_text(&blocked)
+    );
+
+    let output = harness_command(&home, &cwd)
+        .args(["session", "resume", "session_resume", "--dry-run", "--json"])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    assert!(
+        !stdout.contains("resume transcript should stay hidden")
+            && !stdout.contains("resume answer should stay hidden"),
+        "resume dry-run must not emit transcript content. stdout: {stdout}"
+    );
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["command"], "session resume");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["read_only"], true);
+    assert_eq!(report["dry_run"], true);
+    assert_eq!(report["executed"], false);
+    assert_eq!(report["source"], "jcode");
+    assert_eq!(report["id"], "session_resume");
+    assert_eq!(report["metadata"]["display_name"], "resumer");
+    assert_eq!(report["metadata"]["status"], "closed");
+    assert_eq!(report["resume"]["supported_by"], "jcode-cli");
+    assert_eq!(report["resume"]["execution_supported_by_harness"], false);
+    assert_eq!(report["resume"]["requires_terminal"], true);
+    assert_eq!(report["resume"]["starts_tui"], true);
+    assert_eq!(report["resume"]["program"], "jcode");
+    assert_eq!(report["resume"]["cwd_source"], "session");
+    let argv = report["resume"]["argv"].as_array().expect("argv array");
+    assert_eq!(argv, &vec!["jcode", "--resume", "session_resume"]);
+    assert_eq!(report["safety"]["executed"], false);
+    assert_eq!(report["safety"]["writes"], false);
+    assert_eq!(report["safety"]["network_required_for_dry_run"], false);
+    assert_eq!(report["safety"]["credentials_required_for_dry_run"], false);
+
+    Ok(())
+}
+
+#[test]
 fn harness_smoke_runs_offline_tool_cases_with_deterministic_artifacts() -> Result<()> {
     let temp = tempfile::Builder::new()
         .prefix("jcode-harness-smoke-")

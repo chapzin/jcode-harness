@@ -1,0 +1,49 @@
+{
+  "id": "2026-05-07-add-offline-session-resume-dry-run-json-2fd640",
+  "title": "Add offline session resume dry-run JSON",
+  "goal": "Add the next issue #4 headless runtime slice: `jcode-harness session resume <id> --dry-run --json`, a safe envelope for local jcode session resume orchestration.",
+  "createdAt": "2026-05-07T21:49:01.255Z",
+  "status": "active",
+  "requiredInputs": [
+    "GitHub issue #4 headless orchestration API",
+    "Existing jcode CLI supports `--resume <session_id>`"
+  ],
+  "budget": {
+    "maxSteps": 7,
+    "maxMinutes": 45,
+    "maxToolCalls": 35
+  },
+  "permissions": [
+    "Modify source, tests, docs, governance",
+    "Run cargo fmt/check/test, selfdev build/reload",
+    "Commit and push"
+  ],
+  "completionConditions": [
+    "`jcode-harness session resume <id> --dry-run --json` exists",
+    "Command validates a local jcode session and emits stable resume argv/cwd metadata",
+    "Omitting `--dry-run` fails safely without starting TUI/provider",
+    "Focused e2e, fmt/check, selfdev build/reload, commit and push pass"
+  ],
+  "outputPaths": [
+    "src/bin/harness.rs",
+    "tests/e2e/harness_cli.rs",
+    "docs/JCODE_HARNESS_JSON_SCHEMAS.md",
+    "README.md",
+    "docs/JCODE_HARNESS_INNOVATION_ROADMAP.md",
+    "docs/JCODE_HARNESS_RELEASE_GATES.md",
+    "docs/SKILLS_HARNESS_STATUS.md",
+    ".codex-harness/**"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode --test e2e harness_session_resume_dry_run_json -- --nocapture",
+    "cargo check -p jcode",
+    "jcode-harness session resume <fixture> --dry-run --json | python3 -m json.tool >/dev/null"
+  ],
+  "failureTaxonomy": [
+    "Accidentally starting TUI/provider instead of dry-run",
+    "Ambiguous external imported session semantics",
+    "Resume argv may drift from jcode CLI args"
+  ],
+  "notes": "Keep actual resume execution unsupported in this slice. This command only validates and returns a stable plan/envelope for external orchestrators."
+}

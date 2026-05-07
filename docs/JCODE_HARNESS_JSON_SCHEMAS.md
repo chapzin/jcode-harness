@@ -294,6 +294,74 @@ Guarantees:
 - Preview `content` is truncated to `content_truncated_to_chars` characters per rendered message, and `truncated` reports whether truncation occurred.
 - `metadata.compaction` intentionally reports compaction counters and presence flags only, not summary text or provider-encrypted content.
 
+## `session resume --dry-run --json`
+
+Command:
+
+```bash
+jcode-harness session resume session_visible --dry-run --json
+```
+
+Shape:
+
+```json
+{
+  "status": "ok",
+  "command": "session resume",
+  "offline": true,
+  "read_only": true,
+  "dry_run": true,
+  "executed": false,
+  "source": "jcode",
+  "id": "session_visible",
+  "session_path": "/home/user/.jcode/sessions/session_visible.json",
+  "session_exists": true,
+  "journal_path": "/home/user/.jcode/sessions/session_visible.journal.jsonl",
+  "journal_exists": false,
+  "metadata": {
+    "id": "session_visible",
+    "display_name": "visible",
+    "title": "Visible local session",
+    "working_dir": "/repo",
+    "model": "gpt-test",
+    "provider_key": "openai",
+    "status": "closed",
+    "stored_message_count": 4,
+    "user_message_count": 2,
+    "assistant_message_count": 1,
+    "saved": true
+  },
+  "resume": {
+    "supported_by": "jcode-cli",
+    "execution_supported_by_harness": false,
+    "requires_terminal": true,
+    "starts_tui": true,
+    "starts_provider": "on_interaction_or_resume_flow",
+    "program": "jcode",
+    "argv": ["jcode", "--resume", "session_visible"],
+    "cwd": "/repo",
+    "cwd_source": "session"
+  },
+  "safety": {
+    "executed": false,
+    "writes": false,
+    "network_required_for_dry_run": false,
+    "credentials_required_for_dry_run": false,
+    "note": "Use the returned argv/cwd outside dry-run only after choosing an execution surface."
+  }
+}
+```
+
+Guarantees:
+
+- `session resume` is dry-run only in `jcode-harness`; omitting `--dry-run` fails before any resume flow is started.
+- `offline`, `read_only`, `dry_run`, and `executed` describe the harness command itself: it loads local metadata, prints the safe envelope, and does not start the TUI, provider flow, network-backed integrations, or credential prompts.
+- `source` is currently `jcode` only. Imported `claude_code`, `codex`, `pi`, and `opencode` resume support is a future compatibility slice.
+- `metadata` reuses the same metadata object as `session show --json` and intentionally excludes transcript content.
+- `resume.argv` and `resume.cwd` are execution hints for an operator-selected surface. They are not executed by the harness.
+- `resume.cwd_source` is `session` when the saved session has a non-empty `working_dir`; otherwise it is `current_dir`.
+- `safety.writes`, `network_required_for_dry_run`, and `credentials_required_for_dry_run` are always `false` for the dry-run report.
+
 ## Shared skill entry
 
 Used by `skills list --json`, `skills show <name> --json`, `skills doctor --json`, and resolved entries in `skills match <goal> --json`.

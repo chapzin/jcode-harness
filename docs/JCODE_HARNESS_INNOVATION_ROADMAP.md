@@ -31,6 +31,7 @@ Make jcode-harness the fastest local-first agent runtime for serious engineering
 
 - `jcode-harness session list --json`: first read-only headless runtime inventory for local/imported sessions without starting the TUI.
 - `jcode-harness session show <id> --json`: read-only local jcode session metadata with opt-in bounded preview.
+- `jcode-harness session resume <id> --dry-run --json`: safe local resume envelope without starting the TUI/provider flow.
 - `jcode session list/spawn/attach/resume --json` follow-up slices.
 - JSONL event stream for text/tool/usage/cache/compaction/memory events.
 - Local WebSocket gateway for external dashboards.
@@ -74,6 +75,7 @@ Make jcode-harness the fastest local-first agent runtime for serious engineering
 ## Completed initial implementation slices
 
 - `jcode-harness session show <id> --json`: read-only local session metadata and optional bounded preview without starting the TUI.
+- `jcode-harness session resume <id> --dry-run --json`: safe resume argv/cwd envelope for local jcode sessions without executing the TUI/provider flow.
 - `jcode-harness session list --json`: read-only offline metadata inventory for local/imported sessions as the first programmatic runtime slice.
 - `jcode-harness safe-eval`: isolated first-run trust boundary.
 - `jcode-harness doctor`: offline onboarding diagnostics for safe-eval, privacy, skills, and MCP configs.

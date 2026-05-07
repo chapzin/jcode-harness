@@ -1,11 +1,11 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Add offline session show JSON",
-  "status": "done",
-  "activeContractId": "2026-05-07-add-offline-session-show-json-b08332",
+  "focus": "Add offline session resume dry-run JSON",
+  "status": "executing",
+  "activeContractId": "2026-05-07-add-offline-session-resume-dry-run-json-2fd640",
   "counters": {
-    "contracts": 21,
+    "contracts": 22,
     "traces": 23,
     "gates": 22,
     "verifications": 19,
@@ -21,7 +21,7 @@
     {
       "id": "decision-2026-05-06-1c16f8",
       "ts": "2026-05-06T19:09:22.556Z",
-      "text": "Responder ao usu\u00e1rio em portugu\u00eas conforme prefer\u00eancia global registrada."
+      "text": "Responder ao usuário em português conforme preferência global registrada."
     },
     {
       "id": "decision-2026-05-07-f58c86",
@@ -75,7 +75,7 @@
       "type": "state_update",
       "note": "Criado .codex-harness, .context docs/agents/skills/workflow e workflow PREVC init-context-harness.",
       "status": "done",
-      "focus": "Inicializa\u00e7\u00e3o do harness e contexto conclu\u00edda",
+      "focus": "Inicialização do harness e contexto concluída",
       "activeContractId": ""
     },
     {
@@ -111,7 +111,7 @@
       "traceId": "trace-2026-05-06-fa63625f",
       "contractId": "2026-05-06-embedded-skills-scoping-improvement-87c1a0",
       "status": "pass",
-      "summary": "Valida\u00e7\u00f5es direcionadas, smoke JSON e selfdev build passaram."
+      "summary": "Validações direcionadas, smoke JSON e selfdev build passaram."
     },
     {
       "ts": "2026-05-06T22:38:08.746Z",
@@ -621,6 +621,12 @@
       "status": "done",
       "focus": "Issue #4 session show JSON",
       "activeContractId": "2026-05-07-add-offline-session-show-json-b08332"
+    },
+    {
+      "ts": "2026-05-07T21:49:01.256Z",
+      "type": "contract_created",
+      "contractId": "2026-05-07-add-offline-session-resume-dry-run-json-2fd640",
+      "summary": "Add offline session resume dry-run JSON"
     }
   ]
 }

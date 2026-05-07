@@ -142,6 +142,7 @@ jcode-harness session list --json
 jcode-harness session list --source jcode --json
 jcode-harness session show <session-id> --json
 jcode-harness session show <session-id> --preview 3 --json
+jcode-harness session resume <session-id> --dry-run --json
 jcode-harness safe-eval
 jcode-harness safe-eval --json
 jcode-harness doctor
@@ -182,11 +183,17 @@ jcode-harness session list --json
 jcode-harness session list --source jcode --json
 jcode-harness session show <session-id> --json
 jcode-harness session show <session-id> --preview 3 --json
+jcode-harness session resume <session-id> --dry-run --json
 ```
 
 `session show` currently supports local jcode sessions. It emits metadata only by
 default, and transcript content appears only when a bounded `--preview N` is
 requested.
+
+`session resume --dry-run --json` validates a local jcode session id and returns
+the exact `jcode --resume <id>` argv/cwd envelope without starting the TUI,
+provider flow, network, or credentials. Omitting `--dry-run` fails safely because
+the harness does not execute resume flows yet.
 
 The commands are offline/read-only, hide debug and canary sessions by default, and
 support `--include-test`, `--source all|jcode|claude-code|codex|pi|opencode`, and

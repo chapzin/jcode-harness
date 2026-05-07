@@ -141,6 +141,8 @@ enum SessionCommand {
     List(SessionListArgs),
     /// Show one local jcode session without starting the TUI
     Show(SessionShowArgs),
+    /// Validate and print a safe resume plan without starting the TUI
+    Resume(SessionResumeArgs),
 }
 
 #[derive(Parser)]
@@ -169,6 +171,18 @@ struct SessionShowArgs {
     /// Include the last N rendered visible messages as a bounded preview
     #[arg(long, default_value_t = 0)]
     preview: usize,
+}
+
+#[derive(Parser)]
+struct SessionResumeArgs {
+    /// Local jcode session id from `jcode-harness session list --source jcode --json`
+    id: String,
+    /// Validate and print the resume plan without executing it
+    #[arg(long)]
+    dry_run: bool,
+    /// Emit JSON report
+    #[arg(long)]
+    json: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -887,7 +901,92 @@ fn run_session(args: SessionArgs) -> Result<()> {
     match args.command {
         SessionCommand::List(args) => run_session_list(args),
         SessionCommand::Show(args) => run_session_show(args),
+        SessionCommand::Resume(args) => run_session_resume(args),
     }
+}
+
+fn run_session_resume(args: SessionResumeArgs) -> Result<()> {
+    if !args.dry_run {
+        anyhow::bail!(
+            "session resume execution is not supported by jcode-harness yet; rerun with --dry-run to inspect the safe resume envelope"
+        );
+    }
+    if args.id.contains(':') {
+        anyhow::bail!(
+            "session resume currently supports local jcode session ids only; use `session list --source jcode --json`"
+        );
+    }
+
+    let session_path = jcode::session::session_path(&args.id)?;
+    let journal_path = jcode::session::session_journal_path(&args.id)?;
+    let session = jcode::session::Session::load(&args.id)?;
+    let fallback_cwd = std::env::current_dir()?.to_string_lossy().to_string();
+    let working_dir = session
+        .working_dir
+        .as_deref()
+        .filter(|dir| !dir.trim().is_empty())
+        .unwrap_or(&fallback_cwd);
+    let working_dir_source = if session
+        .working_dir
+        .as_deref()
+        .filter(|dir| !dir.trim().is_empty())
+        .is_some()
+    {
+        "session"
+    } else {
+        "current_dir"
+    };
+    let argv = vec![
+        "jcode".to_string(),
+        "--resume".to_string(),
+        session.id.clone(),
+    ];
+    let report = json!({
+        "status": "ok",
+        "command": "session resume",
+        "offline": true,
+        "read_only": true,
+        "dry_run": true,
+        "executed": false,
+        "source": "jcode",
+        "id": &session.id,
+        "session_path": &session_path,
+        "session_exists": session_path.exists(),
+        "journal_path": &journal_path,
+        "journal_exists": journal_path.exists(),
+        "metadata": session_metadata_json(&session),
+        "resume": {
+            "supported_by": "jcode-cli",
+            "execution_supported_by_harness": false,
+            "requires_terminal": true,
+            "starts_tui": true,
+            "starts_provider": "on_interaction_or_resume_flow",
+            "program": "jcode",
+            "argv": argv,
+            "cwd": working_dir,
+            "cwd_source": working_dir_source,
+        },
+        "safety": {
+            "executed": false,
+            "writes": false,
+            "network_required_for_dry_run": false,
+            "credentials_required_for_dry_run": false,
+            "note": "Use the returned argv/cwd outside dry-run only after choosing an execution surface."
+        },
+    });
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        println!("jcode-harness session resume dry-run: {}", session.id);
+        println!("Offline: true");
+        println!("Read only: true");
+        println!("Executed: false");
+        println!("Command: jcode --resume {}", session.id);
+        println!("Working directory: {working_dir}");
+    }
+
+    Ok(())
 }
 
 fn run_session_show(args: SessionShowArgs) -> Result<()> {
