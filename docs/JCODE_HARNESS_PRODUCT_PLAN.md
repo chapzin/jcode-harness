@@ -43,8 +43,8 @@ Release readiness is governed by `docs/JCODE_HARNESS_RELEASE_GATES.md`. Automati
 
 ## Next planning milestones
 
-1. Define the `jcode-harness` CLI contract as a stable public interface.
-2. Expand clean-code rule fixtures and document rule severity policy.
-3. Add end-to-end live `/init` swarm smoke once UI/provider automation can verify full swarm completion safely.
-4. Add opt-in live-provider smoke tests after mock-provider JSON/NDJSON contracts are stable.
-5. Keep release-note and schema templates aligned with each new stable harness automation surface.
+1. Keep the `jcode-harness` CLI/JSON contract stable with additive-only schema changes, focused e2e coverage, and release-note migration callouts when needed.
+2. Expand Clean Code Guardian fixtures alongside any new heuristic rule and keep severity policy documented before changing default thresholds.
+3. Add end-to-end live `/init` swarm smoke only once UI/provider automation can verify full swarm completion safely and credentials/quota are explicitly reviewed.
+4. Keep opt-in live-provider validation isolated, disabled by default, and documented as a non-CI path unless reviewed credentials and budget are available.
+5. Keep release gates, release-note templates, status snapshots, and schema docs aligned with each new stable harness automation surface.

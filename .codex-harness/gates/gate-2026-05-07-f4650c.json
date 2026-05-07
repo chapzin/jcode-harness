@@ -1,0 +1,38 @@
+{
+  "id": "gate-2026-05-07-f4650c",
+  "ts": "2026-05-07T20:24:23.588Z",
+  "contractId": "2026-05-07-sync-release-gates-and-product-plan-2d0524",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "docs/JCODE_HARNESS_PRODUCT_PLAN.md",
+      "exists": true
+    },
+    {
+      "path": "docs/JCODE_HARNESS_RELEASE_GATES.md",
+      "exists": true
+    },
+    {
+      "path": "docs/SKILLS_HARNESS_STATUS.md",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "docs/JCODE_HARNESS_PRODUCT_PLAN.md no longer lists completed live-provider smoke/schema work as future milestones.",
+    "docs/JCODE_HARNESS_RELEASE_GATES.md includes focused init JSON, clean-code JSON, smoke, opt-in live-provider default-skip, and llmwiki bridge JSON validation commands.",
+    "docs/SKILLS_HARNESS_STATUS.md remains consistent with revised product/release docs and needed no edits in this docs-only sync.",
+    "Static validation passed: git diff --check, cargo fmt --check, touched-file check for docs/governance only, and obsolete future wording grep."
+  ],
+  "uncheckedConditions": [
+    "docs/JCODE_HARNESS_PRODUCT_PLAN.md no longer lists completed live-provider smoke/schema work as future milestones",
+    "docs/JCODE_HARNESS_RELEASE_GATES.md includes the focused init JSON, clean-code JSON, smoke, and opt-in live-provider validation commands",
+    "docs/SKILLS_HARNESS_STATUS.md remains consistent with the revised product/release docs",
+    "Static validation passes without code/runtime changes"
+  ],
+  "evidence": [
+    "docs/JCODE_HARNESS_PRODUCT_PLAN.md",
+    "docs/JCODE_HARNESS_RELEASE_GATES.md",
+    "/tmp/jcode-bg-tasks/341104wlch.output"
+  ],
+  "notes": "Docs/governance-only change. No code/runtime files touched. Repaired a truncated duplicate tail in .codex-harness/state.json before evaluating this gate."
+}

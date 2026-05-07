@@ -41,6 +41,7 @@ test -s docs/SKILLS_HARNESS_STATUS.md
 ```bash
 cargo test -p jcode project_init --lib -- --nocapture
 cargo test -p jcode test_init_command --lib -- --nocapture
+cargo test --test e2e harness_init_json -- --nocapture
 ```
 
 ## Gate 2: Deterministic embedded skills
@@ -73,11 +74,13 @@ cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m j
 - `--json` emits one JSON report with `session_id`, `provider`, `model`, `text`, and `usage`.
 - `--ndjson` emits `start` and `done` events.
 - `--mock-response` exercises the real Agent runtime offline.
+- Live-provider smoke remains opt-in only, skips by default, and isolates `JCODE_HOME`, runtime, cwd, provider profile config, and credentials when explicitly enabled.
 
 **Checks:**
 
 ```bash
 cargo test --test e2e harness_cli -- --nocapture
+cargo test --test e2e harness_live_provider -- --nocapture
 cargo run -q -p jcode --bin jcode-harness -- run "review this diff" --json --mock-response ok | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- run "review this diff" --ndjson --mock-response ok | while read -r line; do printf '%s\n' "$line" | python3 -m json.tool >/dev/null; done
 ```
@@ -97,6 +100,7 @@ cargo run -q -p jcode --bin jcode-harness -- run "review this diff" --ndjson --m
 
 ```bash
 cargo test -p jcode clean_code --lib
+cargo test --test e2e clean_code_check_json -- --nocapture
 cargo test --test e2e harness_cli -- --nocapture
 cargo run -q -p jcode --bin jcode-harness -- clean-code rules >/tmp/jcode-clean-code-rules.yaml
 ```
@@ -128,6 +132,7 @@ selfdev build target=auto
 - New JSON fields are additive and backward-compatible.
 - Breaking CLI behavior changes require an explicit migration note.
 - Examples in docs are runnable or intentionally marked as conceptual.
+- Stable automation-facing schemas are documented for `init`, `safe-eval`, `doctor`, skills JSON commands, `run` JSON/NDJSON, and `clean-code check`.
 
 **Checks:**
 
@@ -136,6 +141,10 @@ cargo run -q -p jcode --bin jcode-harness -- skills list --json | python3 -m jso
 cargo run -q -p jcode --bin jcode-harness -- skills show karpathy-guidelines --json | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- skills show llmwiki-memory --json | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- skills llmwiki-bridge --json | python3 -m json.tool >/dev/null
+cargo test --test e2e harness_init_json -- --nocapture
+cargo test --test e2e clean_code_check_json -- --nocapture
+cargo test --test e2e harness_smoke -- --nocapture
 ```
 
 ## Gate 7: Upstream divergence review

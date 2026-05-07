@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Document init and clean-code JSON schemas",
+  "focus": "Sync release gates and product plan",
   "status": "done",
-  "activeContractId": "2026-05-07-document-init-and-clean-code-json-schemas-8680dc",
+  "activeContractId": "2026-05-07-sync-release-gates-and-product-plan-2d0524",
   "counters": {
-    "contracts": 11,
-    "traces": 10,
-    "gates": 12,
-    "verifications": 10,
+    "contracts": 12,
+    "traces": 11,
+    "gates": 13,
+    "verifications": 11,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -274,6 +274,27 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-07-document-init-and-clean-code-json-schemas-8680dc",
       "gateId": "gate-2026-05-07-d0c848",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-07T20:21:05.851Z",
+      "type": "contract_created",
+      "contractId": "2026-05-07-sync-release-gates-and-product-plan-2d0524",
+      "summary": "Sync release gates and product plan"
+    },
+    {
+      "ts": "2026-05-07T20:22:47.187Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-07-3199dbf0",
+      "contractId": "2026-05-07-sync-release-gates-and-product-plan-2d0524",
+      "status": "pass",
+      "summary": "Docs-only static validation passed."
+    },
+    {
+      "ts": "2026-05-07T20:24:23.588Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-07-sync-release-gates-and-product-plan-2d0524",
+      "gateId": "gate-2026-05-07-f4650c",
       "verdict": "pass"
     }
   ]
