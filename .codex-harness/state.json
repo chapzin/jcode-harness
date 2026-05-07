@@ -27,6 +27,11 @@
       "id": "decision-2026-05-07-f58c86",
       "ts": "2026-05-07T20:33:22.024Z",
       "text": "Refresh init and side-panel scaffolds as docs/context-only slice after offline /init reported no file writes."
+    },
+    {
+      "id": "decision-2026-05-07-0c3cbf",
+      "ts": "2026-05-07T20:47:14.009Z",
+      "text": "Do not promote lib-bins as a mandatory gate yet; local serial measurement hit the 600s Jcode supervision timeout while tests were still passing."
     }
   ],
   "events": [
@@ -375,6 +380,14 @@
       "contractId": "2026-05-07-evaluate-lib-bins-gate-c13f1b",
       "gateId": "gate-2026-05-07-545bb3",
       "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-07T20:47:14.009Z",
+      "type": "state_update",
+      "note": "Committed and pushed e3c025a3. Next: issue-based triage and local-first implementation.",
+      "status": "done",
+      "focus": "Evaluate lib-bins gate",
+      "activeContractId": "2026-05-07-evaluate-lib-bins-gate-c13f1b"
     }
   ]
 }
