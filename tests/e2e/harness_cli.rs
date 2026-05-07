@@ -356,6 +356,106 @@ fn doctor_json_reports_safe_eval_privacy_skills_and_mcp_without_network() -> Res
 }
 
 #[test]
+fn skills_validate_json_reports_effective_project_skill() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-cli-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+    write_skill(
+        &cwd,
+        ".jcode",
+        "repo-reviewer",
+        "Project review rules for this repository",
+    )?;
+
+    let output = harness_command(&home, &cwd)
+        .args([
+            "skills",
+            "validate",
+            "--cwd",
+            cwd.to_str().unwrap(),
+            "--json",
+        ])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["errors"], 0);
+    assert!(report["checked"].as_u64().unwrap() >= 5);
+    assert!(
+        report["origins"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|origin| origin["origin"] == "project-local"
+                && origin["exists"] == true
+                && origin["checked"] == 1)
+    );
+    let repo_skill = report["skills"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|skill| skill["name"] == "repo-reviewer")
+        .expect("repo-reviewer skill should be present");
+    assert_eq!(repo_skill["origin"], "project-local");
+    assert_eq!(repo_skill["valid"], true);
+    assert_eq!(repo_skill["effective"], true);
+
+    Ok(())
+}
+
+#[test]
+fn skills_validate_json_flags_invalid_skill_and_exits_nonzero() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-cli-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    let bad_dir = cwd.join(".jcode/skills/bad-skill");
+    std::fs::create_dir_all(&bad_dir)?;
+    std::fs::write(
+        bad_dir.join("SKILL.md"),
+        "---\nname: bad-skill\nallowed-tools:\n  bash: true\n---\n\n",
+    )?;
+
+    let output = harness_command(&home, &cwd)
+        .args(["skills", "validate", "--json"])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(
+        !output.status.success(),
+        "invalid skill should fail. stdout: {stdout}"
+    );
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "error");
+    assert!(report["errors"].as_u64().unwrap() >= 2);
+    assert!(
+        report["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| finding["code"] == "missing-description")
+    );
+    assert!(
+        report["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| finding["code"] == "invalid-allowed-tools")
+    );
+
+    Ok(())
+}
+
+#[test]
 fn skills_doctor_reports_duplicate_names_across_origins() -> Result<()> {
     let temp = tempfile::Builder::new()
         .prefix("jcode-harness-cli-")

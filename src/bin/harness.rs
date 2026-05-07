@@ -121,6 +121,15 @@ enum SkillsCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Validate skill files, precedence, and risky prompt/tool patterns without invoking providers
+    Validate {
+        /// Project directory for resolving repo-local skills
+        #[arg(long)]
+        cwd: Option<String>,
+        /// Emit JSON report
+        #[arg(long)]
+        json: bool,
+    },
     /// Preview task-scoped skill selection for a goal without invoking a model
     Match {
         goal: String,
@@ -1015,6 +1024,7 @@ fn run_skills(args: SkillsArgs) -> Result<()> {
         }
         SkillsCommand::Sync { force } => jcode::cli::commands::run_skills_sync_command(force),
         SkillsCommand::Doctor { json } => jcode::cli::commands::run_skills_doctor_command(json),
+        SkillsCommand::Validate { cwd, json } => run_skills_validate(cwd, json),
         SkillsCommand::Match {
             goal,
             cwd,
@@ -1023,6 +1033,69 @@ fn run_skills(args: SkillsArgs) -> Result<()> {
             json,
         } => run_skills_match(&goal, cwd, skills.into(), &skill, json),
         SkillsCommand::LlmwikiBridge { json } => run_llmwiki_bridge(json),
+    }
+}
+
+fn run_skills_validate(cwd: Option<String>, json_output: bool) -> Result<()> {
+    let root = cwd
+        .as_deref()
+        .map(PathBuf::from)
+        .unwrap_or(std::env::current_dir()?);
+    if !root.is_dir() {
+        anyhow::bail!(
+            "skills validate cwd does not exist or is not a directory: {}",
+            root.display()
+        );
+    }
+
+    let report = jcode::skill_validation::validate_for_working_dir(&root)?;
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        print_skill_validation_report(&report);
+    }
+
+    if report.should_fail() {
+        anyhow::bail!("skill validation failed with {} error(s)", report.errors);
+    }
+    Ok(())
+}
+
+fn print_skill_validation_report(report: &jcode::skill_validation::SkillValidationReport) {
+    println!("jcode-harness skills validate: {}", report.status.label());
+    println!("Offline diagnostics: true");
+    println!("Root: {}", report.root);
+    println!(
+        "Skills checked: {} (valid {}, invalid {})",
+        report.checked, report.valid, report.invalid
+    );
+    println!(
+        "Findings: {} error(s), {} warning(s)",
+        report.errors, report.warnings
+    );
+
+    println!("Origins:");
+    for origin in &report.origins {
+        println!(
+            "  - {}: {} checked, exists={} ({})",
+            origin.origin, origin.checked, origin.exists, origin.path
+        );
+    }
+
+    if report.findings.is_empty() {
+        println!("No findings.");
+        return;
+    }
+
+    println!("Findings detail:");
+    for finding in &report.findings {
+        println!(
+            "  - [{}] {} {}: {}",
+            finding.severity.label(),
+            finding.code,
+            finding.path,
+            finding.message
+        );
     }
 }
 

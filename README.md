@@ -164,7 +164,14 @@ jcode-harness skills show karpathy-guidelines
 jcode-harness skills show llmwiki-memory --json
 jcode-harness skills sync
 jcode-harness skills doctor --json
+jcode-harness skills validate --cwd . --json
 ```
+
+`skills validate` is an offline CI-friendly gate for the Skill OS. It checks
+built-in, Claude-compatible, global, and project-local skill files for required
+frontmatter, runtime-compatible `allowed-tools` strings or YAML lists, duplicate
+precedence, empty bodies, prompt-injection phrases, suspicious inline secrets,
+and risky shell snippets before a model ever sees the prompt.
 
 ### Scriptable runs
 

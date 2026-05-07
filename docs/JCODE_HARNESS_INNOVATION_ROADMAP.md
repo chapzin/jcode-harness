@@ -69,6 +69,8 @@ Make jcode-harness the fastest local-first agent runtime for serious engineering
 - Publish reproducible benchmark scripts.
 - Keep public roadmap issues small and contributor-friendly.
 
-## Current first implementation slice
+## Completed initial implementation slices
 
-Implement `jcode-harness safe-eval` because it is low-risk, directly addresses onboarding/trust concerns, and creates a foundation for all later high-impact capabilities.
+- `jcode-harness safe-eval`: isolated first-run trust boundary.
+- `jcode-harness doctor`: offline onboarding diagnostics for safe-eval, privacy, skills, and MCP configs.
+- `jcode-harness skills validate`: offline Skill OS validation for frontmatter, precedence, risky prompt patterns, suspicious secrets, and runtime-compatible tool allowlists.

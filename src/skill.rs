@@ -46,7 +46,14 @@ struct SkillFrontmatter {
     name: String,
     description: String,
     #[serde(rename = "allowed-tools")]
-    allowed_tools: Option<String>,
+    allowed_tools: Option<AllowedToolsFrontmatter>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum AllowedToolsFrontmatter {
+    Csv(String),
+    List(Vec<String>),
 }
 
 /// Registry of available skills
@@ -312,8 +319,19 @@ impl SkillRegistry {
             allowed_tools,
         } = frontmatter;
 
-        let allowed_tools =
-            allowed_tools.map(|s| s.split(',').map(|t| t.trim().to_string()).collect());
+        let allowed_tools = allowed_tools.map(|value| match value {
+            AllowedToolsFrontmatter::Csv(raw) => raw
+                .split(',')
+                .map(str::trim)
+                .filter(|tool| !tool.is_empty())
+                .map(str::to_string)
+                .collect(),
+            AllowedToolsFrontmatter::List(tools) => tools
+                .into_iter()
+                .map(|tool| tool.trim().to_string())
+                .filter(|tool| !tool.is_empty())
+                .collect(),
+        });
         let search_text = build_skill_search_text(&name, &description, &body);
 
         Ok(Skill {
@@ -557,6 +575,21 @@ mod tests {
             format!("---\nname: {name}\ndescription: Test skill {name}\n---\n\nUse {name}.\n"),
         )
         .expect("write skill");
+    }
+
+    #[test]
+    fn parse_skill_accepts_allowed_tools_as_yaml_list() {
+        let skill = SkillRegistry::parse_skill_content(
+            "---\nname: list-tools\ndescription: Uses YAML list tools\nallowed-tools:\n  - read\n  - bash\n  - grep\n---\n\nUse list tools.",
+            PathBuf::from("/tmp/list-tools/SKILL.md"),
+            SkillOrigin::Unknown,
+        )
+        .expect("parse skill with YAML list allowed-tools");
+
+        assert_eq!(
+            skill.allowed_tools,
+            Some(vec!["read".into(), "bash".into(), "grep".into()])
+        );
     }
 
     #[test]

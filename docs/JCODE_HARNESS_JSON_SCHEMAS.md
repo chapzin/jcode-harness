@@ -227,6 +227,69 @@ Guarantees:
 - `duplicates` reports discovered duplicate names across standard origins before precedence resolution.
 - `skills` is the same effective-entry shape as `skills list --json`.
 
+## `skills validate --json`
+
+Command:
+
+```bash
+jcode-harness skills validate --cwd . --json
+```
+
+Shape:
+
+```json
+{
+  "status": "ok",
+  "offline": true,
+  "root": "/repo",
+  "checked": 5,
+  "valid": 5,
+  "invalid": 0,
+  "errors": 0,
+  "warnings": 0,
+  "origins": [
+    {
+      "origin": "project-local",
+      "path": "/repo/.jcode/skills",
+      "exists": true,
+      "checked": 1
+    }
+  ],
+  "findings": [
+    {
+      "severity": "warning",
+      "code": "prompt-injection-phrase",
+      "origin": "project-local",
+      "path": "/repo/.jcode/skills/example/SKILL.md",
+      "message": "Skill contains a common prompt-injection phrase; review before enabling it"
+    }
+  ],
+  "skills": [
+    {
+      "name": "repo-reviewer",
+      "description": "Project review rules",
+      "origin": "project-local",
+      "path": "/repo/.jcode/skills/repo-reviewer/SKILL.md",
+      "valid": true,
+      "effective": true,
+      "precedence_rank": 30,
+      "allowed_tools": ["read", "grep"],
+      "issues": []
+    }
+  ]
+}
+```
+
+Guarantees:
+
+- `offline` is always `true`; validation never invokes providers, MCP servers, browser, or Gmail integrations.
+- Standard origins are checked in runtime precedence order: built-in, `./.claude/skills`, `$JCODE_HOME/skills`, then `./.jcode/skills`.
+- `status` is `error` when invalid skill files are found, `warn` when only warnings exist, and `ok` when there are no warning/error findings.
+- The command exits non-zero when `errors > 0`, while still printing the JSON report to stdout for CI parsers.
+- `findings` includes normalized `severity`, stable `code`, `origin`, `path`, and human-readable `message` fields.
+- `skills[].effective` marks the final highest-precedence valid definition when the winner is deterministic.
+- Current validation errors include missing/invalid frontmatter and unsupported `allowed-tools` shapes; comma-separated strings and YAML lists are accepted. Warnings include empty bodies, directory/name mismatches, same-precedence duplicates, common prompt-injection phrases, suspicious inline secrets, and risky shell snippets.
+
 ## `skills match <goal> --json`
 
 Command:
