@@ -330,6 +330,116 @@ fn harness_acp_stdio_session_methods_return_offline_envelopes() -> Result<()> {
 }
 
 #[test]
+fn harness_acp_fixture_json_is_runnable_against_stdio_server() -> Result<()> {
+    use std::io::Write;
+
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-acp-fixture-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let fixture_output = harness_command(&home, &cwd)
+        .args(["acp", "fixture", "--json"])
+        .output()?;
+    let fixture_stdout = stdout_text(&fixture_output);
+    assert!(
+        fixture_output.status.success(),
+        "stderr: {}",
+        stderr_text(&fixture_output)
+    );
+    let fixture: Value = serde_json::from_str(&fixture_stdout)?;
+    assert_eq!(fixture["status"], "ok");
+    assert_eq!(fixture["command"], "acp fixture");
+    assert_eq!(fixture["offline"], true);
+    assert_eq!(fixture["read_only"], true);
+    assert_eq!(fixture["fixture"]["version"], 1);
+    assert_eq!(fixture["safety"]["starts_provider"], false);
+
+    for file in fixture["fixture_home_files"]
+        .as_array()
+        .expect("fixture_home_files")
+    {
+        let relative = file["path"].as_str().expect("fixture file path");
+        assert!(
+            !relative.starts_with('/') && !relative.contains(".."),
+            "fixture file path must stay relative: {relative}"
+        );
+        let path = home.join(relative);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&path, serde_json::to_string(&file["content"])?)?;
+    }
+
+    let mut child = harness_command(&home, &cwd)
+        .args(["acp", "serve", "--stdio"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin");
+        for step in fixture["steps"].as_array().expect("fixture steps") {
+            writeln!(stdin, "{}", step["request"])?;
+        }
+    }
+    let output = child.wait_with_output()?;
+    let stdout = stdout_text(&output);
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    assert!(
+        !stdout.contains("fixture prompt content"),
+        "fixture should not leak non-preview transcript content: {stdout}"
+    );
+    let responses = parse_ndjson(&output)?;
+    let expected_response_count = fixture["steps"]
+        .as_array()
+        .expect("fixture steps")
+        .iter()
+        .filter(|step| step["expect_response"].as_bool().unwrap_or(true))
+        .count();
+    assert_eq!(responses.len(), expected_response_count, "stdout: {stdout}");
+
+    let by_id = |id: &str| -> &Value {
+        responses
+            .iter()
+            .find(|response| response["id"] == id)
+            .unwrap_or_else(|| panic!("missing response id {id}. stdout: {stdout}"))
+    };
+    assert_eq!(by_id("initialize")["result"]["protocol"], "acp");
+    assert_eq!(by_id("session_list")["result"]["command"], "session list");
+    assert!(
+        by_id("session_list")["result"]["sessions"]
+            .as_array()
+            .expect("sessions")
+            .iter()
+            .any(|session| session["id"] == "session_acp_fixture")
+    );
+    assert_eq!(by_id("session_spawn")["result"]["command"], "session spawn");
+    assert_eq!(by_id("session_spawn")["result"]["dry_run"], true);
+    assert_eq!(by_id("session_show")["result"]["preview"]["returned"], 1);
+    assert_eq!(
+        by_id("session_show")["result"]["preview"]["messages"][0]["content"],
+        "fixture assistant preview"
+    );
+    assert_eq!(
+        by_id("session_attach")["result"]["command"],
+        "session attach"
+    );
+    assert_eq!(
+        by_id("session_resume")["result"]["command"],
+        "session resume"
+    );
+    assert_eq!(by_id("invalid_params")["error"]["code"], -32602);
+    assert_eq!(by_id("unknown_method")["error"]["code"], -32601);
+    assert_eq!(by_id("shutdown")["result"]["shutdown"], true);
+
+    Ok(())
+}
+
+#[test]
 fn harness_run_dry_run_auto_routes_optimization_only_for_perf_task() -> Result<()> {
     let temp = tempfile::Builder::new()
         .prefix("jcode-harness-cli-")

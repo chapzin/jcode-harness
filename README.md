@@ -233,6 +233,7 @@ registry readiness yet, and it does not start providers, tools, or the TUI:
 
 ```bash
 jcode-harness acp manifest --json
+jcode-harness acp fixture --json
 jcode-harness acp serve --stdio
 ```
 
@@ -241,7 +242,10 @@ registry gaps. `acp serve --stdio` speaks newline-delimited JSON-RPC 2.0 for the
 implemented `initialize`, `initialized` notification, `shutdown`, and safe
 offline `jcode/session.list|show|spawn|attach|resume` request methods. Session
 methods reuse the same read-only/dry-run envelopes as the CLI and still avoid
-starting providers, tools, network, credentials, or the TUI.
+starting providers, tools, network, credentials, or the TUI. `acp fixture
+--json` prints a versioned conformance fixture with newline-delimited JSON-RPC
+requests, expected responses, and a tiny local session file that clients can copy
+into a temporary `JCODE_HOME` for deterministic offline tests.
 
 ### Reproducible demos without credentials
 

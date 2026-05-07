@@ -82,8 +82,16 @@ Shape:
       "session_updates": false,
       "tool_events": false
     },
+    "conformance": { "fixture": true, "fixture_version": 1 },
     "cancellation": { "supported": false },
     "registry_submission": { "ready": false }
+  },
+  "conformance": {
+    "fixture": {
+      "status": "available",
+      "version": 1,
+      "command": "jcode-harness acp fixture --json"
+    }
   },
   "registry": {
     "ready": false,
@@ -102,8 +110,57 @@ Shape:
 Guarantees:
 
 - `acp manifest --json` is offline/read-only and does not initialize providers, tools, MCP servers, browser/Gmail integrations, or the TUI.
-- `protocol.status` is `preview`; registry submission remains explicitly not ready until live session execution, tool streaming, cancellation, and conformance fixtures are implemented.
+- `protocol.status` is `preview`; registry submission remains explicitly not ready until live session execution, tool streaming, and cancellation semantics are implemented.
 - Capability entries describe currently available harness CLI surfaces and implemented offline ACP session methods, not full ACP conformance.
+
+## `acp fixture --json`
+
+Command:
+
+```bash
+jcode-harness acp fixture --json
+```
+
+Shape:
+
+```json
+{
+  "status": "ok",
+  "command": "acp fixture",
+  "offline": true,
+  "read_only": true,
+  "fixture": {
+    "id": "jcode-harness-acp-stdio-preview",
+    "version": 1,
+    "protocol": "acp",
+    "jsonrpc": "2.0",
+    "transport": "stdio",
+    "framing": "newline-delimited-json"
+  },
+  "fixture_home_files": [
+    {
+      "path": "sessions/session_acp_fixture.json",
+      "content": { "id": "session_acp_fixture", "status": "Closed" }
+    }
+  ],
+  "steps": [
+    {
+      "name": "initialize",
+      "request": { "jsonrpc": "2.0", "id": "initialize", "method": "initialize" },
+      "expect_response": true,
+      "expect": { "/result/protocol": "acp" }
+    }
+  ],
+  "runner_notes": ["Create a temporary JCODE_HOME and write fixture_home_files before running fixture steps that require a local session."]
+}
+```
+
+Guarantees:
+
+- The fixture is offline/read-only and does not create files by itself.
+- `fixture.version` is the compatibility number for external client test runners.
+- `steps[*].request` entries are newline-delimited JSON-RPC messages that can be sent to `jcode-harness acp serve --stdio`.
+- `fixture_home_files` contains relative paths only; runners should copy them into an isolated temporary `JCODE_HOME` before testing `show`, `attach`, and `resume` success paths.
 
 ## `acp serve --stdio`
 

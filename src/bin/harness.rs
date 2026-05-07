@@ -77,6 +77,12 @@ enum AcpCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Print a versioned offline ACP conformance fixture for external clients
+    Fixture {
+        /// Emit JSON report
+        #[arg(long)]
+        json: bool,
+    },
     /// Serve the preview ACP JSON-RPC protocol over newline-delimited stdio
     Serve {
         /// Read JSON-RPC requests from stdin and write responses to stdout
@@ -687,6 +693,7 @@ fn run_init(args: InitArgs) -> Result<()> {
 fn run_acp(args: AcpArgs) -> Result<()> {
     match args.command {
         AcpCommand::Manifest { json } => run_acp_manifest(json),
+        AcpCommand::Fixture { json } => run_acp_fixture(json),
         AcpCommand::Serve { stdio } => run_acp_serve(stdio),
     }
 }
@@ -711,6 +718,13 @@ fn acp_manifest_json() -> serde_json::Value {
             "repository": "https://github.com/chapzin/jcode-harness"
         },
         "capabilities": acp_capabilities_json(),
+        "conformance": {
+            "fixture": {
+                "status": "available",
+                "version": 1,
+                "command": "jcode-harness acp fixture --json"
+            }
+        },
         "methods": [
             {"name": "initialize", "kind": "request", "status": "implemented"},
             {"name": "shutdown", "kind": "request", "status": "implemented"},
@@ -728,8 +742,7 @@ fn acp_manifest_json() -> serde_json::Value {
             "missing": [
                 "live session execution/streaming handlers",
                 "tool event streaming contract",
-                "cancellation semantics",
-                "versioned ACP conformance fixture"
+                "cancellation semantics"
             ]
         },
         "safety": {
@@ -758,8 +771,127 @@ fn acp_capabilities_json() -> serde_json::Value {
             "session_updates": false,
             "tool_events": false
         },
+        "conformance": {"fixture": true, "fixture_version": 1},
         "cancellation": {"supported": false},
         "registry_submission": {"ready": false}
+    })
+}
+
+fn acp_fixture_json() -> serde_json::Value {
+    json!({
+        "status": "ok",
+        "command": "acp fixture",
+        "offline": true,
+        "read_only": true,
+        "fixture": {
+            "id": "jcode-harness-acp-stdio-preview",
+            "version": 1,
+            "protocol": "acp",
+            "jsonrpc": "2.0",
+            "transport": "stdio",
+            "framing": "newline-delimited-json"
+        },
+        "safety": {
+            "starts_tui": false,
+            "starts_provider": false,
+            "starts_tools": false,
+            "network_required": false,
+            "credentials_required": false,
+            "project_writes": false
+        },
+        "fixture_home_files": [
+            {
+                "path": "sessions/session_acp_fixture.json",
+                "content": {
+                    "id": "session_acp_fixture",
+                    "title": "ACP fixture local session",
+                    "created_at": "2026-05-07T22:00:00Z",
+                    "updated_at": "2026-05-07T22:01:00Z",
+                    "last_active_at": "2026-05-07T22:02:00Z",
+                    "working_dir": ".",
+                    "short_name": "acp-fixture",
+                    "provider_key": "test",
+                    "model": "fixture-model",
+                    "status": "Closed",
+                    "messages": [
+                        {"id": "fixture-user", "role": "user", "content": [{"type": "text", "text": "fixture prompt content"}]},
+                        {"id": "fixture-assistant", "role": "assistant", "content": [{"type": "text", "text": "fixture assistant preview"}]}
+                    ],
+                    "env_snapshots": [],
+                    "memory_injections": [],
+                    "replay_events": []
+                }
+            }
+        ],
+        "steps": [
+            {
+                "name": "initialize",
+                "request": {"jsonrpc": "2.0", "id": "initialize", "method": "initialize", "params": {"clientInfo": {"name": "acp-fixture-client"}}},
+                "expect_response": true,
+                "expect": {"/result/protocol": "acp", "/result/serverInfo/name": "jcode-harness"}
+            },
+            {
+                "name": "initialized_notification",
+                "request": {"jsonrpc": "2.0", "method": "initialized"},
+                "expect_response": false
+            },
+            {
+                "name": "session_list",
+                "request": {"jsonrpc": "2.0", "id": "session_list", "method": "jcode/session.list", "params": {"source": "jcode", "includeTest": true, "limit": 5}},
+                "expect_response": true,
+                "expect": {"/result/status": "ok", "/result/command": "session list", "/result/offline": true, "/result/read_only": true}
+            },
+            {
+                "name": "session_spawn",
+                "request": {"jsonrpc": "2.0", "id": "session_spawn", "method": "jcode/session.spawn", "params": {"goal": "fixture spawn goal", "cwd": ".", "provider": "openai", "model": "fixture-model", "outputMode": "json"}},
+                "expect_response": true,
+                "expect": {"/result/status": "ok", "/result/command": "session spawn", "/result/dry_run": true, "/result/executed": false, "/result/spawn/output_mode": "json"}
+            },
+            {
+                "name": "session_show",
+                "requires_fixture_home_files": true,
+                "request": {"jsonrpc": "2.0", "id": "session_show", "method": "jcode/session.show", "params": {"id": "session_acp_fixture", "preview": 1}},
+                "expect_response": true,
+                "expect": {"/result/status": "ok", "/result/command": "session show", "/result/preview/returned": 1}
+            },
+            {
+                "name": "session_attach",
+                "requires_fixture_home_files": true,
+                "request": {"jsonrpc": "2.0", "id": "session_attach", "method": "jcode/session.attach", "params": {"id": "session_acp_fixture"}},
+                "expect_response": true,
+                "expect": {"/result/status": "ok", "/result/command": "session attach", "/result/dry_run": true, "/result/executed": false}
+            },
+            {
+                "name": "session_resume",
+                "requires_fixture_home_files": true,
+                "request": {"jsonrpc": "2.0", "id": "session_resume", "method": "jcode/session.resume", "params": {"id": "session_acp_fixture"}},
+                "expect_response": true,
+                "expect": {"/result/status": "ok", "/result/command": "session resume", "/result/dry_run": true, "/result/executed": false}
+            },
+            {
+                "name": "invalid_params",
+                "request": {"jsonrpc": "2.0", "id": "invalid_params", "method": "jcode/session.show", "params": {}},
+                "expect_response": true,
+                "expect_error": {"code": -32602, "message": "invalid params"}
+            },
+            {
+                "name": "unknown_method",
+                "request": {"jsonrpc": "2.0", "id": "unknown_method", "method": "jcode/unknown"},
+                "expect_response": true,
+                "expect_error": {"code": -32601, "message": "method not found"}
+            },
+            {
+                "name": "shutdown",
+                "request": {"jsonrpc": "2.0", "id": "shutdown", "method": "shutdown"},
+                "expect_response": true,
+                "expect": {"/result/shutdown": true}
+            }
+        ],
+        "runner_notes": [
+            "Create a temporary JCODE_HOME and write fixture_home_files before running fixture steps that require a local session.",
+            "Send each request as one newline-delimited JSON object to `jcode-harness acp serve --stdio`.",
+            "Steps with expect_response=false are notifications and must not produce a JSON-RPC response."
+        ]
     })
 }
 
@@ -772,6 +904,26 @@ fn run_acp_manifest(json_output: bool) -> Result<()> {
         println!("Transport: stdio JSON-RPC 2.0");
         println!("Implemented methods: initialize, initialized, shutdown, jcode/session.* offline");
         println!("Registry ready: false");
+    }
+    Ok(())
+}
+
+fn run_acp_fixture(json_output: bool) -> Result<()> {
+    let fixture = acp_fixture_json();
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(&fixture)?);
+    } else {
+        println!("jcode-harness ACP fixture: version 1");
+        println!("Offline: true");
+        println!("Read only: true");
+        println!("Transport: stdio JSON-RPC 2.0");
+        println!(
+            "Steps: {}",
+            fixture["steps"].as_array().map(Vec::len).unwrap_or(0)
+        );
+        println!(
+            "Use --json for machine-readable requests, expected responses, and fixture session files."
+        );
     }
     Ok(())
 }
