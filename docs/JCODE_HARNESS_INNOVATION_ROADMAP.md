@@ -29,7 +29,8 @@ Make jcode-harness the fastest local-first agent runtime for serious engineering
 
 ### Phase 1: Programmatic runtime
 
-- `jcode session list/spawn/attach/resume --json`.
+- `jcode-harness session list --json`: first read-only headless runtime inventory for local/imported sessions without starting the TUI.
+- `jcode session list/spawn/attach/resume --json` follow-up slices.
 - JSONL event stream for text/tool/usage/cache/compaction/memory events.
 - Local WebSocket gateway for external dashboards.
 - Initial `jcode acp` server with text/tool/done mapping.
@@ -71,6 +72,7 @@ Make jcode-harness the fastest local-first agent runtime for serious engineering
 
 ## Completed initial implementation slices
 
+- `jcode-harness session list --json`: read-only offline metadata inventory for local/imported sessions as the first programmatic runtime slice.
 - `jcode-harness safe-eval`: isolated first-run trust boundary.
 - `jcode-harness doctor`: offline onboarding diagnostics for safe-eval, privacy, skills, and MCP configs.
 - `jcode-harness skills scope`: repo-local Skill OS policy for visible, discoverable, and blocked skill states.

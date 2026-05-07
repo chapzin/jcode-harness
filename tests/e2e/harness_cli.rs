@@ -477,6 +477,117 @@ fn harness_demo_run_sandbox_executes_project_writes_without_mutating_cwd() -> Re
 }
 
 #[test]
+fn harness_session_list_json_reports_local_sessions_without_tui() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-session-list-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    let sessions_dir = home.join("sessions");
+    std::fs::create_dir_all(&sessions_dir)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    std::fs::write(
+        sessions_dir.join("session_visible.json"),
+        serde_json::json!({
+            "id": "session_visible",
+            "title": "Visible local session",
+            "created_at": "2026-05-07T20:00:00Z",
+            "updated_at": "2026-05-07T20:05:00Z",
+            "last_active_at": "2026-05-07T20:06:00Z",
+            "working_dir": cwd,
+            "short_name": "visible",
+            "provider_key": "openai",
+            "model": "gpt-test",
+            "saved": true,
+            "save_label": "fixture",
+            "status": "Closed",
+            "messages": [
+                {"role": "user", "content": [{"type": "text", "text": "hello"}]},
+                {"role": "assistant", "content": [{"type": "text", "text": "hi"}]}
+            ]
+        })
+        .to_string(),
+    )?;
+    std::fs::write(
+        sessions_dir.join("session_debug.json"),
+        serde_json::json!({
+            "id": "session_debug",
+            "title": "Debug local session",
+            "created_at": "2026-05-07T19:00:00Z",
+            "updated_at": "2026-05-07T19:05:00Z",
+            "short_name": "debug",
+            "is_debug": true,
+            "status": "Closed",
+            "messages": [
+                {"role": "user", "content": [{"type": "text", "text": "hidden"}]}
+            ]
+        })
+        .to_string(),
+    )?;
+
+    let output = harness_command(&home, &cwd)
+        .args(["session", "list", "--source", "jcode", "--json"])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["command"], "session list");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["read_only"], true);
+    assert_eq!(report["source"], "jcode");
+    assert_eq!(report["discovered_count"], 2);
+    assert_eq!(report["session_count"], 1);
+    assert_eq!(report["hidden_test_count"], 1);
+    let sessions = report["sessions"].as_array().expect("sessions array");
+    assert_eq!(sessions.len(), 1, "stdout: {stdout}");
+    let session = &sessions[0];
+    assert_eq!(session["id"], "session_visible");
+    assert_eq!(session["source"], "jcode");
+    assert_eq!(session["short_name"], "visible");
+    assert_eq!(session["title"], "Visible local session");
+    assert_eq!(session["status"], "closed");
+    assert_eq!(session["message_count"], 2);
+    assert_eq!(session["user_message_count"], 1);
+    assert_eq!(session["assistant_message_count"], 1);
+    assert_eq!(session["saved"], true);
+    assert_eq!(session["save_label"], "fixture");
+    assert_eq!(session["resume_target"]["kind"], "jcode_session");
+    assert_eq!(session["resume_target"]["id"], "session_visible");
+
+    let include_test = harness_command(&home, &cwd)
+        .args([
+            "session",
+            "list",
+            "--source",
+            "jcode",
+            "--include-test",
+            "--json",
+        ])
+        .output()?;
+    let include_stdout = stdout_text(&include_test);
+    assert!(
+        include_test.status.success(),
+        "stderr: {}",
+        stderr_text(&include_test)
+    );
+    let include_report: Value = serde_json::from_str(&include_stdout)?;
+    assert_eq!(include_report["session_count"], 2);
+    assert!(
+        include_report["sessions"]
+            .as_array()
+            .expect("sessions")
+            .iter()
+            .any(|session| session["id"] == "session_debug" && session["is_debug"] == true),
+        "stdout: {include_stdout}"
+    );
+
+    Ok(())
+}
+
+#[test]
 fn harness_smoke_runs_offline_tool_cases_with_deterministic_artifacts() -> Result<()> {
     let temp = tempfile::Builder::new()
         .prefix("jcode-harness-smoke-")

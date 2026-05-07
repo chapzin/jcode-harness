@@ -138,6 +138,8 @@ jcode-harness smoke
 jcode-harness demo --json
 jcode-harness demo run mock-provider-run-json --json
 jcode-harness demo run all --sandbox --json
+jcode-harness session list --json
+jcode-harness session list --source jcode --json
 jcode-harness safe-eval
 jcode-harness safe-eval --json
 jcode-harness doctor
@@ -166,6 +168,21 @@ Use `jcode-harness doctor --json` for offline diagnostics before running live
 providers. It reports safe-eval activation, telemetry opt-out state, platform,
 skill loading health, and project/global MCP config paths without contacting
 model providers or starting MCP/browser/Gmail integrations.
+
+### Headless session metadata
+
+The first programmatic runtime slice is a read-only session inventory command for
+scripts and dashboards that need session metadata without scraping or starting the
+TUI:
+
+```bash
+jcode-harness session list --json
+jcode-harness session list --source jcode --json
+```
+
+The command is offline/read-only, hides debug and canary sessions by default, and
+supports `--include-test`, `--source all|jcode|claude-code|codex|pi|opencode`, and
+`--limit N` for deterministic automation.
 
 ### Reproducible demos without credentials
 

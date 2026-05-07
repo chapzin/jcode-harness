@@ -5,6 +5,7 @@ use jcode::id::new_id;
 use jcode::message::{Message, StreamEvent, ToolDefinition};
 use jcode::provider::{EventStream, Provider};
 use jcode::tool::{Registry, ToolContext, ToolExecutionMode};
+use jcode::tui::session_picker::{ResumeTarget, SessionInfo, SessionSource};
 use serde_json::json;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -28,6 +29,8 @@ enum Command {
     Doctor(DoctorArgs),
     /// Print reproducible offline mock demos for README/product claims
     Demo(DemoArgs),
+    /// Inspect local/headless session metadata without starting the TUI
+    Session(SessionArgs),
     /// Run the deterministic tool harness smoke test
     Smoke(SmokeArgs),
     /// Run a single goal by delegating to the jcode run path with skill routing
@@ -124,6 +127,44 @@ struct DemoRunArgs {
     /// Emit JSON run report
     #[arg(long)]
     json: bool,
+}
+
+#[derive(Parser)]
+struct SessionArgs {
+    #[command(subcommand)]
+    command: SessionCommand,
+}
+
+#[derive(Subcommand)]
+enum SessionCommand {
+    /// List local and imported sessions discovered by the session picker
+    List(SessionListArgs),
+}
+
+#[derive(Parser)]
+struct SessionListArgs {
+    /// Emit JSON report
+    #[arg(long)]
+    json: bool,
+    /// Restrict results by source
+    #[arg(long, value_enum, default_value = "all")]
+    source: HarnessSessionSourceFilter,
+    /// Include debug/test and canary sessions in the output
+    #[arg(long)]
+    include_test: bool,
+    /// Maximum number of sessions to print after filtering
+    #[arg(long)]
+    limit: Option<usize>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum HarnessSessionSourceFilter {
+    All,
+    Jcode,
+    ClaudeCode,
+    Codex,
+    Pi,
+    Opencode,
 }
 
 #[derive(Parser, Clone)]
@@ -482,6 +523,7 @@ async fn main() -> Result<()> {
         Some(Command::SafeEval(args)) => run_safe_eval(args),
         Some(Command::Doctor(args)) => run_doctor(args),
         Some(Command::Demo(args)) => run_demo(args),
+        Some(Command::Session(args)) => run_session(args),
         Some(Command::Smoke(args)) => run_smoke(args).await,
         Some(Command::Run(args)) => run_goal(args).await,
         Some(Command::Skills(args)) => run_skills(args),
@@ -825,6 +867,179 @@ fn harden_private_dir(path: &std::path::Path) -> Result<()> {
 #[cfg(not(unix))]
 fn harden_private_dir(_path: &std::path::Path) -> Result<()> {
     Ok(())
+}
+
+fn run_session(args: SessionArgs) -> Result<()> {
+    match args.command {
+        SessionCommand::List(args) => run_session_list(args),
+    }
+}
+
+fn run_session_list(args: SessionListArgs) -> Result<()> {
+    let mut sessions = jcode::tui::session_picker::load_sessions()?;
+    let loaded_count = sessions.len();
+
+    if args.source != HarnessSessionSourceFilter::All {
+        sessions.retain(|session| session_matches_source_filter(session, args.source));
+    }
+
+    let discovered_count = sessions.len();
+    let hidden_test_count = sessions
+        .iter()
+        .filter(|session| session.is_debug || session.is_canary)
+        .count();
+
+    if !args.include_test {
+        sessions.retain(|session| !session.is_debug && !session.is_canary);
+    }
+
+    if let Some(limit) = args.limit {
+        sessions.truncate(limit);
+    }
+
+    let sessions_dir = jcode::storage::jcode_dir()?.join("sessions");
+    let report = json!({
+        "status": "ok",
+        "command": "session list",
+        "offline": true,
+        "read_only": true,
+        "sessions_dir": sessions_dir,
+        "loaded_count": loaded_count,
+        "session_count": sessions.len(),
+        "discovered_count": discovered_count,
+        "hidden_test_count": if args.include_test { 0 } else { hidden_test_count },
+        "include_test": args.include_test,
+        "source": session_source_filter_label(args.source),
+        "limit": args.limit,
+        "sessions": sessions.iter().map(session_info_json).collect::<Vec<_>>(),
+    });
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        println!("jcode-harness session list: {} sessions", sessions.len());
+        println!("Offline: true");
+        println!("Read only: true");
+        if !args.include_test && hidden_test_count > 0 {
+            println!("Hidden test/canary sessions: {hidden_test_count} (use --include-test)");
+        }
+        for session in &sessions {
+            println!(
+                "- {} [{}] {} ({}, {} messages)",
+                session.short_name,
+                session_source_label(session.source),
+                session.title,
+                session.status.display(),
+                session.message_count
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn session_matches_source_filter(
+    session: &SessionInfo,
+    filter: HarnessSessionSourceFilter,
+) -> bool {
+    match filter {
+        HarnessSessionSourceFilter::All => true,
+        HarnessSessionSourceFilter::Jcode => session.source == SessionSource::Jcode,
+        HarnessSessionSourceFilter::ClaudeCode => session.source == SessionSource::ClaudeCode,
+        HarnessSessionSourceFilter::Codex => session.source == SessionSource::Codex,
+        HarnessSessionSourceFilter::Pi => session.source == SessionSource::Pi,
+        HarnessSessionSourceFilter::Opencode => session.source == SessionSource::OpenCode,
+    }
+}
+
+fn session_source_filter_label(filter: HarnessSessionSourceFilter) -> &'static str {
+    match filter {
+        HarnessSessionSourceFilter::All => "all",
+        HarnessSessionSourceFilter::Jcode => "jcode",
+        HarnessSessionSourceFilter::ClaudeCode => "claude_code",
+        HarnessSessionSourceFilter::Codex => "codex",
+        HarnessSessionSourceFilter::Pi => "pi",
+        HarnessSessionSourceFilter::Opencode => "opencode",
+    }
+}
+
+fn session_info_json(session: &SessionInfo) -> serde_json::Value {
+    json!({
+        "id": &session.id,
+        "parent_id": &session.parent_id,
+        "source": session_source_label(session.source),
+        "short_name": &session.short_name,
+        "icon": &session.icon,
+        "title": &session.title,
+        "message_count": session.message_count,
+        "user_message_count": session.user_message_count,
+        "assistant_message_count": session.assistant_message_count,
+        "created_at": session.created_at.to_rfc3339(),
+        "last_message_time": session.last_message_time.to_rfc3339(),
+        "last_active_at": session.last_active_at.map(|time| time.to_rfc3339()),
+        "working_dir": &session.working_dir,
+        "model": &session.model,
+        "provider_key": &session.provider_key,
+        "status": session.status.display(),
+        "status_detail": session.status.detail(),
+        "needs_catchup": session.needs_catchup,
+        "estimated_tokens": session.estimated_tokens,
+        "is_canary": session.is_canary,
+        "is_debug": session.is_debug,
+        "saved": session.saved,
+        "save_label": &session.save_label,
+        "server_name": &session.server_name,
+        "server_icon": &session.server_icon,
+        "resume_target": resume_target_json(&session.resume_target),
+        "external_path": &session.external_path,
+    })
+}
+
+fn session_source_label(source: SessionSource) -> &'static str {
+    match source {
+        SessionSource::Jcode => "jcode",
+        SessionSource::ClaudeCode => "claude_code",
+        SessionSource::Codex => "codex",
+        SessionSource::Pi => "pi",
+        SessionSource::OpenCode => "opencode",
+    }
+}
+
+fn resume_target_json(target: &ResumeTarget) -> serde_json::Value {
+    match target {
+        ResumeTarget::JcodeSession { session_id } => {
+            json!({ "kind": "jcode_session", "id": session_id })
+        }
+        ResumeTarget::ClaudeCodeSession {
+            session_id,
+            session_path,
+        } => json!({
+            "kind": "claude_code_session",
+            "id": session_id,
+            "path": session_path,
+        }),
+        ResumeTarget::CodexSession {
+            session_id,
+            session_path,
+        } => json!({
+            "kind": "codex_session",
+            "id": session_id,
+            "path": session_path,
+        }),
+        ResumeTarget::PiSession { session_path } => json!({
+            "kind": "pi_session",
+            "id": session_path,
+            "path": session_path,
+        }),
+        ResumeTarget::OpenCodeSession {
+            session_id,
+            session_path,
+        } => json!({
+            "kind": "opencode_session",
+            "id": session_id,
+            "path": session_path,
+        }),
+    }
 }
 
 fn run_doctor(args: DoctorArgs) -> Result<()> {

@@ -1,0 +1,45 @@
+{
+  "id": "gate-2026-05-07-08bbd2",
+  "ts": "2026-05-07T21:37:19.701Z",
+  "contractId": "2026-05-07-add-offline-session-list-json-ed330e",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/bin/harness.rs",
+      "exists": true
+    },
+    {
+      "path": "tests/e2e/harness_cli.rs",
+      "exists": true
+    },
+    {
+      "path": "docs/JCODE_HARNESS_JSON_SCHEMAS.md",
+      "exists": true
+    },
+    {
+      "path": "README.md",
+      "exists": true
+    },
+    {
+      "path": "docs/JCODE_HARNESS_RELEASE_GATES.md",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "`jcode-harness session list --json` exists and is read-only/offline",
+    "JSON schema and README/roadmap/release gates document the command",
+    "Focused e2e validates local sessions, default test hiding, and --include-test",
+    "cargo fmt --check, cargo check -p jcode, JSON parse smoke, and selfdev build passed"
+  ],
+  "uncheckedConditions": [],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/647854k5mc.output",
+    "/tmp/jcode-bg-tasks/7106565bm0.output",
+    "src/bin/harness.rs",
+    "tests/e2e/harness_cli.rs",
+    "docs/JCODE_HARNESS_JSON_SCHEMAS.md",
+    "README.md",
+    "docs/JCODE_HARNESS_RELEASE_GATES.md"
+  ],
+  "notes": "The command reuses the existing session picker backend for local/imported sessions but exposes a conservative stable JSON shape. Follow-up slices can add spawn/attach/resume mutation APIs separately."
+}

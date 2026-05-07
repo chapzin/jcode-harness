@@ -142,6 +142,76 @@ Guarantees:
 - `mcp.configs` reports candidate config paths and marks project-local configs as `requires_review` only when they exist.
 - `recommendations` is an array of operator-facing strings suitable for onboarding checklists.
 
+## `session list --json`
+
+Command:
+
+```bash
+jcode-harness session list --json
+jcode-harness session list --source jcode --include-test --json
+```
+
+Shape:
+
+```json
+{
+  "status": "ok",
+  "command": "session list",
+  "offline": true,
+  "read_only": true,
+  "sessions_dir": "/home/user/.jcode/sessions",
+  "loaded_count": 2,
+  "discovered_count": 1,
+  "session_count": 1,
+  "hidden_test_count": 0,
+  "include_test": false,
+  "source": "jcode",
+  "limit": null,
+  "sessions": [
+    {
+      "id": "session_visible",
+      "parent_id": null,
+      "source": "jcode",
+      "short_name": "visible",
+      "icon": "🌟",
+      "title": "Visible local session",
+      "message_count": 2,
+      "user_message_count": 1,
+      "assistant_message_count": 1,
+      "created_at": "2026-05-07T20:00:00+00:00",
+      "last_message_time": "2026-05-07T20:05:00+00:00",
+      "last_active_at": "2026-05-07T20:06:00+00:00",
+      "working_dir": "/repo",
+      "model": "gpt-test",
+      "provider_key": "openai",
+      "status": "closed",
+      "status_detail": null,
+      "needs_catchup": false,
+      "estimated_tokens": 0,
+      "is_canary": false,
+      "is_debug": false,
+      "saved": true,
+      "save_label": "fixture",
+      "server_name": null,
+      "server_icon": null,
+      "resume_target": { "kind": "jcode_session", "id": "session_visible" },
+      "external_path": null
+    }
+  ]
+}
+```
+
+Guarantees:
+
+- `offline` and `read_only` are always `true`; the command scans local transcript metadata and does not start the TUI, model providers, servers, or network-backed integrations.
+- `loaded_count` is the total number of session entries loaded by the picker backend before `--source`, `--include-test`, and `--limit` filtering.
+- `discovered_count` is the count after `--source` filtering and before test/canary hiding and limit truncation.
+- `session_count` equals `sessions.length` after all filters are applied.
+- `hidden_test_count` is the number of debug/canary sessions hidden by default for the selected source filter. It is `0` when `--include-test` is used.
+- `source` is one of `all`, `jcode`, `claude_code`, `codex`, `pi`, or `opencode`.
+- Session entries are sorted by most recent message time descending and expose stable metadata needed by future headless orchestration clients.
+- `resume_target.kind` is one of `jcode_session`, `claude_code_session`, `codex_session`, `pi_session`, or `opencode_session`.
+
 ## Shared skill entry
 
 Used by `skills list --json`, `skills show <name> --json`, `skills doctor --json`, and resolved entries in `skills match <goal> --json`.
