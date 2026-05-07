@@ -7,7 +7,7 @@
   "counters": {
     "contracts": 7,
     "traces": 7,
-    "gates": 7,
+    "gates": 8,
     "verifications": 7,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
@@ -192,6 +192,13 @@
       "status": "done",
       "focus": "Add LLM wiki bridge preview",
       "activeContractId": "2026-05-06-add-llmwiki-bridge-preview-af94ec"
+    },
+    {
+      "ts": "2026-05-07T19:46:16.572Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-06-add-llmwiki-bridge-preview-af94ec",
+      "gateId": "gate-2026-05-07-5dbc99",
+      "verdict": "pass"
     }
   ]
 }
