@@ -1,6 +1,8 @@
-# jcode-harness
+# ⟡ JCode Harness
 
 > A harness-first fork of [jcode](https://github.com/1jehuang/jcode) that combines fast multi-session agent workflows with offline embedded skills, local LLM wiki memory, and deterministic quality gates.
+
+**Visual identity:** JCode Harness keeps the parent project's terminal-native DNA, then adds a cyan/violet harness layer: `JCode` for the fast runtime, `Harness` for the disciplined local engineering loop, and `⟡` for verified handoffs between context, execution, and evidence.
 
 [![License](https://img.shields.io/github/license/1jehuang/jcode?style=flat-square)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-blue?style=flat-square)](https://github.com/1jehuang/jcode/releases)

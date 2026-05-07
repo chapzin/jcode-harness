@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "jcode-harness")]
-#[command(about = "Standalone jcode harness utilities. With no command, starts interactive jcode.")]
+#[command(about = "JCode Harness: local AI engineering loop and TUI.")]
 struct Args {
     #[command(subcommand)]
     command: Option<Command>,
