@@ -190,7 +190,9 @@ Human-attention sounds are opt-in and silent by default for CI/headless runs. Se
 `JCODE_USER_ATTENTION=bell` or `JCODE_NOTIFY_SOUND=1` to enable the initial
 terminal bell backend, or `JCODE_USER_ATTENTION=off` to force silence. Use
 `jcode-harness notify test --dry-run --json` to inspect the routing without
-emitting `\a`.
+emitting `\a`. When enabled, background task completions that requested
+`notify` or `wake` emit one terminal bell byte to stderr before the usual
+user-facing completion fan-out, keeping stdout and JSON streams clean.
 
 ### Headless session metadata
 
