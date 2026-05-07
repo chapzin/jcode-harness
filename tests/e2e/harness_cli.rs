@@ -34,6 +34,27 @@ fn harness_command_with_piped_stdout(home: &std::path::Path, cwd: &std::path::Pa
     cmd
 }
 
+#[test]
+fn harness_version_prints_build_version_without_starting_runtime() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-version-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd).arg("--version").output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    assert!(stdout.contains("jcode-harness"), "stdout: {stdout}");
+    assert!(stdout.contains(env!("JCODE_VERSION")), "stdout: {stdout}");
+    assert!(stderr_text(&output).is_empty());
+
+    Ok(())
+}
+
 fn write_skill(root: &std::path::Path, scope: &str, name: &str, description: &str) -> Result<()> {
     let dir = root.join(scope).join("skills").join(name);
     std::fs::create_dir_all(&dir)?;

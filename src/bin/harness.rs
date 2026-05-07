@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "jcode-harness")]
+#[command(version = env!("JCODE_VERSION"))]
 #[command(about = "JCode Harness: local AI engineering loop and TUI.")]
 struct Args {
     #[command(subcommand)]
