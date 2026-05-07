@@ -11,11 +11,15 @@ use std::time::SystemTime;
 
 /// Get the jcode repository directory
 pub fn get_repo_dir() -> Option<PathBuf> {
-    // First try: compile-time directory
+    // First try: compile-time directory. This crate lives under
+    // `crates/jcode-build-support`, so `CARGO_MANIFEST_DIR` is usually a
+    // nested crate directory rather than the workspace root. Walk upward so
+    // installed self-dev binaries can still find the source checkout they were
+    // built from even when their runtime cwd/exe path is outside the repo.
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let path = PathBuf::from(manifest_dir);
-    if is_jcode_repo(&path) {
-        return Some(path);
+    if let Some(repo) = find_repo_in_ancestors(&path) {
+        return Some(repo);
     }
 
     // Fallback: check relative to executable

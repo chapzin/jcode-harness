@@ -147,6 +147,7 @@ cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m j
 - Harness-specific behavior is named in docs as `jcode-harness` behavior.
 - Upstream-compatible reuse remains behind existing `jcode` paths where practical.
 - Divergence is captured in commits and release notes.
+- Release notes are drafted from `docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md` so CLI, skills, quality-gate, provider/runtime, security/MCP, validation, known-gap, migration, and rollback sections are reviewed consistently.
 
 **Suggested release note sections:**
 
@@ -154,7 +155,10 @@ cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m j
 - Embedded skills and routing changes
 - Quality gate changes
 - Provider/runtime compatibility
+- Upstream divergence review
+- Security, secrets, and MCP review
 - Known gaps and opt-in integration tests
+- Migration notes and rollback plan
 
 ## Release decision
 

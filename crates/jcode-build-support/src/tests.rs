@@ -189,6 +189,16 @@ fn test_find_repo_in_ancestors_walks_upward() {
 }
 
 #[test]
+fn test_get_repo_dir_walks_up_from_nested_crate_manifest_dir() {
+    let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repo = find_repo_in_ancestors(&manifest_dir)
+        .expect("build-support crate manifest should be inside the jcode repo");
+
+    assert!(is_jcode_repo(&repo));
+    assert_eq!(get_repo_dir().as_deref(), Some(repo.as_path()));
+}
+
+#[test]
 fn test_client_update_candidate_prefers_dev_binary_for_selfdev() {
     let _guard = test_env_lock();
     let temp_home = tempfile::tempdir().expect("tempdir");

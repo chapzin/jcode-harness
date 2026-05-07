@@ -1,0 +1,50 @@
+{
+  "id": "2026-05-07-fix-selfdev-reload-discovery-and-add-release-notes-templ-f7f746",
+  "title": "Fix selfdev reload discovery and add release notes template",
+  "goal": "Continue the next harness steps by fixing selfdev reload repository discovery and adding a release-note template for upstream divergence.",
+  "createdAt": "2026-05-07T19:49:52.988Z",
+  "status": "active",
+  "requiredInputs": [
+    "Current branch feature/embedded-skills-harness",
+    "Known reload failure: Could not find jcode repository directory"
+  ],
+  "budget": {
+    "maxSteps": 10,
+    "maxMinutes": 90,
+    "maxToolCalls": 40
+  },
+  "permissions": [
+    "Edit source/docs/tests in repo",
+    "Run cargo fmt/test/check and selfdev build/reload",
+    "No network/package installs; push only after verifying safe branch target"
+  ],
+  "completionConditions": [
+    "selfdev repository discovery works when CARGO_MANIFEST_DIR points at a nested crate",
+    "Regression test covers nested manifest-dir discovery",
+    "Release notes template for harness/upstream divergence exists and is linked from release gates/status docs",
+    "Formatting, targeted tests, cargo check, and selfdev build pass",
+    "Attempt selfdev reload after build and record result"
+  ],
+  "outputPaths": [
+    "crates/jcode-build-support/src/paths.rs",
+    "crates/jcode-build-support/src/tests.rs",
+    "docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md",
+    "docs/JCODE_HARNESS_RELEASE_GATES.md",
+    "docs/SKILLS_HARNESS_STATUS.md"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode-build-support get_repo_dir --lib",
+    "cargo test -p jcode-build-support find_repo --lib",
+    "cargo check -p jcode",
+    "selfdev build target=auto",
+    "selfdev reload"
+  ],
+  "failureTaxonomy": [
+    "Repo discovery regression",
+    "Release docs drift",
+    "Insufficient validation",
+    "Unsafe push target"
+  ],
+  "notes": "User explicitly asked to continue all next steps after llmwiki bridge schema alignment."
+}

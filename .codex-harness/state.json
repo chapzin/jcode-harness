@@ -1,13 +1,13 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Add LLM wiki bridge preview",
+  "focus": "Fix selfdev reload discovery and add release notes template",
   "status": "done",
-  "activeContractId": "2026-05-06-add-llmwiki-bridge-preview-af94ec",
+  "activeContractId": "2026-05-07-fix-selfdev-reload-discovery-and-add-release-notes-templ-f7f746",
   "counters": {
-    "contracts": 7,
+    "contracts": 8,
     "traces": 7,
-    "gates": 8,
+    "gates": 9,
     "verifications": 7,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
@@ -198,6 +198,19 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-06-add-llmwiki-bridge-preview-af94ec",
       "gateId": "gate-2026-05-07-5dbc99",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-07T19:49:52.989Z",
+      "type": "contract_created",
+      "contractId": "2026-05-07-fix-selfdev-reload-discovery-and-add-release-notes-templ-f7f746",
+      "summary": "Fix selfdev reload discovery and add release notes template"
+    },
+    {
+      "ts": "2026-05-07T19:56:46.713Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-07-fix-selfdev-reload-discovery-and-add-release-notes-templ-f7f746",
+      "gateId": "gate-2026-05-07-a1507d",
       "verdict": "pass"
     }
   ]

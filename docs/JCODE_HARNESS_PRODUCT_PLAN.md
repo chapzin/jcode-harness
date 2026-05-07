@@ -39,7 +39,7 @@ This fork is not a patch set of small upstream improvements. It is a new `jcode-
 
 See `docs/SKILLS_HARNESS.md` and `docs/SKILLS_HARNESS_STATUS.md` for implemented pillars and validation snapshots.
 
-Release readiness is governed by `docs/JCODE_HARNESS_RELEASE_GATES.md`. Automation-facing JSON contracts are documented in `docs/JCODE_HARNESS_JSON_SCHEMAS.md`. The interactive bootstrap model for `/init` is documented in `docs/JCODE_HARNESS_INIT_SWARM.md`. A change is not considered production-ready unless the relevant gates have objective evidence.
+Release readiness is governed by `docs/JCODE_HARNESS_RELEASE_GATES.md`. Automation-facing JSON contracts are documented in `docs/JCODE_HARNESS_JSON_SCHEMAS.md`. The interactive bootstrap model for `/init` is documented in `docs/JCODE_HARNESS_INIT_SWARM.md`. Release notes should start from `docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md` so upstream divergence, migration, validation, security/MCP, and rollback evidence are reviewed consistently. A change is not considered production-ready unless the relevant gates have objective evidence.
 
 ## Next planning milestones
 
@@ -47,4 +47,4 @@ Release readiness is governed by `docs/JCODE_HARNESS_RELEASE_GATES.md`. Automati
 2. Expand clean-code rule fixtures and document rule severity policy.
 3. Add end-to-end live `/init` swarm smoke once UI/provider automation can verify full swarm completion safely.
 4. Add opt-in live-provider smoke tests after mock-provider JSON/NDJSON contracts are stable.
-5. Add release-note template for upstream divergence and harness-specific behavior.
+5. Keep release-note and schema templates aligned with each new stable harness automation surface.
