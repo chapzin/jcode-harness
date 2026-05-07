@@ -113,6 +113,70 @@ fn harness_init_json_reports_scaffold_and_detected_stack_offline() -> Result<()>
 }
 
 #[test]
+fn harness_doctor_json_reports_user_attention_default_off() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-doctor-attention-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .env_remove("JCODE_USER_ATTENTION")
+        .env_remove("JCODE_NOTIFY_SOUND")
+        .args(["doctor", "--cwd"])
+        .arg(&cwd)
+        .arg("--json")
+        .output()?;
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout_text(&output))?;
+    assert_eq!(report["user_attention"]["enabled"], false);
+    assert_eq!(report["user_attention"]["mode"], "off");
+    assert_eq!(report["user_attention"]["backend"], Value::Null);
+    assert_eq!(report["user_attention"]["source"], "default");
+
+    Ok(())
+}
+
+#[test]
+fn harness_notify_test_json_dry_run_reports_bell_without_emitting_bel() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-notify-test-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .env("JCODE_USER_ATTENTION", "bell")
+        .env_remove("JCODE_NOTIFY_SOUND")
+        .args(["notify", "test", "--json", "--dry-run"])
+        .output()?;
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    assert!(!output.stdout.contains(&b'\x07'), "stdout contained BEL");
+    assert!(!output.stderr.contains(&b'\x07'), "stderr contained BEL");
+
+    let report: Value = serde_json::from_str(&stdout_text(&output))?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["config"]["enabled"], true);
+    assert_eq!(report["config"]["mode"], "bell");
+    assert_eq!(report["config"]["backend"], "terminal_bell");
+    assert_eq!(report["config"]["source"], "JCODE_USER_ATTENTION");
+    assert_eq!(report["delivery"]["dry_run"], true);
+    assert_eq!(report["delivery"]["would_emit"], true);
+    assert_eq!(report["delivery"]["attempted"], false);
+    assert_eq!(report["delivery"]["delivered"], false);
+    assert_eq!(report["delivery"]["bytes_written"], 0);
+
+    Ok(())
+}
+
+#[test]
 fn harness_acp_stdio_initialize_shutdown() -> Result<()> {
     use std::io::Write;
 

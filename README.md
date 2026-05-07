@@ -154,6 +154,7 @@ jcode-harness safe-eval
 jcode-harness safe-eval --json
 jcode-harness doctor
 jcode-harness doctor --json
+jcode-harness notify test --dry-run --json
 jcode-harness init --yes
 ```
 
@@ -176,8 +177,15 @@ activation file.
 
 Use `jcode-harness doctor --json` for offline diagnostics before running live
 providers. It reports safe-eval activation, telemetry opt-out state, platform,
-skill loading health, and project/global MCP config paths without contacting
-model providers or starting MCP/browser/Gmail integrations.
+user-attention alert configuration, skill loading health, and project/global MCP
+config paths without contacting model providers or starting MCP/browser/Gmail
+integrations.
+
+Human-attention sounds are opt-in and silent by default for CI/headless runs. Set
+`JCODE_USER_ATTENTION=bell` or `JCODE_NOTIFY_SOUND=1` to enable the initial
+terminal bell backend, or `JCODE_USER_ATTENTION=off` to force silence. Use
+`jcode-harness notify test --dry-run --json` to inspect the routing without
+emitting `\a`.
 
 ### Headless session metadata
 
