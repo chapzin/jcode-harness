@@ -212,9 +212,13 @@ tempfile = "3"
 agentgrep = { git = "https://github.com/1jehuang/agentgrep.git", tag = "v0.1.2" }
 qrcode = { version = "0.14.1", default-features = false }
 aws-config = "1.8.16"
-aws-sdk-bedrockruntime = "1.130.0"
+aws-sdk-bedrockruntime = { version = "1.130.0", default-features = false, features = ["default-https-client", "rt-tokio"] }
 aws-types = "1.3.15"
 aws-smithy-types = "1.4.7"
+
+[patch.crates-io]
+# Security backport for GHSA-rhfx-m35p-ff5j while desktop remains on glyphon 0.5/wgpu 0.19.
+glyphon = { path = "vendor/glyphon-0.5.0-lru-0.16" }
 
 [features]
 # Keep the heavyweight local ONNX/tokenizer embedding stack opt-in. It remains
