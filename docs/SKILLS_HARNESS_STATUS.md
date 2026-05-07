@@ -14,7 +14,7 @@ This checklist tracks the fork proposal described in `docs/SKILLS_HARNESS.md` an
 | `/init` swarm bootstrap | Done | `/init` writes deterministic scaffold files, queues an LLM-driven swarm analysis prompt by default, requires parallel discovery roles, and blocks synthesis on an await/report barrier; tests cover default swarm queueing, `--no-swarm`, invalid usage, and generated swarm analysis files. | Add end-to-end live TUI/provider smoke when UI automation can verify full swarm completion. |
 | Deterministic skill router | Done | `src/skill_router.rs` supports `auto`, `off`, `always`, explicit skills, coding terms, perf terms, and LLM wiki/project-memory terms, with unit and CLI dry-run coverage for proposal guarantees. | Keep trigger vocabulary conservative and test every expansion. |
 | Repo/task skill scoping preview | Done | `jcode-harness skills match <goal>` previews selected skills without provider calls, preserves explicit task-level skills first, resolves repo-local overrides via `--cwd`, and emits JSON for automation. | Extend only with backward-compatible fields and keep router order deterministic. |
-| Harness smoke | Done | `jcode-harness smoke` executes deterministic tool cases without model calls. | Add CI-friendly smoke assertion or e2e wrapper. |
+| Harness smoke | Done | `jcode-harness smoke` executes deterministic tool cases without model calls; `harness_smoke_runs_offline_tool_cases_with_deterministic_artifacts` asserts the default offline case list, excludes network-backed cases by default, and verifies final workspace artifacts. | Keep `--include-network` out of default CI unless separately reviewed. |
 | LLM wiki memory integration | Done | `llmwiki-memory` is an embedded skill that documents safe local LLM wiki MCP usage for durable project memory, provenance, transcript sync, and secret boundaries; router auto-selects it for wiki/context-history tasks; `jcode-harness skills llmwiki-bridge` prints the permission-reviewed offline mapping to concrete local wiki MCP commands without invoking them. | Keep the bridge preview offline; add direct MCP invocation only after a separate explicit permission and credential-boundary review. |
 | Documentation and discoverability | Partial | README, `docs/SKILLS_HARNESS.md`, `docs/CODEX_BOOTSTRAP.md`, `docs/JCODE_HARNESS_PRODUCT_PLAN.md`, `docs/JCODE_HARNESS_RELEASE_GATES.md`, `docs/JCODE_HARNESS_JSON_SCHEMAS.md`, `docs/JCODE_HARNESS_INIT_SWARM.md`, `docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md`, and `.jcode/SKILLS_PLAN.md`. | Keep this status checklist updated after each implementation slice. |
 
@@ -38,9 +38,10 @@ Commands recently run successfully:
 - `cargo run -q -p jcode --bin jcode-harness -- skills match "fix this Rust bug" --json | python3 -m json.tool >/dev/null`
 - `cargo run -q -p jcode --bin jcode-harness -- skills llmwiki-bridge --json | python3 -m json.tool >/dev/null`
 - `cargo test --test e2e harness_live_provider -- --nocapture` (default path skips without live-provider env and makes no provider call)
+- `cargo test --test e2e harness_smoke -- --nocapture`
 
 ## Next implementation slices
 
 1. Continue expanding stable JSON schema docs as automation contracts expand.
 2. Keep `docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md` in lockstep with release gates as new harness surfaces become stable.
-3. Add CI-friendly smoke assertion or e2e wrapper for `jcode-harness smoke`.
+3. Add direct MCP invocation only after a separate explicit permission and credential-boundary review.

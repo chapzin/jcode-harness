@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Add opt-in live provider smoke",
+  "focus": "Add CI-friendly harness smoke e2e",
   "status": "done",
-  "activeContractId": "2026-05-07-add-opt-in-live-provider-smoke-f66078",
+  "activeContractId": "2026-05-07-add-ci-friendly-harness-smoke-e2e-9a00d9",
   "counters": {
-    "contracts": 9,
-    "traces": 8,
-    "gates": 10,
-    "verifications": 8,
+    "contracts": 10,
+    "traces": 9,
+    "gates": 11,
+    "verifications": 9,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -232,6 +232,27 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-07-add-opt-in-live-provider-smoke-f66078",
       "gateId": "gate-2026-05-07-5620a8",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-07T20:08:36.821Z",
+      "type": "contract_created",
+      "contractId": "2026-05-07-add-ci-friendly-harness-smoke-e2e-9a00d9",
+      "summary": "Add CI-friendly harness smoke e2e"
+    },
+    {
+      "ts": "2026-05-07T20:11:31.940Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-07-b6a02d03",
+      "contractId": "2026-05-07-add-ci-friendly-harness-smoke-e2e-9a00d9",
+      "status": "pass",
+      "summary": "Selfdev build passed for smoke e2e dirty fingerprint 2160ca4c05ee."
+    },
+    {
+      "ts": "2026-05-07T20:11:48.728Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-07-add-ci-friendly-harness-smoke-e2e-9a00d9",
+      "gateId": "gate-2026-05-07-81526d",
       "verdict": "pass"
     }
   ]

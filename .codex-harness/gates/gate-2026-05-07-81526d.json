@@ -1,0 +1,42 @@
+{
+  "id": "gate-2026-05-07-81526d",
+  "ts": "2026-05-07T20:11:48.728Z",
+  "contractId": "2026-05-07-add-ci-friendly-harness-smoke-e2e-9a00d9",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "tests/e2e/harness_cli.rs",
+      "exists": true
+    },
+    {
+      "path": "docs/SKILLS_HARNESS_STATUS.md",
+      "exists": true
+    },
+    {
+      "path": "docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Default e2e test exercises `jcode-harness smoke --cwd <temp>` without network flags or provider credentials.",
+    "The e2e asserts representative deterministic stdout cases and verifies default output excludes webfetch, websearch, and codesearch.",
+    "The e2e verifies final workspace artifacts: sample.txt contains alpha2/beta1/gamma and added.txt contains added.",
+    "Docs/status/release template were updated: status now records the CI-friendly smoke assertion and release template includes the focused command.",
+    "cargo fmt --check, cargo test --test e2e harness_smoke -- --nocapture, cargo test --test e2e harness_cli -- --nocapture, cargo check -p jcode, and selfdev build target=auto passed."
+  ],
+  "uncheckedConditions": [
+    "A default e2e test exercises `jcode-harness smoke --cwd <temp>` without network flags or provider credentials",
+    "The e2e asserts representative deterministic tool cases in stdout and verifies default output excludes network-backed cases",
+    "The e2e verifies final workspace artifacts from write/edit/multiedit/patch/apply_patch",
+    "Docs/status/release template are updated so the CI-friendly smoke wrapper is no longer listed as remaining work",
+    "Formatting, focused e2e, harness_cli e2e, cargo check, and selfdev build pass"
+  ],
+  "evidence": [
+    "tests/e2e/harness_cli.rs",
+    "docs/SKILLS_HARNESS_STATUS.md",
+    "docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md",
+    "/tmp/jcode-bg-tasks/6405475opn.output",
+    "/tmp/jcode-bg-tasks/674900ka20.output"
+  ],
+  "notes": "Network-backed smoke cases remain excluded from default validation. Manual smoke calibration also ran offline without --include-network."
+}

@@ -228,6 +228,68 @@ fn harness_run_ndjson_uses_mock_provider_without_network() -> Result<()> {
 }
 
 #[test]
+fn harness_smoke_runs_offline_tool_cases_with_deterministic_artifacts() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-smoke-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command_with_piped_stdout(&home, &cwd)
+        .args(["smoke", "--cwd"])
+        .arg(&cwd)
+        .output()?;
+    let stdout = stdout_text(&output);
+    let stderr = stderr_text(&output);
+
+    assert!(output.status.success(), "stderr: {stderr}");
+    assert!(
+        stderr.contains(&format!("Harness workspace: {}", cwd.display())),
+        "stderr: {stderr}"
+    );
+
+    for expected in [
+        "== write (write sample.txt) ==",
+        "== read (read sample.txt) ==",
+        "== edit (edit sample.txt (alpha -> alpha1)) ==",
+        "== multiedit (multiedit sample.txt) ==",
+        "== patch (patch sample.txt) ==",
+        "== apply_patch (apply_patch add file) ==",
+        "== ls (ls .) ==",
+        "== glob (glob *.txt) ==",
+        "== grep (grep gamma) ==",
+        "== bash (bash pwd) ==",
+        "== invalid (invalid tool call) ==",
+        "== todo (todo write) ==",
+        "== todo (todo read) ==",
+        "== batch (batch ls + read) ==",
+        "Completed: 2 succeeded, 0 failed",
+    ] {
+        assert!(
+            stdout.contains(expected),
+            "missing {expected}. stdout: {stdout}"
+        );
+    }
+
+    for network_case in ["== webfetch", "== websearch", "== codesearch"] {
+        assert!(
+            !stdout.contains(network_case),
+            "default smoke should not run network-backed case {network_case}. stdout: {stdout}"
+        );
+    }
+
+    assert_eq!(
+        std::fs::read_to_string(cwd.join("sample.txt"))?,
+        "alpha2\nbeta1\ngamma\n"
+    );
+    assert_eq!(std::fs::read_to_string(cwd.join("added.txt"))?, "added\n");
+
+    Ok(())
+}
+
+#[test]
 fn safe_eval_creates_isolated_profile_files_and_json_contract() -> Result<()> {
     let temp = tempfile::Builder::new()
         .prefix("jcode-harness-cli-")

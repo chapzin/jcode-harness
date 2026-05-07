@@ -1,0 +1,49 @@
+{
+  "id": "2026-05-07-add-ci-friendly-harness-smoke-e2e-9a00d9",
+  "title": "Add CI-friendly harness smoke e2e",
+  "goal": "Add a CI-friendly e2e assertion for `jcode-harness smoke` that runs offline by default and verifies deterministic smoke artifacts.",
+  "createdAt": "2026-05-07T20:08:36.818Z",
+  "status": "active",
+  "requiredInputs": [
+    "Branch feature/embedded-skills-harness",
+    "Existing `jcode-harness smoke` command",
+    "Need CI-friendly default offline assertion"
+  ],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 30
+  },
+  "permissions": [
+    "Edit source/docs/tests in repo",
+    "Run offline tests/check/build",
+    "Do not run network-backed smoke cases in default validation"
+  ],
+  "completionConditions": [
+    "A default e2e test exercises `jcode-harness smoke --cwd <temp>` without network flags or provider credentials",
+    "The e2e asserts representative deterministic tool cases in stdout and verifies default output excludes network-backed cases",
+    "The e2e verifies final workspace artifacts from write/edit/multiedit/patch/apply_patch",
+    "Docs/status/release template are updated so the CI-friendly smoke wrapper is no longer listed as remaining work",
+    "Formatting, focused e2e, harness_cli e2e, cargo check, and selfdev build pass"
+  ],
+  "outputPaths": [
+    "tests/e2e/harness_cli.rs",
+    "docs/SKILLS_HARNESS_STATUS.md",
+    "docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test --test e2e harness_smoke -- --nocapture",
+    "cargo test --test e2e harness_cli -- --nocapture",
+    "cargo check -p jcode",
+    "selfdev build target=auto"
+  ],
+  "failureTaxonomy": [
+    "Accidental network-backed smoke case in default test",
+    "Flaky assertions tied to temp paths or full tool output formatting",
+    "Workspace artifact mismatch",
+    "Docs/status drift",
+    "Insufficient validation"
+  ],
+  "notes": "Continue from docs/SKILLS_HARNESS_STATUS.md next slice. Do not enable --include-network in default tests."
+}
