@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Fix selfdev reload discovery and add release notes template",
+  "focus": "Add opt-in live provider smoke",
   "status": "done",
-  "activeContractId": "2026-05-07-fix-selfdev-reload-discovery-and-add-release-notes-templ-f7f746",
+  "activeContractId": "2026-05-07-add-opt-in-live-provider-smoke-f66078",
   "counters": {
-    "contracts": 8,
-    "traces": 7,
-    "gates": 9,
-    "verifications": 7,
+    "contracts": 9,
+    "traces": 8,
+    "gates": 10,
+    "verifications": 8,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -211,6 +211,27 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-07-fix-selfdev-reload-discovery-and-add-release-notes-templ-f7f746",
       "gateId": "gate-2026-05-07-a1507d",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-07T19:59:16.994Z",
+      "type": "contract_created",
+      "contractId": "2026-05-07-add-opt-in-live-provider-smoke-f66078",
+      "summary": "Add opt-in live provider smoke"
+    },
+    {
+      "ts": "2026-05-07T20:05:51.846Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-07-e7484226",
+      "contractId": "2026-05-07-add-opt-in-live-provider-smoke-f66078",
+      "status": "pass",
+      "summary": "Offline/default validation passed; live-provider smoke skipped by default and made no provider call."
+    },
+    {
+      "ts": "2026-05-07T20:05:59.243Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-07-add-opt-in-live-provider-smoke-f66078",
+      "gateId": "gate-2026-05-07-5620a8",
       "verdict": "pass"
     }
   ]

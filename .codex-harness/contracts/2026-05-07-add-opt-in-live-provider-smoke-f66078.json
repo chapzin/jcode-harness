@@ -1,0 +1,51 @@
+{
+  "id": "2026-05-07-add-opt-in-live-provider-smoke-f66078",
+  "title": "Add opt-in live provider smoke",
+  "goal": "Add an opt-in live-provider smoke path for jcode-harness run with strict credential isolation and no network calls by default.",
+  "createdAt": "2026-05-07T19:59:16.991Z",
+  "status": "active",
+  "requiredInputs": [
+    "Branch feature/embedded-skills-harness",
+    "Existing jcode-harness run JSON/mock contract",
+    "Need strict credential isolation for live provider smoke"
+  ],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 75,
+    "maxToolCalls": 35
+  },
+  "permissions": [
+    "Edit source/docs/tests in repo",
+    "Run offline tests/check/build",
+    "Do not make live provider calls without explicit opt-in env and credentials; default validation must remain offline"
+  ],
+  "completionConditions": [
+    "Default e2e suite does not contact providers or require credentials",
+    "Opt-in live-provider smoke is available and skipped unless an explicit enable env var is set",
+    "Live smoke isolates JCODE_HOME, JCODE_RUNTIME_DIR, and cwd, and requires explicit provider/model configuration",
+    "Docs describe variables, credential boundary, costs/network risk, and safe command usage",
+    "Formatting, e2e/default validation, cargo check, and selfdev build pass"
+  ],
+  "outputPaths": [
+    "tests/e2e/harness_live_provider.rs",
+    "tests/e2e/main.rs",
+    "docs/SKILLS_HARNESS.md",
+    "docs/SKILLS_HARNESS_STATUS.md",
+    "docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test --test e2e harness_live_provider -- --nocapture",
+    "cargo test --test e2e harness_cli -- --nocapture",
+    "cargo check -p jcode",
+    "selfdev build target=auto"
+  ],
+  "failureTaxonomy": [
+    "Accidental live network call in default tests",
+    "Credential leakage into logs/docs",
+    "Flaky provider test by default",
+    "Docs mismatch with test variables",
+    "Insufficient validation"
+  ],
+  "notes": "This continues the remaining next implementation slice from docs/SKILLS_HARNESS_STATUS.md. Do not run the live provider smoke unless explicit env enables it and credentials are configured."
+}

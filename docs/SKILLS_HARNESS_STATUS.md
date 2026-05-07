@@ -10,7 +10,7 @@ This checklist tracks the fork proposal described in `docs/SKILLS_HARNESS.md` an
 | Deterministic skill source priority | Done | `src/skill.rs` loads built-ins, `.claude/skills`, `~/.jcode/skills`, then project `.jcode/skills`; unit tests cover built-in, Claude compat, and project-local override precedence; e2e coverage verifies isolated global precedence via `JCODE_HOME`. | Keep precedence docs and tests in lockstep with any new source. |
 | Skills CLI | Done | `jcode skills list/show/sync/doctor` and `jcode-harness skills ...` are wired through `src/cli/commands.rs` and `src/bin/harness.rs`; e2e tests cover list, show, sync, doctor, duplicate reporting, JSON output, and closed stdout pipe behavior. | Keep JSON schema stable and add fields only in backward-compatible ways. |
 | Clean Code quality gate | Done | `src/clean_code.rs`, `.jcode/quality/clean-code-rules.yaml`, and `clean-code check/rules`; unit tests cover file/function thresholds, long lines, silent error patterns, allow comments, skipped dirs, unsupported files, and path deduplication; e2e tests cover JSON, rules YAML, and fail-on behavior. | Expand fixtures alongside any new heuristic rule. |
-| `jcode-harness run` | Done | `src/bin/harness.rs` delegates to provider init, `Registry::new`, and `Agent` runtime, with JSON/NDJSON/dry-run modes; e2e dry-run tests cover skill preface selection; `--mock-response` e2e tests cover JSON/NDJSON without network credentials. | Add live-provider smoke only as an opt-in integration test. |
+| `jcode-harness run` | Done | `src/bin/harness.rs` delegates to provider init, `Registry::new`, and `Agent` runtime, with JSON/NDJSON/dry-run modes; e2e dry-run tests cover skill preface selection; `--mock-response` e2e tests cover JSON/NDJSON without network credentials; `tests/e2e/harness_live_provider.rs` adds an explicit opt-in live-provider smoke with isolated `JCODE_HOME`, runtime, cwd, and optional copied provider-profile config. | Keep live-provider smoke opt-in only and never enable it in default CI without reviewed credentials/quota. |
 | `/init` swarm bootstrap | Done | `/init` writes deterministic scaffold files, queues an LLM-driven swarm analysis prompt by default, requires parallel discovery roles, and blocks synthesis on an await/report barrier; tests cover default swarm queueing, `--no-swarm`, invalid usage, and generated swarm analysis files. | Add end-to-end live TUI/provider smoke when UI automation can verify full swarm completion. |
 | Deterministic skill router | Done | `src/skill_router.rs` supports `auto`, `off`, `always`, explicit skills, coding terms, perf terms, and LLM wiki/project-memory terms, with unit and CLI dry-run coverage for proposal guarantees. | Keep trigger vocabulary conservative and test every expansion. |
 | Repo/task skill scoping preview | Done | `jcode-harness skills match <goal>` previews selected skills without provider calls, preserves explicit task-level skills first, resolves repo-local overrides via `--cwd`, and emits JSON for automation. | Extend only with backward-compatible fields and keep router order deterministic. |
@@ -37,9 +37,10 @@ Commands recently run successfully:
 - `cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m json.tool >/dev/null`
 - `cargo run -q -p jcode --bin jcode-harness -- skills match "fix this Rust bug" --json | python3 -m json.tool >/dev/null`
 - `cargo run -q -p jcode --bin jcode-harness -- skills llmwiki-bridge --json | python3 -m json.tool >/dev/null`
+- `cargo test --test e2e harness_live_provider -- --nocapture` (default path skips without live-provider env and makes no provider call)
 
 ## Next implementation slices
 
-1. Add opt-in live-provider integration smoke for `jcode-harness run` with strict credential isolation.
-2. Continue expanding stable JSON schema docs as automation contracts expand.
-3. Keep `docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md` in lockstep with release gates as new harness surfaces become stable.
+1. Continue expanding stable JSON schema docs as automation contracts expand.
+2. Keep `docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md` in lockstep with release gates as new harness surfaces become stable.
+3. Add CI-friendly smoke assertion or e2e wrapper for `jcode-harness smoke`.

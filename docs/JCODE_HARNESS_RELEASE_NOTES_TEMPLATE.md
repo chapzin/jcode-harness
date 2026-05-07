@@ -67,6 +67,7 @@ cargo test -p jcode project_init --lib -- --nocapture
 cargo test -p jcode skill::tests --lib
 cargo test -p jcode clean_code --lib
 cargo test --test e2e harness_cli -- --nocapture
+cargo test --test e2e harness_live_provider -- --nocapture  # skips unless JCODE_HARNESS_LIVE_PROVIDER_SMOKE=1
 cargo check -p jcode
 selfdev build target=auto
 ```
@@ -78,7 +79,7 @@ selfdev build target=auto
 ## Known gaps and opt-in integration tests
 
 - `[Gap]`: `[risk and mitigation]`
-- Live-provider smoke: `[not run / run with isolated credentials]`
+- Live-provider smoke: `[default skipped offline / run with isolated credentials and quota]`
 - Browser/GitHub/database/telemetry MCP tests: `[not run / run with scope]`
 
 ## Migration notes

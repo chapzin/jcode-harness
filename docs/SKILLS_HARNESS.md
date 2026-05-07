@@ -86,6 +86,37 @@ jcode-harness run "review this diff" --ndjson --mock-response "deterministic res
 
 `--mock-response <text>` uses a deterministic local provider named `harness-mock`. It exercises the real `Agent` runtime, JSON/NDJSON output, session creation, usage reporting, and skill preface path without network access or provider credentials. This is intended for CI and contract smoke tests, not for production model calls.
 
+### Opt-in live-provider smoke
+
+Live-provider validation is intentionally excluded from default tests because it can use network, credentials, and paid provider quota. Run it only when you explicitly want to verify a real provider through `jcode-harness run`:
+
+```bash
+JCODE_HARNESS_LIVE_PROVIDER_SMOKE=1 \
+JCODE_HARNESS_LIVE_PROVIDER=openai-api \
+JCODE_HARNESS_LIVE_MODEL=gpt-4.1-mini \
+cargo test --test e2e harness_live_provider -- --nocapture
+```
+
+Provider-profile based smoke is also supported when the profile is made available inside the isolated test environment:
+
+```bash
+JCODE_HARNESS_LIVE_PROVIDER_SMOKE=1 \
+JCODE_HARNESS_LIVE_PROVIDER_PROFILE=my-reviewed-profile \
+JCODE_HARNESS_LIVE_PROVIDER_CONFIG=/path/to/reviewed-config.toml \
+JCODE_HARNESS_LIVE_MODEL=my-model \
+cargo test --test e2e harness_live_provider -- --nocapture
+```
+
+Safety boundaries:
+
+- The test skips unless `JCODE_HARNESS_LIVE_PROVIDER_SMOKE=1` is set.
+- The subprocess receives an isolated temporary `JCODE_HOME`, `JCODE_RUNTIME_DIR`, and cwd.
+- `JCODE_HARNESS_LIVE_PROVIDER_PROFILE` requires `JCODE_HARNESS_LIVE_PROVIDER_CONFIG`, which is copied to `config.toml` inside the isolated `JCODE_HOME`.
+- Do not paste tokens into docs, prompts, command history, side panels, wiki pages, or committed fixtures.
+- Prefer provider profiles that use `api_key_env`; avoid inline `api_key` values in copied configs.
+- Prefer short, low-cost models and temporary environment-scoped credentials.
+- The default CI/e2e path remains offline and credential-free.
+
 ## Skill router
 
 The router is intentionally simple and deterministic:
