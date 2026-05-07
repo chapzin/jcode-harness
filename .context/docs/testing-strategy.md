@@ -52,7 +52,7 @@ python3 scripts/check_swallowed_error_budget.py
 - For self-dev changes, build through `selfdev build` when available.
 - For UI changes, use debug socket tester sessions and inspect rendered output.
 - Do not claim completion without recording skipped or failing verification.
-- Current swarm analysis noted that CI covers many checks but may compile more lib/bin tests than it runs. Consider `python3 scripts/test_ci_suites.py lib-bins` or `cargo test --lib --bins` as a future CI gate.
+- Current swarm analysis noted that CI covers many checks but may compile more lib/bin tests than it runs. A local default serial run of `python3 scripts/test_ci_suites.py lib-bins` on 2026-05-07 hit the 600s Jcode background supervision limit while tests were still passing, so keep it as a future split/optimization issue rather than a mandatory gate.
 - `telemetry-worker` currently has Wrangler dev/deploy/migration scripts but no package-local test/lint script in `package.json`.
 
 ## Troubleshooting

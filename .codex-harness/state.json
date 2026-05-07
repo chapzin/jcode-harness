@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Refresh init context scaffolds",
-  "status": "verifying",
-  "activeContractId": "2026-05-07-refresh-init-context-scaffolds-19bd29",
+  "focus": "Evaluate lib-bins gate",
+  "status": "done",
+  "activeContractId": "2026-05-07-evaluate-lib-bins-gate-c13f1b",
   "counters": {
-    "contracts": 13,
-    "traces": 13,
-    "gates": 14,
-    "verifications": 12,
+    "contracts": 14,
+    "traces": 15,
+    "gates": 15,
+    "verifications": 13,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -338,6 +338,43 @@
       "status": "verifying",
       "focus": "Refresh init context scaffolds",
       "activeContractId": "2026-05-07-refresh-init-context-scaffolds-19bd29"
+    },
+    {
+      "ts": "2026-05-07T20:34:01.449Z",
+      "type": "state_update",
+      "note": "Committed and pushed 53305abf. Branch clean/synced after push.",
+      "status": "done",
+      "focus": "Refresh init context scaffolds",
+      "activeContractId": "2026-05-07-refresh-init-context-scaffolds-19bd29"
+    },
+    {
+      "ts": "2026-05-07T20:34:41.249Z",
+      "type": "contract_created",
+      "contractId": "2026-05-07-evaluate-lib-bins-gate-c13f1b",
+      "summary": "Evaluate lib-bins gate"
+    },
+    {
+      "ts": "2026-05-07T20:45:51.449Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-07-7e2790f6",
+      "contractId": "2026-05-07-evaluate-lib-bins-gate-c13f1b",
+      "status": "fail",
+      "summary": "lib-bins default run timed out under local supervision"
+    },
+    {
+      "ts": "2026-05-07T20:46:37.920Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-07-f2d8d054",
+      "contractId": "2026-05-07-evaluate-lib-bins-gate-c13f1b",
+      "kind": "decision",
+      "summary": "Decided not to promote lib-bins gate yet"
+    },
+    {
+      "ts": "2026-05-07T20:46:47.113Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-07-evaluate-lib-bins-gate-c13f1b",
+      "gateId": "gate-2026-05-07-545bb3",
+      "verdict": "pass"
     }
   ]
 }

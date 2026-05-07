@@ -133,6 +133,6 @@ The side panel should show current goal, active todos, validation commands, arch
 
 ## Remaining decisions
 
-1. Whether `cargo test --lib --bins` or `python3 scripts/test_ci_suites.py lib-bins` should become a mandatory CI/release gate after runtime-cost review.
+1. `python3 scripts/test_ci_suites.py lib-bins` was measured locally on 2026-05-07 and hit the 600s Jcode background supervision limit while tests were still passing; do not promote it as a mandatory CI/release gate until the suite is split, made faster, or run under a longer dedicated CI timeout.
 2. Whether `telemetry-worker` should add package-local test/lint scripts before deployment workflows are considered fully gated.
 3. When to schedule a live `/init` swarm smoke with reviewed provider credentials, quota, isolation, and UI automation.

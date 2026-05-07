@@ -1,0 +1,44 @@
+{
+  "id": "gate-2026-05-07-545bb3",
+  "ts": "2026-05-07T20:46:47.113Z",
+  "contractId": "2026-05-07-evaluate-lib-bins-gate-c13f1b",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "docs/JCODE_HARNESS_RELEASE_GATES.md",
+      "exists": true
+    },
+    {
+      "path": "docs/SKILLS_HARNESS_STATUS.md",
+      "exists": true
+    },
+    {
+      "path": ".jcode/side_panel/status.md",
+      "exists": true
+    },
+    {
+      "path": ".jcode/init/SWARM_ANALYSIS_REPORT.md",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Measured `python3 scripts/test_ci_suites.py lib-bins` locally with recorded elapsed time and result",
+    "Decided not to document lib-bins as mandatory based on timeout evidence",
+    "Docs/context record the timeout and future split/optimization follow-up",
+    "No CI workflow change was made"
+  ],
+  "uncheckedConditions": [
+    "Measure `python3 scripts/test_ci_suites.py lib-bins` locally with recorded elapsed time and result",
+    "Decide whether to document lib-bins as a recommended or release-gated validation based on evidence",
+    "If docs/context change, validate diff/scope and commit/push",
+    "Do not modify CI workflow unless the measured result and risk justify it"
+  ],
+  "evidence": [
+    "Background task 084411fi38 exited 124 after 600s while tests were still passing",
+    "Updated .jcode/init/SWARM_ANALYSIS_REPORT.md, .jcode/side_panel/status.md, and .context/docs/testing-strategy.md with the decision",
+    "git diff --check passed",
+    "all .codex-harness/**/*.json parsed successfully",
+    "scope check limited changes to .jcode/, .context/docs/, and .codex-harness/"
+  ],
+  "notes": "Contract goal was evaluation, not making lib-bins pass. The correct outcome is not to promote the gate yet."
+}

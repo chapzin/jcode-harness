@@ -53,5 +53,5 @@ For runtime changes, finish with `selfdev build` and reload when appropriate. Fo
 
 1. Keep schema docs, release gates, release-note template, and status snapshots aligned with any new stable harness fields.
 2. Expand Clean Code Guardian fixtures only alongside documented severity-policy changes.
-3. Consider adding `cargo test --lib --bins` or `python3 scripts/test_ci_suites.py lib-bins` as a measured CI gate after runtime cost review.
+3. Keep `python3 scripts/test_ci_suites.py lib-bins` as a future split/optimization issue: local default serial measurement hit the 600s supervisor limit while tests were still passing, so it is not ready as a mandatory gate.
 4. Add telemetry-worker test/lint scripts before treating telemetry deploy workflows as fully gated.
