@@ -1,0 +1,56 @@
+{
+  "id": "2026-05-07-add-demo-run-sandbox-6f0d2a",
+  "title": "Add demo run sandbox",
+  "goal": "Add `jcode-harness demo run --sandbox` so project-writing issue #2 demos can execute in a temporary isolated workspace without mutating the requested cwd.",
+  "createdAt": "2026-05-07T21:21:56.855Z",
+  "status": "active",
+  "requiredInputs": [
+    "Issue #2 reproducible mock demos",
+    "Existing demo run block-by-default safety policy"
+  ],
+  "budget": {
+    "maxSteps": 10,
+    "maxMinutes": 60,
+    "maxToolCalls": 40
+  },
+  "permissions": [
+    "edit harness CLI/tests/docs",
+    "run focused cargo tests/checks",
+    "selfdev build/reload",
+    "commit and push branch"
+  ],
+  "completionConditions": [
+    "`demo run all --sandbox --json` executes all 8 demos with status ok",
+    "Sandbox reports path/cleanup/retained metadata and removes the directory by default",
+    "Each result reports `executed_root` equal to the sandbox path",
+    "Requested cwd is not mutated by sandboxed project-writing demos",
+    "Docs/status/release gates document sandbox schema/checks",
+    "Focused e2e, cargo check, selfdev jcode, and selfdev jcode-harness validations pass"
+  ],
+  "outputPaths": [
+    "src/bin/harness.rs",
+    "tests/e2e/harness_cli.rs",
+    "docs/JCODE_HARNESS_JSON_SCHEMAS.md",
+    "docs/JCODE_HARNESS_RELEASE_GATES.md",
+    "docs/SKILLS_HARNESS_STATUS.md"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "git diff --check",
+    "cargo test --test e2e harness_demo_run_sandbox_executes_project_writes_without_mutating_cwd -- --nocapture",
+    "cargo run -q -p jcode --bin jcode-harness -- demo run all --sandbox --json",
+    "cargo check -p jcode",
+    "selfdev build target=auto",
+    "scripts/dev_cargo.sh build --profile selfdev -p jcode --bin jcode-harness",
+    "target/selfdev/jcode-harness demo run all --sandbox --json"
+  ],
+  "failureTaxonomy": [
+    "sandbox_leak",
+    "cwd_mutation",
+    "json_schema_invalid",
+    "demo_failure",
+    "test_failure",
+    "uncommitted_or_unpushed"
+  ],
+  "notes": "Sandbox mode creates a temp execution root, builds the manifest against it, runs demos there, renders JSON, and removes the sandbox unless --keep-sandbox is set."
+}

@@ -41,6 +41,8 @@ Commands recently run successfully:
 - `cargo run -q -p jcode --bin jcode-harness -- demo --json | python3 -m json.tool >/dev/null`
 - `cargo test --test e2e harness_demo_run_executes_non_writing_demo_and_blocks_project_writes -- --nocapture`
 - `cargo run -q -p jcode --bin jcode-harness -- demo run mock-provider-run-json --json | python3 -m json.tool >/dev/null`
+- `cargo test --test e2e harness_demo_run_sandbox_executes_project_writes_without_mutating_cwd -- --nocapture`
+- `cargo run -q -p jcode --bin jcode-harness -- demo run all --sandbox --json | python3 -m json.tool >/dev/null`
 - `cargo test --test e2e harness_live_provider -- --nocapture` (default path skips without live-provider env and makes no provider call)
 - `cargo test --test e2e harness_smoke -- --nocapture`
 - `cargo test --test e2e harness_init_json -- --nocapture`

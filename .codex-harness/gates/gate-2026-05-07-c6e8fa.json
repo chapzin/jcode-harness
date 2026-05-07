@@ -1,0 +1,46 @@
+{
+  "id": "gate-2026-05-07-c6e8fa",
+  "ts": "2026-05-07T21:21:56.855Z",
+  "contractId": "2026-05-07-add-demo-run-sandbox-6f0d2a",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/bin/harness.rs",
+      "exists": true
+    },
+    {
+      "path": "tests/e2e/harness_cli.rs",
+      "exists": true
+    },
+    {
+      "path": "docs/JCODE_HARNESS_JSON_SCHEMAS.md",
+      "exists": true
+    },
+    {
+      "path": "docs/JCODE_HARNESS_RELEASE_GATES.md",
+      "exists": true
+    },
+    {
+      "path": "docs/SKILLS_HARNESS_STATUS.md",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "`demo run all --sandbox --json` executes all 8 demos with status ok",
+    "Sandbox reports path/cleanup/retained metadata and removes the directory by default",
+    "Each result reports `executed_root` equal to the sandbox path",
+    "Requested cwd is not mutated by sandboxed project-writing demos",
+    "Docs/status/release gates document sandbox schema/checks",
+    "Focused e2e, cargo check, selfdev jcode, and selfdev jcode-harness validations pass"
+  ],
+  "uncheckedConditions": [],
+  "evidence": [
+    "focused sandbox e2e test passed",
+    "demo run all --sandbox returned ok with 8 pass results",
+    "sandbox directory removed by default and requested cwd stayed clean",
+    "cargo check -p jcode passed",
+    "selfdev build/reload passed",
+    "target/selfdev/jcode-harness demo run all --sandbox validation passed"
+  ],
+  "notes": "Sandbox gives a safe path for executing project-writing demos without requiring --allow-writes on the real repo."
+}

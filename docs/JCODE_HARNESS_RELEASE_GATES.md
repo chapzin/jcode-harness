@@ -144,6 +144,7 @@ cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m j
 cargo run -q -p jcode --bin jcode-harness -- skills llmwiki-bridge --json | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- demo --json | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- demo run mock-provider-run-json --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- demo run all --sandbox --json | python3 -m json.tool >/dev/null
 cargo test --test e2e harness_init_json -- --nocapture
 cargo test --test e2e clean_code_check_json -- --nocapture
 cargo test --test e2e harness_smoke -- --nocapture

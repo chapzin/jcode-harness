@@ -636,6 +636,7 @@ Command:
 ```bash
 jcode-harness demo run mock-provider-run-json --cwd /repo --json
 jcode-harness demo run all --cwd /repo --json
+jcode-harness demo run all --cwd /repo --sandbox --json
 ```
 
 Shape:
@@ -647,6 +648,13 @@ Shape:
   "network_required": false,
   "credentials_required": false,
   "root": "/repo",
+  "execution_root": "/repo",
+  "sandbox": {
+    "enabled": false,
+    "path": null,
+    "retained": false,
+    "cleanup": "none"
+  },
   "requested": "mock-provider-run-json",
   "allow_writes": false,
   "results": [
@@ -655,6 +663,7 @@ Shape:
       "surface": "mock-provider",
       "status": "pass",
       "exit_code": 0,
+      "executed_root": "/repo",
       "project_writes": false,
       "command": "jcode-harness run 'review this diff' --json --mock-response 'mocked harness response'",
       "json_parseable": true,
@@ -669,6 +678,8 @@ Guarantees:
 
 - The runner only executes commands from the local deterministic `demo --json` manifest.
 - `project_writes: true` demos are blocked by default and reported as `status: "blocked"`; pass `--allow-writes` only in a disposable or safe-eval workspace.
+- `--sandbox` creates a temporary execution root, rewrites demo `--cwd` values to that root, allows `project_writes: true` demos there, and removes the sandbox by default after rendering the JSON report.
+- `--keep-sandbox` requires `--sandbox` and leaves the sandbox directory available for manual inspection.
 - `demo run all --json` executes non-writing demos and reports writing demos as blocked, returning `status: "warn"` when blocks are the only non-pass results.
 - A single blocked demo exits non-zero after printing the JSON report so CI can fail safely.
 - `json_parseable` is true only when the child command was expected to emit JSON and stdout parsed successfully.

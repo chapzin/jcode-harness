@@ -433,6 +433,50 @@ fn harness_demo_run_executes_non_writing_demo_and_blocks_project_writes() -> Res
 }
 
 #[test]
+fn harness_demo_run_sandbox_executes_project_writes_without_mutating_cwd() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-demo-sandbox-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .args(["demo", "run", "all", "--cwd"])
+        .arg(&cwd)
+        .args(["--sandbox", "--json"])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["sandbox"]["enabled"], true);
+    assert_eq!(report["sandbox"]["retained"], false);
+    assert_eq!(report["sandbox"]["cleanup"], "removed_after_run");
+    let sandbox_path = report["sandbox"]["path"].as_str().expect("sandbox path");
+    assert!(
+        !std::path::Path::new(sandbox_path).exists(),
+        "sandbox should be removed by default: {sandbox_path}"
+    );
+    assert_eq!(report["results"].as_array().map(Vec::len), Some(8));
+    for result in report["results"].as_array().expect("results") {
+        assert_eq!(result["status"], "pass", "result: {result:?}");
+        assert_eq!(result["executed_root"], sandbox_path);
+    }
+    assert!(report["results"].as_array().unwrap().iter().any(|result| {
+        result["id"] == "release-gate-smoke" && result["project_writes"] == true
+    }));
+    assert!(
+        !cwd.join(".jcode").exists(),
+        "sandboxed demo run must not write into requested cwd"
+    );
+
+    Ok(())
+}
+
+#[test]
 fn harness_smoke_runs_offline_tool_cases_with_deterministic_artifacts() -> Result<()> {
     let temp = tempfile::Builder::new()
         .prefix("jcode-harness-smoke-")

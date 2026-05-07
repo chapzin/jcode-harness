@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Issue #2 offline demo runner",
+  "focus": "Issue #2 demo run sandbox",
   "status": "done",
-  "activeContractId": "2026-05-07-add-offline-demo-runner-4e8c91",
+  "activeContractId": "2026-05-07-add-demo-run-sandbox-6f0d2a",
   "counters": {
-    "contracts": 17,
-    "traces": 18,
-    "gates": 18,
-    "verifications": 16,
+    "contracts": 18,
+    "traces": 19,
+    "gates": 19,
+    "verifications": 17,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -47,6 +47,11 @@
       "id": "decision-2026-05-07-8ad931",
       "ts": "2026-05-07T21:15:35.766Z",
       "text": "For `demo run`, block manifest entries with `project_writes=true` by default and only run them with explicit `--allow-writes`, so issue #2 demos stay reproducible without accidental workspace mutation."
+    },
+    {
+      "id": "decision-2026-05-07-b71c29",
+      "ts": "2026-05-07T21:21:56.855Z",
+      "text": "Use `--sandbox` as the preferred way to execute project-writing demos: it permits reproducible evidence while keeping the requested repository clean and deleting the temporary workspace by default."
     }
   ],
   "events": [
@@ -490,6 +495,35 @@
       "status": "done",
       "focus": "Issue #2 offline demo runner",
       "activeContractId": "2026-05-07-add-offline-demo-runner-4e8c91"
+    },
+    {
+      "ts": "2026-05-07T21:21:56.855Z",
+      "type": "contract_created",
+      "contractId": "2026-05-07-add-demo-run-sandbox-6f0d2a",
+      "summary": "Add demo run sandbox"
+    },
+    {
+      "ts": "2026-05-07T21:21:56.855Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-07-e2a7d1",
+      "contractId": "2026-05-07-add-demo-run-sandbox-6f0d2a",
+      "status": "pass",
+      "summary": "demo run sandbox validation passed"
+    },
+    {
+      "ts": "2026-05-07T21:21:56.855Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-07-add-demo-run-sandbox-6f0d2a",
+      "gateId": "gate-2026-05-07-c6e8fa",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-07T21:21:56.855Z",
+      "type": "state_update",
+      "note": "Implemented and validated sandboxed demo runner. Next: commit and push.",
+      "status": "done",
+      "focus": "Issue #2 demo run sandbox",
+      "activeContractId": "2026-05-07-add-demo-run-sandbox-6f0d2a"
     }
   ]
 }

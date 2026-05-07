@@ -115,6 +115,12 @@ struct DemoRunArgs {
     /// Allow demos whose manifest declares project_writes=true
     #[arg(long)]
     allow_writes: bool,
+    /// Execute project-writing demos in a temporary sandbox instead of the requested cwd
+    #[arg(long)]
+    sandbox: bool,
+    /// Keep the sandbox directory after the run for manual inspection
+    #[arg(long, requires = "sandbox")]
+    keep_sandbox: bool,
     /// Emit JSON run report
     #[arg(long)]
     json: bool,
@@ -1007,7 +1013,13 @@ fn run_demo(args: DemoArgs) -> Result<()> {
 fn run_demo_run(args: DemoRunArgs) -> Result<()> {
     let root = resolve_existing_root(args.cwd.as_deref(), "demo run")?;
     let root = root.canonicalize().unwrap_or(root);
-    let manifest = build_demo_manifest(&root);
+    let sandbox_root = if args.sandbox {
+        Some(create_demo_sandbox_root()?)
+    } else {
+        None
+    };
+    let execution_root = sandbox_root.as_deref().unwrap_or(&root);
+    let manifest = build_demo_manifest(execution_root);
     let demos = manifest["demos"]
         .as_array()
         .ok_or_else(|| anyhow::anyhow!("demo manifest missing demos array"))?;
@@ -1016,26 +1028,32 @@ fn run_demo_run(args: DemoRunArgs) -> Result<()> {
     let mut results = Vec::new();
     if requested == "all" {
         for demo in demos {
-            if demo["project_writes"].as_bool().unwrap_or(false) && !args.allow_writes {
+            if demo["project_writes"].as_bool().unwrap_or(false)
+                && !args.allow_writes
+                && !args.sandbox
+            {
                 results.push(blocked_demo_result(
+                    execution_root,
                     demo,
-                    "project_writes=true; pass --allow-writes to execute this demo",
+                    "project_writes=true; pass --allow-writes or --sandbox to execute this demo",
                 ));
                 continue;
             }
-            results.push(execute_demo_entry(&root, demo)?);
+            results.push(execute_demo_entry(execution_root, demo)?);
         }
     } else if let Some(demo) = demos
         .iter()
         .find(|demo| demo["id"].as_str() == Some(requested))
     {
-        if demo["project_writes"].as_bool().unwrap_or(false) && !args.allow_writes {
+        if demo["project_writes"].as_bool().unwrap_or(false) && !args.allow_writes && !args.sandbox
+        {
             results.push(blocked_demo_result(
+                execution_root,
                 demo,
-                "project_writes=true; pass --allow-writes to execute this demo",
+                "project_writes=true; pass --allow-writes or --sandbox to execute this demo",
             ));
         } else {
-            results.push(execute_demo_entry(&root, demo)?);
+            results.push(execute_demo_entry(execution_root, demo)?);
         }
     } else {
         let known = demos
@@ -1057,19 +1075,50 @@ fn run_demo_run(args: DemoRunArgs) -> Result<()> {
     } else {
         "ok"
     };
+    let sandbox = sandbox_root
+        .as_ref()
+        .map(|path| {
+            json!({
+                "enabled": true,
+                "path": path,
+                "retained": args.keep_sandbox,
+                "cleanup": if args.keep_sandbox { "kept" } else { "removed_after_run" },
+            })
+        })
+        .unwrap_or_else(|| {
+            json!({
+                "enabled": false,
+                "path": null,
+                "retained": false,
+                "cleanup": "none",
+            })
+        });
     let report = json!({
         "status": status,
         "offline": true,
         "network_required": false,
         "credentials_required": false,
         "root": root,
+        "execution_root": execution_root,
+        "sandbox": sandbox,
         "requested": requested,
         "allow_writes": args.allow_writes,
         "results": results,
     });
 
+    let rendered_json = if args.json {
+        Some(serde_json::to_string_pretty(&report)?)
+    } else {
+        None
+    };
+    if let Some(path) = &sandbox_root
+        && !args.keep_sandbox
+    {
+        std::fs::remove_dir_all(path)?;
+    }
+
     if args.json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+        println!("{}", rendered_json.unwrap());
     } else {
         print_demo_run_report(&report);
     }
@@ -1081,6 +1130,17 @@ fn run_demo_run(args: DemoRunArgs) -> Result<()> {
         anyhow::bail!("demo run blocked by project write safety policy");
     }
     Ok(())
+}
+
+fn create_demo_sandbox_root() -> Result<PathBuf> {
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let path =
+        std::env::temp_dir().join(format!("jcode-harness-demo-{}-{stamp}", std::process::id()));
+    std::fs::create_dir_all(&path)?;
+    Ok(path)
 }
 
 fn execute_demo_entry(
@@ -1122,6 +1182,7 @@ fn execute_demo_entry(
         "surface": demo["surface"],
         "status": if pass { "pass" } else { "fail" },
         "exit_code": output.status.code(),
+        "executed_root": root,
         "project_writes": demo["project_writes"].as_bool().unwrap_or(false),
         "command": demo["command"],
         "json_parseable": json_parseable,
@@ -1130,12 +1191,17 @@ fn execute_demo_entry(
     }))
 }
 
-fn blocked_demo_result(demo: &serde_json::Value, reason: &str) -> serde_json::Value {
+fn blocked_demo_result(
+    root: &std::path::Path,
+    demo: &serde_json::Value,
+    reason: &str,
+) -> serde_json::Value {
     json!({
         "id": demo["id"],
         "surface": demo["surface"],
         "status": "blocked",
         "exit_code": null,
+        "executed_root": root,
         "project_writes": demo["project_writes"].as_bool().unwrap_or(false),
         "command": demo["command"],
         "json_parseable": false,
@@ -1152,6 +1218,13 @@ fn print_demo_run_report(report: &serde_json::Value) {
     );
     println!("Offline: true");
     println!("Requested: {}", report["requested"].as_str().unwrap_or(""));
+    if report["sandbox"]["enabled"].as_bool().unwrap_or(false) {
+        println!(
+            "Sandbox: {} ({})",
+            report["sandbox"]["path"].as_str().unwrap_or("<unknown>"),
+            report["sandbox"]["cleanup"].as_str().unwrap_or("unknown")
+        );
+    }
     if let Some(results) = report["results"].as_array() {
         for result in results {
             println!(
