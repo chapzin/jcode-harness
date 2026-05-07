@@ -30,6 +30,8 @@ enum Command {
     SafeEval(SafeEvalArgs),
     /// Run offline onboarding diagnostics without contacting providers
     Doctor(DoctorArgs),
+    /// Inspect and exercise local user-attention notification settings
+    Notify(NotifyArgs),
     /// Print reproducible offline mock demos for README/product claims
     Demo(DemoArgs),
     /// Inspect local/headless session metadata without starting the TUI
@@ -119,6 +121,28 @@ struct DoctorArgs {
     /// Emit JSON report
     #[arg(long)]
     json: bool,
+}
+
+#[derive(Parser)]
+struct NotifyArgs {
+    #[command(subcommand)]
+    command: NotifyCommand,
+}
+
+#[derive(Subcommand)]
+enum NotifyCommand {
+    /// Run a local user-attention notification diagnostic
+    Test(NotifyTestArgs),
+}
+
+#[derive(Parser)]
+struct NotifyTestArgs {
+    /// Emit JSON report
+    #[arg(long)]
+    json: bool,
+    /// Report what would happen without emitting a terminal bell
+    #[arg(long)]
+    dry_run: bool,
 }
 
 #[derive(Parser)]
@@ -631,6 +655,7 @@ async fn main() -> Result<()> {
         Some(Command::Acp(args)) => run_acp(args),
         Some(Command::SafeEval(args)) => run_safe_eval(args),
         Some(Command::Doctor(args)) => run_doctor(args),
+        Some(Command::Notify(args)) => run_notify(args),
         Some(Command::Demo(args)) => run_demo(args),
         Some(Command::Session(args)) => run_session(args),
         Some(Command::Smoke(args)) => run_smoke(args).await,
@@ -2279,6 +2304,7 @@ fn run_doctor(args: DoctorArgs) -> Result<()> {
     let safe_eval = build_safe_eval_doctor(&root, &jcode_home);
     let privacy = build_privacy_doctor();
     let features = build_feature_env_doctor();
+    let user_attention = jcode::user_attention::UserAttentionConfig::from_env().diagnostic();
     let skills = build_skill_doctor_summary(&root);
     let mcp_configs = build_mcp_doctor_configs(&root, &jcode_home);
     let mut recommendations = Vec::new();
@@ -2333,6 +2359,7 @@ fn run_doctor(args: DoctorArgs) -> Result<()> {
         "safe_eval": safe_eval,
         "privacy": privacy,
         "features": features,
+        "user_attention": user_attention,
         "skills": skills,
         "mcp": {
             "configs": mcp_configs,
@@ -2369,6 +2396,19 @@ fn run_doctor(args: DoctorArgs) -> Result<()> {
             .unwrap_or(false)
     );
     println!(
+        "User attention: {} via {} (source: {})",
+        report["user_attention"]["mode"].as_str().unwrap_or("off"),
+        report["user_attention"]["backend"]
+            .as_str()
+            .unwrap_or("none"),
+        report["user_attention"]["source"]
+            .as_str()
+            .unwrap_or("unknown")
+    );
+    if let Some(warning) = report["user_attention"]["warning"].as_str() {
+        println!("User attention warning: {warning}");
+    }
+    println!(
         "Skills: {} loaded, built-ins {} ({})",
         report["skills"]["loaded"].as_u64().unwrap_or(0),
         report["skills"]["builtins"].as_u64().unwrap_or(0),
@@ -2391,6 +2431,61 @@ fn run_doctor(args: DoctorArgs) -> Result<()> {
         for item in items {
             println!("  - {}", item.as_str().unwrap_or(""));
         }
+    }
+    Ok(())
+}
+
+fn run_notify(args: NotifyArgs) -> Result<()> {
+    match args.command {
+        NotifyCommand::Test(args) => run_notify_test(args),
+    }
+}
+
+fn run_notify_test(args: NotifyTestArgs) -> Result<()> {
+    let config = jcode::user_attention::UserAttentionConfig::from_env();
+    let diagnostic = config.diagnostic();
+    let delivery = if args.dry_run {
+        config.dry_run_delivery()
+    } else {
+        let mut stderr = std::io::stderr().lock();
+        config.notify_with_writer(&mut stderr)?
+    };
+
+    let report = json!({
+        "status": "ok",
+        "offline": true,
+        "config": diagnostic,
+        "delivery": delivery,
+    });
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+
+    println!(
+        "jcode-harness notify test: {}",
+        report["config"]["mode"].as_str().unwrap_or("off")
+    );
+    println!("Offline: true");
+    println!(
+        "Backend: {}",
+        report["config"]["backend"].as_str().unwrap_or("none")
+    );
+    println!(
+        "Source: {}",
+        report["config"]["source"].as_str().unwrap_or("unknown")
+    );
+    println!(
+        "Dry run: {}",
+        report["delivery"]["dry_run"].as_bool().unwrap_or(false)
+    );
+    println!(
+        "Delivered: {}",
+        report["delivery"]["delivered"].as_bool().unwrap_or(false)
+    );
+    if let Some(warning) = report["config"]["warning"].as_str() {
+        println!("Warning: {warning}");
     }
     Ok(())
 }

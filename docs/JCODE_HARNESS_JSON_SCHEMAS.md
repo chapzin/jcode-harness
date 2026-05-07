@@ -269,6 +269,12 @@ Shape:
     "swarm_enabled_env": "false",
     "memory_backend_env": "off"
   },
+  "user_attention": {
+    "enabled": false,
+    "mode": "off",
+    "backend": null,
+    "source": "default"
+  },
   "skills": { "status": "ok", "builtins": 4, "loaded": 4 },
   "mcp": {
     "configs": [
@@ -289,8 +295,46 @@ Guarantees:
 - `offline` is always `true`; the command does not initialize providers or start MCP/browser/Gmail integrations.
 - `status` is `ok` when there are no recommendations, otherwise `warn`.
 - `safe_eval` reports both the explicit `JCODE_SAFE_EVAL=1` marker and whether active `JCODE_HOME` matches the generated profile home.
+- `user_attention` is offline and side-effect free; default mode is `off`, `JCODE_USER_ATTENTION=bell` or `JCODE_NOTIFY_SOUND=1` reports the terminal-bell backend.
 - `mcp.configs` reports candidate config paths and marks project-local configs as `requires_review` only when they exist.
 - `recommendations` is an array of operator-facing strings suitable for onboarding checklists.
+
+## `notify test --json`
+
+Command:
+
+```bash
+jcode-harness notify test --dry-run --json
+```
+
+Shape:
+
+```json
+{
+  "status": "ok",
+  "offline": true,
+  "config": {
+    "enabled": true,
+    "mode": "bell",
+    "backend": "terminal_bell",
+    "source": "JCODE_USER_ATTENTION"
+  },
+  "delivery": {
+    "backend": "terminal_bell",
+    "would_emit": true,
+    "attempted": false,
+    "delivered": false,
+    "dry_run": true,
+    "bytes_written": 0
+  }
+}
+```
+
+Guarantees:
+
+- Default config is silent/off unless `JCODE_USER_ATTENTION=bell` or `JCODE_NOTIFY_SOUND=1` is set.
+- `--dry-run` never emits a terminal bell and is suitable for tests and diagnostics.
+- Without `--dry-run`, the initial backend writes only the terminal bell byte (`\a`) to stderr so JSON stdout remains parseable.
 
 ## `session list --json`
 
