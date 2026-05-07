@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Issue #2 offline demo manifest",
+  "focus": "Issue #2 offline demo runner",
   "status": "done",
-  "activeContractId": "2026-05-07-add-offline-demo-manifest-9c2f1d",
+  "activeContractId": "2026-05-07-add-offline-demo-runner-4e8c91",
   "counters": {
-    "contracts": 16,
-    "traces": 17,
-    "gates": 17,
-    "verifications": 15,
+    "contracts": 17,
+    "traces": 18,
+    "gates": 18,
+    "verifications": 16,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -42,6 +42,11 @@
       "id": "decision-2026-05-07-3d8a2f",
       "ts": "2026-05-07T21:07:46.124Z",
       "text": "For issue #2, implement a deterministic manifest-only `jcode-harness demo` first, rather than auto-running demos, so README/product claims are reproducible without triggering project writes, providers, network, MCP, browser, or credentials by default."
+    },
+    {
+      "id": "decision-2026-05-07-8ad931",
+      "ts": "2026-05-07T21:15:35.766Z",
+      "text": "For `demo run`, block manifest entries with `project_writes=true` by default and only run them with explicit `--allow-writes`, so issue #2 demos stay reproducible without accidental workspace mutation."
     }
   ],
   "events": [
@@ -456,6 +461,35 @@
       "status": "done",
       "focus": "Issue #2 offline demo manifest",
       "activeContractId": "2026-05-07-add-offline-demo-manifest-9c2f1d"
+    },
+    {
+      "ts": "2026-05-07T21:15:35.766Z",
+      "type": "contract_created",
+      "contractId": "2026-05-07-add-offline-demo-runner-4e8c91",
+      "summary": "Add offline demo runner"
+    },
+    {
+      "ts": "2026-05-07T21:15:35.766Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-07-d6f2ab",
+      "contractId": "2026-05-07-add-offline-demo-runner-4e8c91",
+      "status": "pass",
+      "summary": "demo run validation passed"
+    },
+    {
+      "ts": "2026-05-07T21:15:35.766Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-07-add-offline-demo-runner-4e8c91",
+      "gateId": "gate-2026-05-07-b7d4c2",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-07T21:15:35.766Z",
+      "type": "state_update",
+      "note": "Implemented and validated safe offline demo runner. Next: commit and push.",
+      "status": "done",
+      "focus": "Issue #2 offline demo runner",
+      "activeContractId": "2026-05-07-add-offline-demo-runner-4e8c91"
     }
   ]
 }

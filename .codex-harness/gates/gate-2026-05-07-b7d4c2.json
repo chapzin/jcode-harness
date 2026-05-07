@@ -1,0 +1,46 @@
+{
+  "id": "gate-2026-05-07-b7d4c2",
+  "ts": "2026-05-07T21:15:35.766Z",
+  "contractId": "2026-05-07-add-offline-demo-runner-4e8c91",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/bin/harness.rs",
+      "exists": true
+    },
+    {
+      "path": "tests/e2e/harness_cli.rs",
+      "exists": true
+    },
+    {
+      "path": "docs/JCODE_HARNESS_JSON_SCHEMAS.md",
+      "exists": true
+    },
+    {
+      "path": "docs/JCODE_HARNESS_RELEASE_GATES.md",
+      "exists": true
+    },
+    {
+      "path": "docs/SKILLS_HARNESS_STATUS.md",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "`demo run mock-provider-run-json --json` executes successfully and emits parseable JSON report",
+    "`demo run release-gate-smoke --json` is blocked without `--allow-writes` and exits non-zero after JSON report",
+    "`demo run all --json` executes non-writing demos and marks writing demos blocked with status warn",
+    "Docs/status/release gates document `demo run` JSON contract and checks",
+    "Focused e2e, cargo check, selfdev jcode, and selfdev jcode-harness validations pass"
+  ],
+  "uncheckedConditions": [],
+  "evidence": [
+    "focused e2e demo run test passed",
+    "mock-provider demo run JSON parsed successfully",
+    "release-gate-smoke blocked without --allow-writes and printed JSON report",
+    "demo run all returned warn with pass and blocked result statuses",
+    "cargo check -p jcode passed",
+    "selfdev build target=auto passed and reload succeeded",
+    "target/selfdev/jcode-harness demo run all --json validation passed"
+  ],
+  "notes": "Project-writing demos remain opt-in through --allow-writes; default runner is safe for non-writing reproducible demos."
+}

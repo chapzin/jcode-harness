@@ -376,6 +376,63 @@ fn harness_demo_json_lists_offline_claim_demos_without_credentials() -> Result<(
 }
 
 #[test]
+fn harness_demo_run_executes_non_writing_demo_and_blocks_project_writes() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-demo-run-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .args(["demo", "run", "mock-provider-run-json", "--cwd"])
+        .arg(&cwd)
+        .arg("--json")
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["requested"], "mock-provider-run-json");
+    let result = &report["results"].as_array().expect("results")[0];
+    assert_eq!(result["status"], "pass");
+    assert_eq!(result["project_writes"], false);
+    assert_eq!(result["json_parseable"], true);
+    assert!(
+        result["stdout"]
+            .as_str()
+            .is_some_and(|stdout| stdout.contains("harness-mock"))
+    );
+
+    let blocked = harness_command(&home, &cwd)
+        .args(["demo", "run", "release-gate-smoke", "--cwd"])
+        .arg(&cwd)
+        .arg("--json")
+        .output()?;
+    let blocked_stdout = stdout_text(&blocked);
+    assert!(
+        !blocked.status.success(),
+        "project-writing demo should be blocked without --allow-writes"
+    );
+    let blocked_report: Value = serde_json::from_str(&blocked_stdout)?;
+    assert_eq!(blocked_report["status"], "blocked");
+    let blocked_result = &blocked_report["results"].as_array().expect("results")[0];
+    assert_eq!(blocked_result["status"], "blocked");
+    assert_eq!(blocked_result["project_writes"], true);
+    assert!(
+        blocked_result["reason"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("--allow-writes"))
+    );
+    assert!(!cwd.join(".jcode/demo/smoke/sample.txt").exists());
+
+    Ok(())
+}
+
+#[test]
 fn harness_smoke_runs_offline_tool_cases_with_deterministic_artifacts() -> Result<()> {
     let temp = tempfile::Builder::new()
         .prefix("jcode-harness-smoke-")

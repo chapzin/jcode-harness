@@ -89,10 +89,33 @@ struct DoctorArgs {
 
 #[derive(Parser)]
 struct DemoArgs {
+    #[command(subcommand)]
+    command: Option<DemoCommand>,
     /// Project directory used in generated copy-paste commands
     #[arg(long)]
     cwd: Option<String>,
     /// Emit JSON manifest
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Subcommand)]
+enum DemoCommand {
+    /// Execute one offline demo, or all non-writing demos by default
+    Run(DemoRunArgs),
+}
+
+#[derive(Parser)]
+struct DemoRunArgs {
+    /// Demo id from `jcode-harness demo --json`, or `all`
+    id: String,
+    /// Project directory used for commands that accept --cwd
+    #[arg(long)]
+    cwd: Option<String>,
+    /// Allow demos whose manifest declares project_writes=true
+    #[arg(long)]
+    allow_writes: bool,
+    /// Emit JSON run report
     #[arg(long)]
     json: bool,
 }
@@ -937,6 +960,12 @@ fn run_doctor(args: DoctorArgs) -> Result<()> {
 }
 
 fn run_demo(args: DemoArgs) -> Result<()> {
+    if let Some(command) = args.command {
+        return match command {
+            DemoCommand::Run(run_args) => run_demo_run(run_args),
+        };
+    }
+
     let root = resolve_existing_root(args.cwd.as_deref(), "demo")?;
     let root = root.canonicalize().unwrap_or(root);
     let manifest = build_demo_manifest(&root);
@@ -973,6 +1002,171 @@ fn run_demo(args: DemoArgs) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn run_demo_run(args: DemoRunArgs) -> Result<()> {
+    let root = resolve_existing_root(args.cwd.as_deref(), "demo run")?;
+    let root = root.canonicalize().unwrap_or(root);
+    let manifest = build_demo_manifest(&root);
+    let demos = manifest["demos"]
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("demo manifest missing demos array"))?;
+
+    let requested = args.id.trim();
+    let mut results = Vec::new();
+    if requested == "all" {
+        for demo in demos {
+            if demo["project_writes"].as_bool().unwrap_or(false) && !args.allow_writes {
+                results.push(blocked_demo_result(
+                    demo,
+                    "project_writes=true; pass --allow-writes to execute this demo",
+                ));
+                continue;
+            }
+            results.push(execute_demo_entry(&root, demo)?);
+        }
+    } else if let Some(demo) = demos
+        .iter()
+        .find(|demo| demo["id"].as_str() == Some(requested))
+    {
+        if demo["project_writes"].as_bool().unwrap_or(false) && !args.allow_writes {
+            results.push(blocked_demo_result(
+                demo,
+                "project_writes=true; pass --allow-writes to execute this demo",
+            ));
+        } else {
+            results.push(execute_demo_entry(&root, demo)?);
+        }
+    } else {
+        let known = demos
+            .iter()
+            .filter_map(|demo| demo["id"].as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        anyhow::bail!("unknown demo id '{requested}'. Known demos: {known}");
+    }
+
+    let has_fail = results.iter().any(|result| result["status"] == "fail");
+    let has_blocked = results.iter().any(|result| result["status"] == "blocked");
+    let status = if has_fail {
+        "error"
+    } else if has_blocked && requested != "all" {
+        "blocked"
+    } else if has_blocked {
+        "warn"
+    } else {
+        "ok"
+    };
+    let report = json!({
+        "status": status,
+        "offline": true,
+        "network_required": false,
+        "credentials_required": false,
+        "root": root,
+        "requested": requested,
+        "allow_writes": args.allow_writes,
+        "results": results,
+    });
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        print_demo_run_report(&report);
+    }
+
+    if has_fail {
+        anyhow::bail!("one or more demo runs failed");
+    }
+    if status == "blocked" {
+        anyhow::bail!("demo run blocked by project write safety policy");
+    }
+    Ok(())
+}
+
+fn execute_demo_entry(
+    root: &std::path::Path,
+    demo: &serde_json::Value,
+) -> Result<serde_json::Value> {
+    let argv = demo["argv"]
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("demo entry missing argv array"))?
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .map(ToOwned::to_owned)
+                .ok_or_else(|| anyhow::anyhow!("demo argv contains non-string value"))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    if argv.is_empty() {
+        anyhow::bail!("demo entry has empty argv");
+    }
+
+    let exe = std::env::current_exe()?;
+    let output = std::process::Command::new(exe)
+        .args(argv.iter().skip(1))
+        .current_dir(root)
+        .output()?;
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    let expects_json = argv.iter().any(|arg| arg == "--json");
+    let json_parseable = if expects_json {
+        serde_json::from_str::<serde_json::Value>(&stdout).is_ok()
+    } else {
+        false
+    };
+    let pass = output.status.success() && (!expects_json || json_parseable);
+
+    Ok(json!({
+        "id": demo["id"],
+        "surface": demo["surface"],
+        "status": if pass { "pass" } else { "fail" },
+        "exit_code": output.status.code(),
+        "project_writes": demo["project_writes"].as_bool().unwrap_or(false),
+        "command": demo["command"],
+        "json_parseable": json_parseable,
+        "stdout": stdout,
+        "stderr": stderr,
+    }))
+}
+
+fn blocked_demo_result(demo: &serde_json::Value, reason: &str) -> serde_json::Value {
+    json!({
+        "id": demo["id"],
+        "surface": demo["surface"],
+        "status": "blocked",
+        "exit_code": null,
+        "project_writes": demo["project_writes"].as_bool().unwrap_or(false),
+        "command": demo["command"],
+        "json_parseable": false,
+        "stdout": "",
+        "stderr": "",
+        "reason": reason,
+    })
+}
+
+fn print_demo_run_report(report: &serde_json::Value) {
+    println!(
+        "jcode-harness demo run: {}",
+        report["status"].as_str().unwrap_or("unknown")
+    );
+    println!("Offline: true");
+    println!("Requested: {}", report["requested"].as_str().unwrap_or(""));
+    if let Some(results) = report["results"].as_array() {
+        for result in results {
+            println!(
+                "- {}: {}",
+                result["id"].as_str().unwrap_or("unknown"),
+                result["status"].as_str().unwrap_or("unknown")
+            );
+            if let Some(reason) = result["reason"].as_str() {
+                println!("  reason: {reason}");
+            }
+            if result["json_parseable"].as_bool().unwrap_or(false) {
+                println!("  json: parseable");
+            }
+        }
+    }
 }
 
 fn build_demo_manifest(root: &std::path::Path) -> serde_json::Value {
