@@ -198,7 +198,7 @@ fn test_collect_recent_session_stems_prefers_recently_modified_long_running_sess
 
     for idx in 0..120 {
         write_session_file_with_mtime(
-            &dir.path().join(format!(
+            dir.path().join(format!(
                 "session_newer_created_{:013}.json",
                 2_000_000 + idx
             )),
@@ -209,7 +209,7 @@ fn test_collect_recent_session_stems_prefers_recently_modified_long_running_sess
 
     let target = "session_long_running_0000000000500";
     write_session_file_with_mtime(
-        &dir.path().join(format!("{target}.json")),
+        dir.path().join(format!("{target}.json")),
         r#"{"messages":[{"role":"user","content":"old creation time, recently active"}]}"#,
         10_000,
     );

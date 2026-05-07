@@ -550,10 +550,10 @@ pub async fn login_claude(no_browser: bool) -> Result<OAuthTokens> {
         eprintln!("{qr}\n");
     }
     eprintln!("Opening browser for Claude login...\n");
-    if !crate::auth::browser_suppressed(no_browser) {
-        if let Err(err) = open::that(&auth_url) {
-            eprintln!("warning: failed to open browser for Claude login: {err}");
-        }
+    if !crate::auth::browser_suppressed(no_browser)
+        && let Err(err) = open::that(&auth_url)
+    {
+        eprintln!("warning: failed to open browser for Claude login: {err}");
     }
     eprintln!("After logging in, copy and paste the callback URL or code here:\n");
     eprint!("> ");
@@ -775,7 +775,7 @@ pub fn openai_auth_url_with_prompt(
 ) -> String {
     let prompt_param = prompt
         .map(|p| format!("&prompt={}", urlencoding::encode(p)))
-        .unwrap_or_else(String::new);
+        .unwrap_or_default();
     format!(
         "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&code_challenge={}&code_challenge_method=S256&state={}&id_token_add_organizations=true&codex_cli_simplified_flow=true&originator=codex_cli_rs{}",
         openai::AUTHORIZE_URL,

@@ -98,19 +98,19 @@ This memory backend follows the LLM Wiki pattern: immutable raw sources plus a m
 "#;
 
 pub fn configured_backend() -> MemoryBackend {
-    if let Ok(value) = std::env::var("JCODE_MEMORY_BACKEND") {
-        if let Some(backend) = MemoryBackend::parse(&value) {
-            return backend;
-        }
+    if let Ok(value) = std::env::var("JCODE_MEMORY_BACKEND")
+        && let Some(backend) = MemoryBackend::parse(&value)
+    {
+        return backend;
     }
     MemoryBackend::parse(&crate::config::config().memory.backend).unwrap_or(MemoryBackend::Legacy)
 }
 
 pub fn configured_scope() -> WikiScope {
-    if let Ok(value) = std::env::var("JCODE_MEMORY_WIKI_SCOPE") {
-        if let Some(scope) = WikiScope::parse(&value) {
-            return scope;
-        }
+    if let Ok(value) = std::env::var("JCODE_MEMORY_WIKI_SCOPE")
+        && let Some(scope) = WikiScope::parse(&value)
+    {
+        return scope;
     }
     WikiScope::parse(&crate::config::config().memory.wiki_scope).unwrap_or(WikiScope::GlobalCache)
 }

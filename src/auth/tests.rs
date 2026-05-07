@@ -200,8 +200,10 @@ fn auth_status_check_fast_ignores_expired_full_cache() {
     let _lock = crate::storage::lock_test_env();
     AuthStatus::invalidate_cache();
 
-    let mut stale_status = AuthStatus::default();
-    stale_status.jcode = AuthState::Expired;
+    let stale_status = AuthStatus {
+        jcode: AuthState::Expired,
+        ..Default::default()
+    };
     let stale_when = std::time::Instant::now()
         .checked_sub(std::time::Duration::from_secs(
             AUTH_STATUS_CACHE_TTL_SECS + 1,

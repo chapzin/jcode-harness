@@ -545,16 +545,29 @@ fn infer_agent_role(state: &SessionTelemetry) -> &'static str {
     }
 }
 
-fn infer_session_stop_reason(
+struct StopReasonInputs<'a> {
     event_name: &'static str,
     reason: SessionEndReason,
-    state: &SessionTelemetry,
-    errors: &ErrorCounts,
+    state: &'a SessionTelemetry,
+    errors: &'a ErrorCounts,
     duration_secs: u64,
     session_success: bool,
     abandoned_before_response: bool,
     workflow_coding_used: bool,
-) -> &'static str {
+}
+
+fn infer_session_stop_reason(input: StopReasonInputs<'_>) -> &'static str {
+    let StopReasonInputs {
+        event_name,
+        reason,
+        state,
+        errors,
+        duration_secs,
+        session_success,
+        abandoned_before_response,
+        workflow_coding_used,
+    } = input;
+
     if event_name == "session_crash"
         || matches!(reason, SessionEndReason::Panic | SessionEndReason::Signal)
     {

@@ -23,6 +23,12 @@ pub struct BedrockProvider {
     model: Arc<RwLock<String>>,
 }
 
+impl Default for BedrockProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BedrockProvider {
     pub fn new() -> Self {
         let model =

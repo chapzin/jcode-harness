@@ -55,12 +55,12 @@ fn classify_text(text: &str) -> Option<String> {
 pub fn wait_plan() -> NetworkWaitPlan {
     #[cfg(target_os = "linux")]
     {
-        return NetworkWaitPlan {
+        NetworkWaitPlan {
             reason: "stream interrupted by a likely network disconnect".to_string(),
             listener_summary:
                 "listening for Linux netlink changes via `ip monitor`; also verifying with reconnect probes"
                     .to_string(),
-        };
+        }
     }
     #[cfg(target_os = "macos")]
     {

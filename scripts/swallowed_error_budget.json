@@ -1,9 +1,9 @@
 {
-  "total": 2084,
+  "total": 2138,
   "totals_by_pattern": {
-    "dot_ok": 701,
-    "let_underscore": 910,
-    "unwrap_or_default": 473
+    "dot_ok": 718,
+    "let_underscore": 933,
+    "unwrap_or_default": 487
   },
   "tracked_files": {
     "crates/jcode-build-support/src/paths.rs": {
@@ -84,7 +84,7 @@
     "crates/jcode-desktop/src/single_session_render.rs": {
       "dot_ok": 1,
       "let_underscore": 0,
-      "unwrap_or_default": 0
+      "unwrap_or_default": 1
     },
     "crates/jcode-desktop/src/workspace.rs": {
       "dot_ok": 0,
@@ -391,6 +391,11 @@
       "let_underscore": 0,
       "unwrap_or_default": 4
     },
+    "src/auth/oauth.rs": {
+      "dot_ok": 0,
+      "let_underscore": 0,
+      "unwrap_or_default": 1
+    },
     "src/auth/refresh_state.rs": {
       "dot_ok": 0,
       "let_underscore": 0,
@@ -405,6 +410,11 @@
       "dot_ok": 14,
       "let_underscore": 12,
       "unwrap_or_default": 6
+    },
+    "src/bin/harness.rs": {
+      "dot_ok": 9,
+      "let_underscore": 0,
+      "unwrap_or_default": 4
     },
     "src/bin/tui_bench.rs": {
       "dot_ok": 0,
@@ -488,7 +498,7 @@
     },
     "src/cli/terminal.rs": {
       "dot_ok": 0,
-      "let_underscore": 7,
+      "let_underscore": 12,
       "unwrap_or_default": 0
     },
     "src/cli/tui_launch.rs": {
@@ -568,7 +578,7 @@
     },
     "src/main.rs": {
       "dot_ok": 2,
-      "let_underscore": 1,
+      "let_underscore": 2,
       "unwrap_or_default": 0
     },
     "src/mcp/client.rs": {
@@ -621,6 +631,11 @@
       "let_underscore": 0,
       "unwrap_or_default": 0
     },
+    "src/network_retry.rs": {
+      "dot_ok": 0,
+      "let_underscore": 4,
+      "unwrap_or_default": 0
+    },
     "src/notifications.rs": {
       "dot_ok": 0,
       "let_underscore": 0,
@@ -671,6 +686,11 @@
       "let_underscore": 11,
       "unwrap_or_default": 0
     },
+    "src/provider/bedrock.rs": {
+      "dot_ok": 5,
+      "let_underscore": 9,
+      "unwrap_or_default": 0
+    },
     "src/provider/claude.rs": {
       "dot_ok": 8,
       "let_underscore": 5,
@@ -698,8 +718,8 @@
     },
     "src/provider/mod.rs": {
       "dot_ok": 2,
-      "let_underscore": 4,
-      "unwrap_or_default": 10
+      "let_underscore": 5,
+      "unwrap_or_default": 12
     },
     "src/provider/models.rs": {
       "dot_ok": 10,
@@ -718,7 +738,7 @@
     },
     "src/provider/openai_provider_impl.rs": {
       "dot_ok": 1,
-      "let_underscore": 2,
+      "let_underscore": 3,
       "unwrap_or_default": 0
     },
     "src/provider/openai_stream_runtime.rs": {
@@ -727,7 +747,7 @@
       "unwrap_or_default": 2
     },
     "src/provider/openrouter.rs": {
-      "dot_ok": 19,
+      "dot_ok": 20,
       "let_underscore": 1,
       "unwrap_or_default": 6
     },
@@ -1031,10 +1051,20 @@
       "let_underscore": 0,
       "unwrap_or_default": 5
     },
-    "src/skill_router.rs": {
+    "src/skill_import.rs": {
       "dot_ok": 1,
       "let_underscore": 0,
       "unwrap_or_default": 0
+    },
+    "src/skill_router.rs": {
+      "dot_ok": 2,
+      "let_underscore": 0,
+      "unwrap_or_default": 0
+    },
+    "src/skill_scope.rs": {
+      "dot_ok": 0,
+      "let_underscore": 0,
+      "unwrap_or_default": 4
     },
     "src/soft_interrupt_store.rs": {
       "dot_ok": 0,
@@ -1399,7 +1429,7 @@
     "src/tui/app/state_ui.rs": {
       "dot_ok": 2,
       "let_underscore": 9,
-      "unwrap_or_default": 10
+      "unwrap_or_default": 11
     },
     "src/tui/app/state_ui_input_helpers.rs": {
       "dot_ok": 3,
@@ -1468,7 +1498,7 @@
     },
     "src/tui/permissions.rs": {
       "dot_ok": 0,
-      "let_underscore": 4,
+      "let_underscore": 5,
       "unwrap_or_default": 1
     },
     "src/tui/remote_diff.rs": {
@@ -1483,7 +1513,7 @@
     },
     "src/tui/session_picker.rs": {
       "dot_ok": 0,
-      "let_underscore": 2,
+      "let_underscore": 3,
       "unwrap_or_default": 3
     },
     "src/tui/session_picker/filter.rs": {
@@ -1544,7 +1574,7 @@
     "src/tui/ui_input.rs": {
       "dot_ok": 0,
       "let_underscore": 0,
-      "unwrap_or_default": 2
+      "unwrap_or_default": 3
     },
     "src/tui/ui_messages.rs": {
       "dot_ok": 3,

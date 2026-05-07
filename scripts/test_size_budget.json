@@ -1,7 +1,8 @@
 {
   "threshold_loc": 1200,
   "tracked_files": {
-    "crates/jcode-desktop/src/main_tests.rs": 1583,
+    "crates/jcode-desktop/src/main_tests.rs": 1864,
+    "tests/e2e/harness_cli.rs": 1288,
     "tests/e2e/test_support/mod.rs": 1325
   },
   "version": 1

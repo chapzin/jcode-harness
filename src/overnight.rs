@@ -96,10 +96,9 @@ pub fn start_overnight_run(options: OvernightStartOptions) -> Result<OvernightLa
 
     if !options.use_current_session
         && let Ok(todos) = crate::todo::load_todos(&options.parent_session.id)
+        && let Err(err) = crate::todo::save_todos(&coordinator_session_id, &todos)
     {
-        if let Err(err) = crate::todo::save_todos(&coordinator_session_id, &todos) {
-            log_overnight_best_effort_error("copy parent todos to coordinator", err);
-        }
+        log_overnight_best_effort_error("copy parent todos to coordinator", err);
     }
 
     let manifest = OvernightManifest {
@@ -518,8 +517,6 @@ fn build_usage_projection(
 
     let confidence = if max_usage.is_some() && !has_errors {
         "medium"
-    } else if !providers.is_empty() {
-        "low"
     } else {
         "low"
     }

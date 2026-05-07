@@ -145,7 +145,7 @@ fn initial_session_context_uses_current_cwd_when_inserted() -> Result<()> {
     );
 
     std::env::set_current_dir(second_dir.path()).map_err(|e| anyhow!(e))?;
-    let result: std::result::Result<(), anyhow::Error> = (|| {
+    let result: std::result::Result<(), anyhow::Error> = {
         assert!(session.ensure_initial_session_context_message());
         let first = session.messages[0].content_preview();
         assert!(
@@ -160,7 +160,7 @@ fn initial_session_context_uses_current_cwd_when_inserted() -> Result<()> {
             Some(second_dir.path().to_str().unwrap())
         );
         Ok(())
-    })();
+    };
     std::env::set_current_dir(original_cwd).map_err(|e| anyhow!(e))?;
     result?;
 
@@ -181,7 +181,7 @@ fn initial_session_context_can_refresh_before_real_conversation() -> Result<()> 
         .map_err(|e| anyhow!(e))?;
 
     std::env::set_current_dir(first_dir.path()).map_err(|e| anyhow!(e))?;
-    let result: std::result::Result<(), anyhow::Error> = (|| {
+    let result: std::result::Result<(), anyhow::Error> = {
         let mut session = Session::create_with_id(
             "session_context_remote_cwd_refresh_test".to_string(),
             None,
@@ -208,7 +208,7 @@ fn initial_session_context_can_refresh_before_real_conversation() -> Result<()> 
             first_dir.path().display()
         )));
         Ok(())
-    })();
+    };
     std::env::set_current_dir(original_cwd).map_err(|e| anyhow!(e))?;
     result?;
 
@@ -229,7 +229,7 @@ fn initial_session_context_does_not_refresh_after_real_conversation() -> Result<
         .map_err(|e| anyhow!(e))?;
 
     std::env::set_current_dir(first_dir.path()).map_err(|e| anyhow!(e))?;
-    let result: std::result::Result<(), anyhow::Error> = (|| {
+    let result: std::result::Result<(), anyhow::Error> = {
         let mut session = Session::create_with_id(
             "session_context_late_cwd_refresh_test".to_string(),
             None,
@@ -256,7 +256,7 @@ fn initial_session_context_does_not_refresh_after_real_conversation() -> Result<
             second_dir.path().display()
         )));
         Ok(())
-    })();
+    };
     std::env::set_current_dir(original_cwd).map_err(|e| anyhow!(e))?;
     result?;
 

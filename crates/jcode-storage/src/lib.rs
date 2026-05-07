@@ -142,21 +142,19 @@ pub fn user_home_path(relative: impl AsRef<Path>) -> Result<PathBuf> {
 pub fn harden_user_config_permissions() {
     if let Some(config_dir) = dirs::config_dir() {
         let jcode_config_dir = config_dir.join("jcode");
-        if jcode_config_dir.exists() {
-            if let Err(err) =
+        if jcode_config_dir.exists()
+            && let Err(err) =
                 jcode_core::fs::set_directory_permissions_owner_only(&jcode_config_dir)
-            {
-                warn_storage_best_effort("harden config dir", &jcode_config_dir, err);
-            }
+        {
+            warn_storage_best_effort("harden config dir", &jcode_config_dir, err);
         }
     }
 
     if let Ok(jcode_home) = jcode_dir()
         && jcode_home.exists()
+        && let Err(err) = jcode_core::fs::set_directory_permissions_owner_only(&jcode_home)
     {
-        if let Err(err) = jcode_core::fs::set_directory_permissions_owner_only(&jcode_home) {
-            warn_storage_best_effort("harden jcode home", &jcode_home, err);
-        }
+        warn_storage_best_effort("harden jcode home", &jcode_home, err);
     }
 }
 
@@ -165,15 +163,15 @@ pub fn harden_user_config_permissions() {
 /// This is used before reading credential files so legacy permissive modes can
 /// be tightened opportunistically.
 pub fn harden_secret_file_permissions(path: &Path) {
-    if let Some(parent) = path.parent() {
-        if let Err(err) = jcode_core::fs::set_directory_permissions_owner_only(parent) {
-            warn_storage_best_effort("harden secret parent", parent, err);
-        }
+    if let Some(parent) = path.parent()
+        && let Err(err) = jcode_core::fs::set_directory_permissions_owner_only(parent)
+    {
+        warn_storage_best_effort("harden secret parent", parent, err);
     }
-    if path.exists() {
-        if let Err(err) = jcode_core::fs::set_permissions_owner_only(path) {
-            warn_storage_best_effort("harden secret file", path, err);
-        }
+    if path.exists()
+        && let Err(err) = jcode_core::fs::set_permissions_owner_only(path)
+    {
+        warn_storage_best_effort("harden secret file", path, err);
     }
 }
 
@@ -322,52 +320,22 @@ fn write_bytes_inner(path: &Path, bytes: &[u8], durable: bool) -> Result<()> {
         if durable
             && let Some(parent) = path.parent()
             && let Ok(dir) = std::fs::File::open(parent)
+            && let Err(err) = dir.sync_all()
         {
-            if let Err(err) = dir.sync_all() {
-                warn_storage_best_effort("sync parent dir", parent, err);
-            }
+            warn_storage_best_effort("sync parent dir", parent, err);
         }
 
         Ok(())
     })();
 
-    if result.is_err() {
-        if let Err(err) = std::fs::remove_file(&tmp_path)
-            && err.kind() != std::io::ErrorKind::NotFound
-        {
-            warn_storage_best_effort("remove temporary file", &tmp_path, err);
-        }
+    if result.is_err()
+        && let Err(err) = std::fs::remove_file(&tmp_path)
+        && err.kind() != std::io::ErrorKind::NotFound
+    {
+        warn_storage_best_effort("remove temporary file", &tmp_path, err);
     }
 
     result
-}
-
-#[cfg(test)]
-mod tests {
-    use serde::Serialize;
-
-    use super::*;
-
-    #[derive(Serialize)]
-    struct TestDoc<'a> {
-        value: &'a str,
-    }
-
-    #[test]
-    fn repeated_writes_replace_existing_backup() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let path = dir.path().join("state.json");
-
-        write_json(&path, &TestDoc { value: "one" }).expect("first write");
-        write_json(&path, &TestDoc { value: "two" }).expect("second write");
-        write_json(&path, &TestDoc { value: "three" }).expect("third write");
-
-        let primary = std::fs::read_to_string(&path).expect("primary");
-        let backup = std::fs::read_to_string(path.with_extension("bak")).expect("backup");
-
-        assert!(primary.contains("three"));
-        assert!(backup.contains("two"));
-    }
 }
 
 pub enum StorageRecoveryEvent<'a> {
@@ -445,4 +413,32 @@ pub fn append_json_line_fast<T: Serialize + ?Sized>(path: &Path, value: &T) -> R
     file.write_all(b"\n")?;
     file.flush()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use serde::Serialize;
+
+    use super::*;
+
+    #[derive(Serialize)]
+    struct TestDoc<'a> {
+        value: &'a str,
+    }
+
+    #[test]
+    fn repeated_writes_replace_existing_backup() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("state.json");
+
+        write_json(&path, &TestDoc { value: "one" }).expect("first write");
+        write_json(&path, &TestDoc { value: "two" }).expect("second write");
+        write_json(&path, &TestDoc { value: "three" }).expect("third write");
+
+        let primary = std::fs::read_to_string(&path).expect("primary");
+        let backup = std::fs::read_to_string(path.with_extension("bak")).expect("backup");
+
+        assert!(primary.contains("three"));
+        assert!(backup.contains("two"));
+    }
 }

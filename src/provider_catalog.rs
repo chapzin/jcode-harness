@@ -116,9 +116,7 @@ pub fn active_openai_compatible_display_name() -> Option<String> {
         .filter(|value| !value.is_empty())
         .or_else(|| env_override("JCODE_OPENAI_COMPAT_API_BASE"));
 
-    let Some(api_base) = api_base.and_then(|value| normalize_api_base(&value)) else {
-        return None;
-    };
+    let api_base = api_base.and_then(|value| normalize_api_base(&value))?;
 
     for profile in openai_compatible_profiles().iter().copied() {
         if normalize_api_base(profile.api_base).as_deref() == Some(api_base.as_str()) {

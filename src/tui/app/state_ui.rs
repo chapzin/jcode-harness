@@ -1345,7 +1345,7 @@ pub(super) fn handle_info_command(app: &mut App, trimmed: &str) -> bool {
             .unwrap_or(app.session.id.as_str())
             .to_string();
         let context = app.context_info();
-        let todos = super::helpers::gather_todos_for_session(Some(active_session_id.as_str()));
+        let todos = crate::todo::load_todos(active_session_id.as_str()).unwrap_or_default();
 
         let (provider_name, model_name, reasoning_effort, service_tier, transport, total_tokens) =
             if app.is_remote {

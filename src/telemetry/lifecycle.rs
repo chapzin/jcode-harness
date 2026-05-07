@@ -165,16 +165,16 @@ pub(super) fn emit_lifecycle_event(
     let days_since_install = days_since_install(&id);
     let ended_at_utc = Utc::now();
     let (schema_version, build_channel, git_checkout, ci, from_cargo) = telemetry_envelope();
-    let session_stop_reason = infer_session_stop_reason(
+    let session_stop_reason = infer_session_stop_reason(StopReasonInputs {
         event_name,
         reason,
-        &state,
-        &errors,
-        duration.as_secs(),
+        state: &state,
+        errors: &errors,
+        duration_secs: duration.as_secs(),
         session_success,
         abandoned_before_response,
         workflow_coding_used,
-    );
+    });
     let agent_role = infer_agent_role(&state);
     let time_to_first_agent_action_ms = time_to_first_agent_action_ms(&state);
     let time_to_first_useful_action_ms = time_to_first_useful_action_ms(&state);
