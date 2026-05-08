@@ -540,6 +540,9 @@ pub enum Request {
         spawn_if_needed: Option<bool>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         message: Option<String>,
+        /// Optional idempotency nonce for explicit assign_next retries.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        request_nonce: Option<String>,
         /// Optional run/generation id for workers spawned by this assignment request.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         run_id: Option<String>,

@@ -118,6 +118,21 @@ fn communicate_input_accepts_operation_id_for_messages() {
     assert_eq!(parsed.operation_id.as_deref(), Some(" issue-13-message-1 "));
 }
 
+#[test]
+fn communicate_input_accepts_operation_id_for_assign_next() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "assign_next",
+        "operation_id": " issue-13-assign-next-1 "
+    }))
+    .expect("assign_next operation_id should deserialize");
+
+    assert_eq!(
+        explicit_operation_request_nonce(parsed.operation_id.as_deref()).as_deref(),
+        Some("op:issue-13-assign-next-1")
+    );
+    assert_eq!(explicit_operation_request_nonce(None), None);
+}
+
 fn await_scope_member(
     session_id: &str,
     owner: Option<&str>,

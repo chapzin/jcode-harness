@@ -35,10 +35,13 @@ fn fresh_spawn_request_nonce(ctx: &ToolContext) -> String {
 }
 
 fn spawn_request_nonce(ctx: &ToolContext, operation_id: Option<&str>) -> String {
+    explicit_operation_request_nonce(operation_id).unwrap_or_else(|| fresh_spawn_request_nonce(ctx))
+}
+
+fn explicit_operation_request_nonce(operation_id: Option<&str>) -> Option<String> {
     operation_id
         .filter(|id| !id.trim().is_empty())
         .map(|id| format!("op:{}", id.trim()))
-        .unwrap_or_else(|| fresh_spawn_request_nonce(ctx))
 }
 
 fn fresh_swarm_run_id(ctx: &ToolContext) -> String {
@@ -487,6 +490,7 @@ async fn run_swarm_plan_to_terminal(
                 prefer_spawn: params.prefer_spawn,
                 spawn_if_needed,
                 message: params.message.clone(),
+                request_nonce: None,
                 run_id: Some(run_id.clone()),
             };
             match send_request(request).await {
@@ -2099,6 +2103,7 @@ impl Tool for CommunicateTool {
                     prefer_spawn: params.prefer_spawn,
                     spawn_if_needed: params.spawn_if_needed,
                     message: params.message.clone(),
+                    request_nonce: explicit_operation_request_nonce(params.operation_id.as_deref()),
                     run_id: params.run_id.clone().or_else(|| {
                         (params.prefer_spawn.unwrap_or(false)
                             || params.spawn_if_needed.unwrap_or(false))
@@ -2156,6 +2161,7 @@ impl Tool for CommunicateTool {
                         prefer_spawn: params.prefer_spawn,
                         spawn_if_needed: params.spawn_if_needed,
                         message: params.message.clone(),
+                        request_nonce: None,
                         run_id: run_id.clone(),
                     };
 

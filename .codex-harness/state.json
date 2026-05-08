@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Commit and push implicit await run scope guard",
+  "focus": "Commit and push assign_next operation_id idempotency",
   "status": "done",
-  "activeContractId": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d",
+  "activeContractId": "2026-05-08-make-assign-next-operation-id-idempotent-086ab7",
   "counters": {
-    "contracts": 34,
-    "traces": 41,
-    "gates": 33,
-    "verifications": 34,
+    "contracts": 35,
+    "traces": 43,
+    "gates": 34,
+    "verifications": 36,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -102,44 +102,14 @@
       "id": "decision-2026-05-08-09d952",
       "ts": "2026-05-08T13:13:45.058Z",
       "text": "Completed issue #13 await scoping guard: implicit await_members now infers a sole active owned run_id or errors with an explicit-scope hint when multiple active owned runs are present, while preserving explicit scopes and no-run fallback."
+    },
+    {
+      "id": "decision-2026-05-08-0faa68",
+      "ts": "2026-05-08T13:26:46.046Z",
+      "text": "Completed issue #13 assign_next idempotency slice: explicit operation_id/request_nonce now replays the original assign_next assignment instead of advancing to another task, while default assign_next remains non-idempotent."
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-07T20:48:28.816Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-implement-safe-eval-command-ba6335",
-      "summary": "Implement safe-eval command"
-    },
-    {
-      "ts": "2026-05-07T20:51:20.736Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-07-b46db491",
-      "contractId": "2026-05-07-implement-safe-eval-command-ba6335",
-      "status": "pass",
-      "summary": "safe-eval/doctor local validation passed"
-    },
-    {
-      "ts": "2026-05-07T20:51:28.913Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-07-implement-safe-eval-command-ba6335",
-      "gateId": "gate-2026-05-07-4678a8",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-07T20:51:37.321Z",
-      "type": "state_update",
-      "note": "Gate PASS. Committing governance, then continuing to issue #2 mock demos.",
-      "status": "done",
-      "focus": "Issue #1 safe-eval validation",
-      "activeContractId": "2026-05-07-implement-safe-eval-command-ba6335"
-    },
-    {
-      "ts": "2026-05-07T21:07:46.124Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-add-offline-demo-manifest-9c2f1d",
-      "summary": "Add offline demo manifest"
-    },
     {
       "ts": "2026-05-07T21:07:46.124Z",
       "type": "verification_recorded",
@@ -686,6 +656,43 @@
       "status": "done",
       "focus": "Commit and push implicit await run scope guard",
       "activeContractId": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d"
+    },
+    {
+      "ts": "2026-05-08T13:16:31.798Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-make-assign-next-operation-id-idempotent-086ab7",
+      "summary": "Make assign_next operation_id idempotent"
+    },
+    {
+      "ts": "2026-05-08T13:26:46.037Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-1aba8fe0",
+      "contractId": "2026-05-08-make-assign-next-operation-id-idempotent-086ab7",
+      "status": "pass",
+      "summary": "Focused assign_next operation_id idempotency verification passed."
+    },
+    {
+      "ts": "2026-05-08T13:26:46.040Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-5bce68cb",
+      "contractId": "2026-05-08-make-assign-next-operation-id-idempotent-086ab7",
+      "status": "pass",
+      "summary": "Coordinated selfdev build and reload passed for assign_next idempotency."
+    },
+    {
+      "ts": "2026-05-08T13:26:46.042Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-make-assign-next-operation-id-idempotent-086ab7",
+      "gateId": "gate-2026-05-08-e11618",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T13:26:46.046Z",
+      "type": "state_update",
+      "note": "Gate PASS. Commit and push assign_next operation_id idempotency slice next.",
+      "status": "done",
+      "focus": "Commit and push assign_next operation_id idempotency",
+      "activeContractId": "2026-05-08-make-assign-next-operation-id-idempotent-086ab7"
     }
   ]
 }

@@ -3,7 +3,8 @@
 use super::append_swarm_completion_report_instructions;
 use super::swarm::{now_unix_ms, swarm_task_heartbeat_interval, touch_swarm_task_progress};
 use super::swarm_mutation_state::{
-    PersistedSwarmMutationResponse, begin_or_replay as begin_swarm_mutation_or_replay,
+    PersistedSwarmMutationResponse, PersistedSwarmMutationState,
+    begin_or_replay as begin_swarm_mutation_or_replay,
     finish_request as finish_swarm_mutation_request, request_key as swarm_mutation_request_key,
 };
 use super::{
@@ -1119,6 +1120,151 @@ pub(super) async fn handle_comm_assign_task(
     .await;
 }
 
+fn assign_next_mutation_key(
+    req_session_id: &str,
+    swarm_id: &str,
+    request_nonce: &Option<String>,
+) -> Option<String> {
+    request_nonce
+        .as_deref()
+        .map(str::trim)
+        .filter(|nonce| !nonce.is_empty())
+        .map(|nonce| {
+            swarm_mutation_request_key(
+                req_session_id,
+                "assign_next",
+                &[swarm_id.to_string(), format!("nonce:{nonce}")],
+            )
+        })
+}
+
+fn persisted_assign_task_response(response: ServerEvent) -> PersistedSwarmMutationResponse {
+    match response {
+        ServerEvent::CommAssignTaskResponse {
+            task_id,
+            target_session,
+            ..
+        } => PersistedSwarmMutationResponse::AssignTask {
+            task_id,
+            target_session,
+        },
+        ServerEvent::Error {
+            message,
+            retry_after_secs,
+            ..
+        } => PersistedSwarmMutationResponse::Error {
+            message,
+            retry_after_secs,
+        },
+        other => PersistedSwarmMutationResponse::Error {
+            message: format!("Unexpected assign_next response: {other:?}"),
+            retry_after_secs: None,
+        },
+    }
+}
+
+async fn finish_assign_next_error(
+    id: u64,
+    message: String,
+    client_event_tx: &mpsc::UnboundedSender<ServerEvent>,
+    swarm_mutation_runtime: &SwarmMutationRuntime,
+    assign_next_state: Option<&PersistedSwarmMutationState>,
+) {
+    let response = PersistedSwarmMutationResponse::Error {
+        message,
+        retry_after_secs: None,
+    };
+    if let Some(state) = assign_next_state {
+        finish_swarm_mutation_request(swarm_mutation_runtime, state, response).await;
+    } else {
+        let _ = client_event_tx.send(response.into_server_event(id, ""));
+    }
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "assign_next outer idempotency wraps the existing assign_task handler and shares its runtime dependencies"
+)]
+async fn dispatch_resolved_assign_next(
+    id: u64,
+    req_session_id: String,
+    target_session: String,
+    selected_task_id: String,
+    message: Option<String>,
+    client_event_tx: &mpsc::UnboundedSender<ServerEvent>,
+    sessions: &SessionAgents,
+    soft_interrupt_queues: &super::SessionInterruptQueues,
+    client_connections: &Arc<RwLock<HashMap<String, ClientConnectionInfo>>>,
+    swarm_members: &Arc<RwLock<HashMap<String, SwarmMember>>>,
+    swarms_by_id: &Arc<RwLock<HashMap<String, HashSet<String>>>>,
+    swarm_plans: &Arc<RwLock<HashMap<String, VersionedPlan>>>,
+    swarm_coordinators: &Arc<RwLock<HashMap<String, String>>>,
+    event_history: &Arc<RwLock<std::collections::VecDeque<SwarmEvent>>>,
+    event_counter: &Arc<std::sync::atomic::AtomicU64>,
+    swarm_event_tx: &broadcast::Sender<SwarmEvent>,
+    swarm_mutation_runtime: &SwarmMutationRuntime,
+    assign_next_state: Option<PersistedSwarmMutationState>,
+) {
+    if let Some(state) = assign_next_state {
+        let (capture_tx, mut capture_rx) = mpsc::unbounded_channel();
+        handle_comm_assign_task(
+            id,
+            req_session_id,
+            Some(target_session),
+            Some(selected_task_id),
+            message,
+            &capture_tx,
+            sessions,
+            soft_interrupt_queues,
+            client_connections,
+            swarm_members,
+            swarms_by_id,
+            swarm_plans,
+            swarm_coordinators,
+            event_history,
+            event_counter,
+            swarm_event_tx,
+            swarm_mutation_runtime,
+        )
+        .await;
+        let response = capture_rx
+            .recv()
+            .await
+            .unwrap_or_else(|| ServerEvent::Error {
+                id,
+                message: "assign_next completed without an assignment response".to_string(),
+                retry_after_secs: None,
+            });
+        finish_swarm_mutation_request(
+            swarm_mutation_runtime,
+            &state,
+            persisted_assign_task_response(response),
+        )
+        .await;
+    } else {
+        handle_comm_assign_task(
+            id,
+            req_session_id,
+            Some(target_session),
+            Some(selected_task_id),
+            message,
+            client_event_tx,
+            sessions,
+            soft_interrupt_queues,
+            client_connections,
+            swarm_members,
+            swarms_by_id,
+            swarm_plans,
+            swarm_coordinators,
+            event_history,
+            event_counter,
+            swarm_event_tx,
+            swarm_mutation_runtime,
+        )
+        .await;
+    }
+}
+
 #[expect(
     clippy::too_many_arguments,
     reason = "assign_next reuses task assignment orchestration and forwards the same runtime dependencies"
@@ -1131,6 +1277,7 @@ pub(super) async fn handle_comm_assign_next(
     prefer_spawn: Option<bool>,
     spawn_if_needed: Option<bool>,
     message: Option<String>,
+    request_nonce: Option<String>,
     run_id: Option<String>,
     client_event_tx: &mpsc::UnboundedSender<ServerEvent>,
     sessions: &SessionAgents,
@@ -1163,13 +1310,36 @@ pub(super) async fn handle_comm_assign_next(
             None => return,
         };
 
+        let assign_next_mutation_state = if let Some(mutation_key) =
+            assign_next_mutation_key(&req_session_id, &swarm_id, &request_nonce)
+        {
+            let Some(mutation_state) = begin_swarm_mutation_or_replay(
+                swarm_mutation_runtime,
+                &mutation_key,
+                "assign_next",
+                &req_session_id,
+                id,
+                client_event_tx,
+            )
+            .await
+            else {
+                return;
+            };
+            Some(mutation_state)
+        } else {
+            None
+        };
+
         let Some(selected_task_id) = next_unassigned_runnable_task_id(&swarm_id, swarm_plans).await
         else {
-            let _ = client_event_tx.send(ServerEvent::Error {
+            finish_assign_next_error(
                 id,
-                message: "No runnable unassigned tasks are available in the swarm plan".to_string(),
-                retry_after_secs: None,
-            });
+                "No runnable unassigned tasks are available in the swarm plan".to_string(),
+                client_event_tx,
+                swarm_mutation_runtime,
+                assign_next_mutation_state.as_ref(),
+            )
+            .await;
             return;
         };
 
@@ -1208,11 +1378,11 @@ pub(super) async fn handle_comm_assign_next(
             .await
             {
                 Ok(spawned_session) => {
-                    handle_comm_assign_task(
+                    dispatch_resolved_assign_next(
                         id,
                         req_session_id,
-                        Some(spawned_session),
-                        Some(selected_task_id),
+                        spawned_session,
+                        selected_task_id,
                         message,
                         client_event_tx,
                         sessions,
@@ -1226,16 +1396,20 @@ pub(super) async fn handle_comm_assign_next(
                         event_counter,
                         swarm_event_tx,
                         swarm_mutation_runtime,
+                        assign_next_mutation_state,
                     )
                     .await;
                     return;
                 }
                 Err(error) => {
-                    let _ = client_event_tx.send(ServerEvent::Error {
+                    finish_assign_next_error(
                         id,
-                        message: format!("Failed to spawn preferred worker: {error}"),
-                        retry_after_secs: None,
-                    });
+                        format!("Failed to spawn preferred worker: {error}"),
+                        client_event_tx,
+                        swarm_mutation_runtime,
+                        assign_next_mutation_state.as_ref(),
+                    )
+                    .await;
                     return;
                 }
             }
@@ -1243,11 +1417,11 @@ pub(super) async fn handle_comm_assign_next(
 
         match preferred_target {
             Ok(target_session) => {
-                handle_comm_assign_task(
+                dispatch_resolved_assign_next(
                     id,
                     req_session_id,
-                    Some(target_session),
-                    Some(selected_task_id),
+                    target_session,
+                    selected_task_id,
                     message,
                     client_event_tx,
                     sessions,
@@ -1261,15 +1435,19 @@ pub(super) async fn handle_comm_assign_next(
                     event_counter,
                     swarm_event_tx,
                     swarm_mutation_runtime,
+                    assign_next_mutation_state,
                 )
                 .await;
             }
             Err(message) => {
-                let _ = client_event_tx.send(ServerEvent::Error {
+                finish_assign_next_error(
                     id,
                     message,
-                    retry_after_secs: None,
-                });
+                    client_event_tx,
+                    swarm_mutation_runtime,
+                    assign_next_mutation_state.as_ref(),
+                )
+                .await;
             }
         }
         return;

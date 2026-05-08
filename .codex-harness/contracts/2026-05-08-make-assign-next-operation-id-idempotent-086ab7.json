@@ -1,0 +1,54 @@
+{
+  "id": "2026-05-08-make-assign-next-operation-id-idempotent-086ab7",
+  "title": "Make assign_next operation_id idempotent",
+  "goal": "Implement a bounded issue #13 idempotency slice so explicit operation_id deduplicates assign_next retries that would otherwise pick a different next task after the first assignment succeeds.",
+  "createdAt": "2026-05-08T13:16:31.797Z",
+  "status": "active",
+  "requiredInputs": [
+    "chapzin/jcode-harness issue #13 robust swarm orchestration",
+    "Existing swarm mutation state AssignTask response support",
+    "Current assign_next target_session=None selects selected_task_id before assign_task mutation"
+  ],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 40
+  },
+  "permissions": [
+    "Modify protocol, swarm tool, assign_next server handler, and focused tests",
+    "Run cargo fmt/check/test and selfdev build",
+    "Commit and push"
+  ],
+  "completionConditions": [
+    "CommAssignNext accepts an optional request_nonce propagated from swarm operation_id for explicit retry idempotency.",
+    "When assign_next is called without target_session and with request_nonce, duplicate calls replay the original AssignTask response instead of selecting the next unassigned task.",
+    "assign_next behavior without operation_id remains unchanged so intentional repeated assign_next calls can still assign additional tasks.",
+    "Focused protocol/server/tool tests, cargo fmt/check, git diff --check, selfdev build/reload, governance, commit, and push pass."
+  ],
+  "outputPaths": [
+    "crates/jcode-protocol/src/lib.rs",
+    "crates/jcode-protocol/src/protocol_tests/comm_requests.rs",
+    "src/tool/communicate.rs",
+    "src/tool/communicate_tests/input_format.rs",
+    "src/server/client_lifecycle.rs",
+    "src/server/comm_control.rs",
+    "src/server/comm_control_tests/assign_next_dependency.rs",
+    ".codex-harness/state.json",
+    ".codex-harness/traces/2026-05-08.jsonl"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode-protocol test_comm_assign_next_roundtrip",
+    "cargo test -p jcode comm_control::tests::assign_next_operation_id --lib -- --test-threads=1 --nocapture",
+    "cargo test -p jcode tool::communicate::tests::communicate_input_accepts_operation_id_for_assign_next --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check"
+  ],
+  "failureTaxonomy": [
+    "Changing default assign_next behavior without operation_id",
+    "Persisting outer assign_next responses before assignment side effects finish",
+    "Breaking target_session-specific assign_next/assign_task existing idempotency",
+    "Over-expanding into full task-control idempotency or SwarmRun persistence"
+  ],
+  "notes": "Keep the slice to CommAssignNext explicit request_nonce support and target_session=None path. Do not make default assign_next globally idempotent."
+}

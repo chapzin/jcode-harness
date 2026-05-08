@@ -376,10 +376,12 @@ fn test_comm_assign_next_roundtrip() -> Result<()> {
         prefer_spawn: Some(true),
         spawn_if_needed: Some(true),
         message: Some("Take the next runnable task.".to_string()),
+        request_nonce: Some("op:assign-next-1".to_string()),
         run_id: Some("run-assign-next".to_string()),
     };
     let json = serde_json::to_string(&req)?;
     assert!(json.contains("\"type\":\"comm_assign_next\""));
+    assert!(json.contains("\"request_nonce\":\"op:assign-next-1\""));
     assert!(json.contains("\"run_id\":\"run-assign-next\""));
     let decoded = parse_request_json(&json)?;
     assert_eq!(decoded.id(), 60);
@@ -390,6 +392,7 @@ fn test_comm_assign_next_roundtrip() -> Result<()> {
         prefer_spawn,
         spawn_if_needed,
         message,
+        request_nonce,
         run_id,
         ..
     } = decoded
@@ -402,6 +405,7 @@ fn test_comm_assign_next_roundtrip() -> Result<()> {
     assert_eq!(prefer_spawn, Some(true));
     assert_eq!(spawn_if_needed, Some(true));
     assert_eq!(message.as_deref(), Some("Take the next runnable task."));
+    assert_eq!(request_nonce.as_deref(), Some("op:assign-next-1"));
     assert_eq!(run_id.as_deref(), Some("run-assign-next"));
     Ok(())
 }
