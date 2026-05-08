@@ -88,6 +88,22 @@ fn communicate_input_accepts_run_id() {
 }
 
 #[test]
+fn communicate_input_accepts_operation_id_for_idempotent_spawns() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "spawn",
+        "operation_id": " issue-13-spawn-1 "
+    }))
+    .expect("operation_id should deserialize");
+    assert_eq!(parsed.operation_id.as_deref(), Some(" issue-13-spawn-1 "));
+
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    assert_eq!(
+        super::spawn_request_nonce(&ctx, parsed.operation_id.as_deref()),
+        "op:issue-13-spawn-1"
+    );
+}
+
+#[test]
 fn cleanup_candidates_default_to_owned_terminal_workers() {
     let members = vec![
         AgentInfo {

@@ -34,6 +34,13 @@ fn fresh_spawn_request_nonce(ctx: &ToolContext) -> String {
     format!("{}-{}-{}", ctx.session_id, ctx.message_id, now_ms)
 }
 
+fn spawn_request_nonce(ctx: &ToolContext, operation_id: Option<&str>) -> String {
+    operation_id
+        .filter(|id| !id.trim().is_empty())
+        .map(|id| format!("op:{}", id.trim()))
+        .unwrap_or_else(|| fresh_spawn_request_nonce(ctx))
+}
+
 fn fresh_swarm_run_id(ctx: &ToolContext) -> String {
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -433,7 +440,7 @@ async fn spawn_assignment_session(
         session_id: ctx.session_id.clone(),
         working_dir: params.working_dir.clone(),
         initial_message: None,
-        request_nonce: Some(fresh_spawn_request_nonce(ctx)),
+        request_nonce: Some(spawn_request_nonce(ctx, params.operation_id.as_deref())),
         run_id,
     };
 
@@ -924,6 +931,8 @@ struct CommunicateInput {
     #[serde(default)]
     run_id: Option<String>,
     #[serde(default)]
+    operation_id: Option<String>,
+    #[serde(default)]
     status: Option<String>,
     #[serde(default)]
     validation: Option<String>,
@@ -1061,6 +1070,10 @@ impl Tool for CommunicateTool {
                 "run_id": {
                     "type": "string",
                     "description": "Optional run/generation id for spawned workers and list/health/await/cleanup scoping. run_plan and fill_slots generate one when omitted so workers from the same orchestration run can be diagnosed together."
+                },
+                "operation_id": {
+                    "type": "string",
+                    "description": "Optional idempotency key for operations that can spawn workers. Reusing it for the same spawn/run_id replays the prior spawn instead of creating a duplicate."
                 },
                 "wake": {
                     "type": "boolean",
@@ -1398,7 +1411,7 @@ impl Tool for CommunicateTool {
                     session_id: ctx.session_id.clone(),
                     working_dir: params.working_dir.clone(),
                     initial_message: params.spawn_initial_message(),
-                    request_nonce: None,
+                    request_nonce: Some(spawn_request_nonce(&ctx, params.operation_id.as_deref())),
                     run_id: params
                         .run_id
                         .clone()
