@@ -146,14 +146,19 @@ async fn stream_response(
 
     if !response.status().is_success() {
         let status = response.status();
+        let retry_after =
+            crate::provider::retry_after_secs_from_headers(response.headers(), chrono::Utc::now());
         let body = crate::util::http_error_body(response, "HTTP error").await;
         anyhow::bail!(
-            "OpenAI-compatible chat request failed\n  endpoint: {}\n  model: {}\n  auth: {}\n  status: {}\n  response: {}\nHint: verify the selected model exists in `/models`, your key has access, and the endpoint supports POST /chat/completions with streaming.",
-            url,
-            model,
-            auth.label(),
-            status,
-            body
+            "{}",
+            format_openai_compatible_http_error(
+                &url,
+                &model,
+                auth.label(),
+                status,
+                retry_after,
+                &body
+            )
         );
     }
 
@@ -196,7 +201,21 @@ async fn stream_response(
     Ok(())
 }
 
-fn is_retryable_error(error_str: &str) -> bool {
+pub(super) fn format_openai_compatible_http_error(
+    url: &str,
+    model: &str,
+    auth_label: &str,
+    status: reqwest::StatusCode,
+    retry_after: Option<u64>,
+    body: &str,
+) -> String {
+    let wait_info = crate::provider::retry_after_suffix(retry_after);
+    format!(
+        "OpenAI-compatible chat request failed\n  endpoint: {url}\n  model: {model}\n  auth: {auth_label}\n  status: {status}{wait_info}\n  response: {body}\nHint: verify the selected model exists in `/models`, your key has access, and the endpoint supports POST /chat/completions with streaming."
+    )
+}
+
+pub(super) fn is_retryable_error(error_str: &str) -> bool {
     crate::provider::is_transient_transport_error(error_str)
         || error_str.contains("stream error")
         || error_str.contains("eof")
@@ -207,6 +226,11 @@ fn is_retryable_error(error_str: &str) -> bool {
                 || error_str.contains("504")
                 || error_str.contains("internal server error"))
         || error_str.contains("overloaded")
+        || error_str.contains("429 too many requests")
+        || error_str.contains("too many requests")
+        || error_str.contains("rate limited")
+        || error_str.contains("rate_limit")
+        || error_str.contains("rate limit")
 }
 
 pub(crate) struct OpenRouterStream {

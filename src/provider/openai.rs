@@ -847,11 +847,13 @@ fn extract_selfdev_section(system: &str) -> Option<&str> {
 
 mod stream;
 
+#[cfg(test)]
+use self::openai_stream_runtime::format_openai_http_error;
 use self::openai_stream_runtime::{
     PersistentWsResult, extract_error_with_retry, is_retryable_error, openai_access_token,
 };
 #[cfg(test)]
-use self::openai_stream_runtime::{format_openai_http_error, parse_retry_after_secs};
+use crate::provider::parse_retry_after_secs;
 
 use self::stream::{OpenAIResponsesStream, parse_openai_response_event};
 #[cfg(test)]

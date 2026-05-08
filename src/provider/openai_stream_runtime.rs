@@ -111,11 +111,8 @@ pub(super) async fn stream_response(
 
     if !response.status().is_success() {
         let status = response.status();
-        let retry_after = response
-            .headers()
-            .get("retry-after")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|value| parse_retry_after_secs(value, chrono::Utc::now()));
+        let retry_after =
+            crate::provider::retry_after_secs_from_headers(response.headers(), chrono::Utc::now());
 
         let body = crate::util::http_error_body(response, "HTTP error").await;
 
@@ -198,59 +195,13 @@ pub(super) async fn stream_response(
     Ok(())
 }
 
-pub(super) fn parse_retry_after_secs(raw: &str, now: chrono::DateTime<chrono::Utc>) -> Option<u64> {
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-
-    if let Ok(seconds) = trimmed.parse::<u64>() {
-        return Some(seconds);
-    }
-
-    let retry_at = parse_retry_after_http_date(trimmed)?;
-    if retry_at <= now {
-        return Some(0);
-    }
-
-    retry_at
-        .signed_duration_since(now)
-        .num_seconds()
-        .try_into()
-        .ok()
-}
-
-fn parse_retry_after_http_date(raw: &str) -> Option<chrono::DateTime<chrono::Utc>> {
-    if let Ok(parsed) = chrono::DateTime::parse_from_rfc2822(raw) {
-        return Some(parsed.with_timezone(&chrono::Utc));
-    }
-
-    // RFC 9110 Retry-After uses HTTP-date. The current sender format is
-    // IMF-fixdate (for example, "Fri, 31 Dec 1999 23:59:59 GMT"). Accept
-    // the two obsolete HTTP-date formats too so older intermediaries do not
-    // collapse into an immediate retry.
-    const HTTP_DATE_FORMATS: &[&str] = &[
-        "%a, %d %b %Y %H:%M:%S GMT",
-        "%A, %d-%b-%y %H:%M:%S GMT",
-        "%a %b %e %H:%M:%S %Y",
-    ];
-
-    HTTP_DATE_FORMATS.iter().find_map(|format| {
-        chrono::NaiveDateTime::parse_from_str(raw, format)
-            .ok()
-            .map(|naive| chrono::DateTime::from_naive_utc_and_offset(naive, chrono::Utc))
-    })
-}
-
 pub(super) fn format_openai_http_error(
     status: StatusCode,
     retry_after: Option<u64>,
     body: &str,
 ) -> String {
     if status == StatusCode::TOO_MANY_REQUESTS {
-        let wait_info = retry_after
-            .map(|seconds| format!(" (retry after {}s)", seconds))
-            .unwrap_or_default();
+        let wait_info = crate::provider::retry_after_suffix(retry_after);
         format!("Rate limited{}: {}", wait_info, body)
     } else {
         format!("OpenAI API error {}: {}", status, body)

@@ -1390,8 +1390,13 @@ async fn stream_response(
 
     if !response.status().is_success() {
         let status = response.status();
+        let retry_after =
+            crate::provider::retry_after_secs_from_headers(response.headers(), chrono::Utc::now());
         let error_text = crate::util::http_error_body(response, "HTTP error").await;
-        anyhow::bail!("Anthropic API error ({}): {}", status, error_text);
+        anyhow::bail!(
+            "{}",
+            format_anthropic_http_error(status, retry_after, &error_text)
+        );
     }
 
     let _ = tx
@@ -1467,6 +1472,15 @@ async fn stream_response(
     }
 
     Ok(())
+}
+
+fn format_anthropic_http_error(
+    status: reqwest::StatusCode,
+    retry_after: Option<u64>,
+    error_text: &str,
+) -> String {
+    let wait_info = crate::provider::retry_after_suffix(retry_after);
+    format!("Anthropic API error ({status}){wait_info}: {error_text}")
 }
 
 /// Check if an error is transient and should be retried

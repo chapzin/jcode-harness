@@ -1,5 +1,66 @@
+use reqwest::header::{HeaderMap, RETRY_AFTER};
+
 pub(crate) fn should_eager_detect_copilot_tier() -> bool {
     std::env::var("JCODE_NON_INTERACTIVE").is_err()
+}
+
+pub(crate) fn retry_after_secs_from_headers(
+    headers: &HeaderMap,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<u64> {
+    headers
+        .get(RETRY_AFTER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| parse_retry_after_secs(value, now))
+}
+
+pub(crate) fn parse_retry_after_secs(raw: &str, now: chrono::DateTime<chrono::Utc>) -> Option<u64> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if let Ok(seconds) = trimmed.parse::<u64>() {
+        return Some(seconds);
+    }
+
+    let retry_at = parse_retry_after_http_date(trimmed)?;
+    if retry_at <= now {
+        return Some(0);
+    }
+
+    retry_at
+        .signed_duration_since(now)
+        .num_seconds()
+        .try_into()
+        .ok()
+}
+
+fn parse_retry_after_http_date(raw: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+    if let Ok(parsed) = chrono::DateTime::parse_from_rfc2822(raw) {
+        return Some(parsed.with_timezone(&chrono::Utc));
+    }
+
+    // RFC 9110 Retry-After uses HTTP-date. IMF-fixdate is current, but
+    // accepting obsolete formats keeps old intermediaries from collapsing into
+    // an immediate retry.
+    const HTTP_DATE_FORMATS: &[&str] = &[
+        "%a, %d %b %Y %H:%M:%S GMT",
+        "%A, %d-%b-%y %H:%M:%S GMT",
+        "%a %b %e %H:%M:%S %Y",
+    ];
+
+    HTTP_DATE_FORMATS.iter().find_map(|format| {
+        chrono::NaiveDateTime::parse_from_str(raw, format)
+            .ok()
+            .map(|naive| chrono::DateTime::from_naive_utc_and_offset(naive, chrono::Utc))
+    })
+}
+
+pub(crate) fn retry_after_suffix(retry_after_secs: Option<u64>) -> String {
+    retry_after_secs
+        .map(|seconds| format!(" (retry after {}s)", seconds))
+        .unwrap_or_default()
 }
 
 pub(crate) fn is_transient_transport_error(error_str: &str) -> bool {

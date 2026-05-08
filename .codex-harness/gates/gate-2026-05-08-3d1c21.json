@@ -1,0 +1,63 @@
+{
+  "id": "gate-2026-05-08-3d1c21",
+  "ts": "2026-05-08T15:49:46.128Z",
+  "contractId": "2026-05-08-share-retry-after-provider-handling-9940a8",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/provider/routing.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/mod.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openai_stream_runtime.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openai.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/anthropic.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openrouter_sse_stream.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/tests/fallback_failover.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Shared provider Retry-After parser in provider::routing accepts delay-seconds and HTTP-date values and is reused by OpenAI, Anthropic, and OpenRouter/OpenAI-compatible paths.",
+    "Anthropic HTTP errors include retry-after seconds in message text when Retry-After is present and the resulting 429/rate_limit message remains retryable.",
+    "OpenRouter/OpenAI-compatible HTTP errors include retry-after seconds in status text when Retry-After is present and 429/too many requests/rate limit messages are retryable.",
+    "Focused verification task 266235qmmf passed with cargo fmt --check, 3 provider_retry_after tests, cargo check without warnings, and git diff --check.",
+    "selfdev build task 314000c40z passed and reload completed."
+  ],
+  "uncheckedConditions": [
+    "Shared provider Retry-After parser is reused instead of duplicating OpenAI-only parsing.",
+    "Anthropic HTTP 429 includes retry-after seconds in retryable error text when header is present.",
+    "OpenRouter/OpenAI-compatible HTTP 429 includes retry-after seconds and is classified retryable.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "evidence": [
+    "src/provider/routing.rs",
+    "src/provider/mod.rs",
+    "src/provider/openai_stream_runtime.rs",
+    "src/provider/openai.rs",
+    "src/provider/anthropic.rs",
+    "src/provider/anthropic_tests.rs",
+    "src/provider/openrouter_sse_stream.rs",
+    "src/provider/openrouter_tests.rs",
+    "src/provider/tests/fallback_failover.rs",
+    "/tmp/jcode-bg-tasks/266235qmmf.output",
+    "/tmp/jcode-bg-tasks/314000c40z.output"
+  ],
+  "notes": "Second issue #27 slice shares Retry-After parsing and gives Anthropic/OpenRouter retry loops actionable retry-after-bearing 429 messages without adding a full limiter yet."
+}

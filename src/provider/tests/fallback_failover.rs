@@ -61,6 +61,31 @@ fn test_fallback_sequence_includes_all_providers() {
 }
 
 #[test]
+fn provider_retry_after_parser_accepts_seconds_http_dates_and_headers() {
+    use reqwest::header::{HeaderMap, HeaderValue, RETRY_AFTER};
+
+    let now = chrono::DateTime::parse_from_rfc3339("2026-05-08T15:00:00Z")
+        .expect("valid fixture time")
+        .with_timezone(&chrono::Utc);
+
+    assert_eq!(parse_retry_after_secs("12", now), Some(12));
+    assert_eq!(
+        parse_retry_after_secs("Fri, 08 May 2026 15:00:09 GMT", now),
+        Some(9)
+    );
+    assert_eq!(
+        parse_retry_after_secs("Friday, 08-May-26 14:59:59 GMT", now),
+        Some(0)
+    );
+
+    let mut headers = HeaderMap::new();
+    headers.insert(RETRY_AFTER, HeaderValue::from_static("31"));
+    assert_eq!(retry_after_secs_from_headers(&headers, now), Some(31));
+    assert_eq!(retry_after_suffix(Some(31)), " (retry after 31s)");
+    assert_eq!(retry_after_suffix(None), "");
+}
+
+#[test]
 fn test_parse_provider_hint_supports_known_values() {
     assert_eq!(
         MultiProvider::parse_provider_hint("claude"),

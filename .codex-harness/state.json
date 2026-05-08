@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Improve OpenAI Retry-After handling",
+  "focus": "Share Retry-After provider handling",
   "status": "done",
-  "activeContractId": "2026-05-08-improve-openai-retry-after-handling-833992",
+  "activeContractId": "2026-05-08-share-retry-after-provider-handling-9940a8",
   "counters": {
-    "contracts": 44,
-    "traces": 68,
-    "gates": 43,
-    "verifications": 56,
+    "contracts": 45,
+    "traces": 70,
+    "gates": 44,
+    "verifications": 58,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -135,35 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T12:02:48.201Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-make-swarm-messages-idempotent-9554bf",
-      "gateId": "gate-2026-05-08-ebff44",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-08T12:02:53.529Z",
-      "type": "state_update",
-      "note": "Verification passed in task 6363556drm; selfdev build passed in task 691630t879; completion gate gate-2026-05-08-ebff44 passed.",
-      "status": "verifying",
-      "focus": "Commit and push idempotent swarm message operation_id slice",
-      "activeContractId": "2026-05-08-make-swarm-messages-idempotent-9554bf"
-    },
-    {
-      "ts": "2026-05-08T12:03:36.256Z",
-      "type": "state_update",
-      "note": "Governance audit passed. Focused verification task 6363556drm, selfdev build task 691630t879, and completion gate gate-2026-05-08-ebff44 passed; ready to commit and push.",
-      "status": "done",
-      "focus": "commit and push idempotent swarm message operation_id slice",
-      "activeContractId": "2026-05-08-make-swarm-messages-idempotent-9554bf"
-    },
-    {
-      "ts": "2026-05-08T12:05:54.766Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede",
-      "summary": "Deduplicate swarm stop side effects"
-    },
     {
       "ts": "2026-05-08T12:10:37.476Z",
       "type": "trace_recorded",
@@ -727,6 +698,35 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-08-improve-openai-retry-after-handling-833992",
       "gateId": "gate-2026-05-08-43bb88",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T15:43:01.994Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-share-retry-after-provider-handling-9940a8",
+      "summary": "Share Retry-After provider handling"
+    },
+    {
+      "ts": "2026-05-08T15:48:29.914Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-01a01253",
+      "contractId": "2026-05-08-share-retry-after-provider-handling-9940a8",
+      "status": "pass",
+      "summary": "Shared provider Retry-After verification passed"
+    },
+    {
+      "ts": "2026-05-08T15:49:31.037Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-44b64774",
+      "contractId": "2026-05-08-share-retry-after-provider-handling-9940a8",
+      "status": "pass",
+      "summary": "selfdev build and reload passed for shared provider Retry-After slice"
+    },
+    {
+      "ts": "2026-05-08T15:49:46.128Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-share-retry-after-provider-handling-9940a8",
+      "gateId": "gate-2026-05-08-3d1c21",
       "verdict": "pass"
     }
   ]
