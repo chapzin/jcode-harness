@@ -74,10 +74,11 @@ async fn test_agent_with_working_dir(session_id: &str, working_dir: &str) -> Arc
     let registry = Registry::new(provider.clone()).await;
     let mut session = crate::session::Session::create_with_id(session_id.to_string(), None, None);
     session.model = Some("mock".to_string());
-    session.working_dir = Some(working_dir.to_string());
-    Arc::new(Mutex::new(Agent::new_with_session(
+    let agent = Arc::new(Mutex::new(Agent::new_with_session(
         provider, registry, session, None,
-    )))
+    )));
+    agent.lock().await.set_working_dir(working_dir);
+    agent
 }
 
 #[tokio::test]
