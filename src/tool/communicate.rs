@@ -644,6 +644,8 @@ fn health_is_stale_status(status: &str) -> bool {
     )
 }
 
+const SWARM_RECONCILE_LEASE_EXPIRED_SECS: u64 = 10 * 60;
+
 fn format_named_members(members: Vec<String>, fallback: &str) -> String {
     if members.is_empty() {
         return fallback.to_string();
@@ -811,6 +813,96 @@ fn format_swarm_health_for_run(
     ToolOutput::new(output)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SwarmRunRecoverySnapshot {
+    coordinator_present: bool,
+    live_members: usize,
+    stale_members: usize,
+    expired_leases: usize,
+    max_status_age_secs: Option<u64>,
+}
+
+impl SwarmRunRecoverySnapshot {
+    fn from_members(
+        ctx: &ToolContext,
+        all_members: &[AgentInfo],
+        scoped_members: &[AgentInfo],
+    ) -> Self {
+        let current_session_is_coordinator = all_members.iter().any(|member| {
+            member.session_id == ctx.session_id && member.role.as_deref() == Some("coordinator")
+        });
+        let scoped_coordinator_present = scoped_members
+            .iter()
+            .any(|member| member.role.as_deref() == Some("coordinator"));
+
+        let mut live_members = 0usize;
+        let mut stale_members = 0usize;
+        let mut expired_leases = 0usize;
+        let mut max_status_age_secs: Option<u64> = None;
+
+        for member in scoped_members {
+            let status = health_member_status(member);
+            let is_terminal = health_is_terminal_status(status);
+            let is_stale = health_is_stale_status(status);
+
+            if let Some(status_age_secs) = member.status_age_secs {
+                max_status_age_secs = Some(
+                    max_status_age_secs
+                        .map_or(status_age_secs, |current| current.max(status_age_secs)),
+                );
+            }
+
+            if is_stale {
+                stale_members += 1;
+            } else if !is_terminal {
+                live_members += 1;
+                if member.live_attachments.unwrap_or(0) == 0
+                    && member.status_age_secs.unwrap_or(0) >= SWARM_RECONCILE_LEASE_EXPIRED_SECS
+                {
+                    expired_leases += 1;
+                }
+            }
+        }
+
+        Self {
+            coordinator_present: current_session_is_coordinator || scoped_coordinator_present,
+            live_members,
+            stale_members,
+            expired_leases,
+            max_status_age_secs,
+        }
+    }
+
+    fn coordinator_label(&self) -> &'static str {
+        if self.coordinator_present {
+            "present"
+        } else {
+            "missing"
+        }
+    }
+
+    fn max_status_age_label(&self) -> String {
+        self.max_status_age_secs
+            .map(|age| format!("{age}s"))
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+
+    fn recovery_hint(&self, run_suffix: &str, scoped_hint: &str) -> String {
+        if !self.coordinator_present && (self.live_members > 0 || self.stale_members > 0) {
+            "assign coordinator with `swarm assign_role target_session=current role=coordinator`"
+                .to_string()
+        } else if self.expired_leases > 0 {
+            format!("lease expired; run `swarm cleanup{run_suffix}` then retry/reassign")
+        } else if self.stale_members > 0 {
+            format!("stale member detected; run `swarm cleanup{run_suffix}`")
+        } else if self.live_members > 0 {
+            format!("watch active workers with `swarm await_members{run_suffix} mode=all`")
+        } else {
+            format!("no recovery action needed{scoped_hint}")
+        }
+    }
+}
+
 fn reconcile_status_label(member: &AgentInfo) -> &str {
     member.status.as_deref().unwrap_or("unknown")
 }
@@ -821,9 +913,11 @@ fn format_swarm_reconcile(
     plan: Option<&PlanGraphStatus>,
     run_id_scope: Option<&str>,
 ) -> ToolOutput {
-    let original_count = members.len();
-    let scoped_members = run_scoped_members(members, run_id_scope);
+    let all_members = members;
+    let original_count = all_members.len();
+    let scoped_members = run_scoped_members(all_members, run_id_scope);
     let members = scoped_members.as_slice();
+    let recovery_snapshot = SwarmRunRecoverySnapshot::from_members(ctx, all_members, members);
 
     let mut owned = 0usize;
     let mut active = 0usize;
@@ -885,6 +979,15 @@ fn format_swarm_reconcile(
         active,
         terminal,
         stale
+    );
+    let _ = writeln!(
+        output,
+        "- recovery: coordinator={} live={} lease_expired={} max_status_age={} hint={}",
+        recovery_snapshot.coordinator_label(),
+        recovery_snapshot.live_members,
+        recovery_snapshot.expired_leases,
+        recovery_snapshot.max_status_age_label(),
+        recovery_snapshot.recovery_hint(&run_suffix, &scoped_hint)
     );
     if let Some(plan) = plan {
         let _ = writeln!(

@@ -511,9 +511,77 @@ fn format_swarm_reconcile_suggests_next_step_for_active_run() {
     assert!(output.contains("Swarm reconcile"));
     assert!(output.contains("scope: run_id=run-current (showing 1/3)"));
     assert!(output.contains("members: total=1 owned=1 active=1 terminal=0 stale=0"));
+    assert!(output.contains("recovery: coordinator=present live=1 lease_expired=0"));
     assert!(output.contains("active members: current(running)"));
     assert!(output.contains("next: swarm await_members run_id=run-current mode=all"));
     assert!(!output.contains("run-old"));
+}
+
+#[test]
+fn format_swarm_reconcile_flags_missing_coordinator_for_active_run() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let members = vec![AgentInfo {
+        session_id: "orphan-worker".to_string(),
+        friendly_name: Some("orphan".to_string()),
+        files_touched: vec![],
+        status: Some("running".to_string()),
+        detail: None,
+        role: Some("agent".to_string()),
+        is_headless: Some(true),
+        report_back_to_session_id: Some("coord".to_string()),
+        run_id: Some("run-current".to_string()),
+        latest_completion_report: None,
+        live_attachments: Some(0),
+        status_age_secs: Some(15),
+    }];
+
+    let output = format_swarm_reconcile(&ctx, &members, None, Some("run-current")).output;
+
+    assert!(output.contains("recovery: coordinator=missing live=1 lease_expired=0"));
+    assert!(output.contains(
+        "hint=assign coordinator with `swarm assign_role target_session=current role=coordinator`"
+    ));
+}
+
+#[test]
+fn format_swarm_reconcile_flags_expired_active_lease() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let members = vec![
+        AgentInfo {
+            session_id: "coord".to_string(),
+            friendly_name: Some("coord".to_string()),
+            files_touched: vec![],
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("coordinator".to_string()),
+            is_headless: Some(false),
+            report_back_to_session_id: None,
+            run_id: None,
+            latest_completion_report: None,
+            live_attachments: Some(1),
+            status_age_secs: Some(1),
+        },
+        AgentInfo {
+            session_id: "old-worker".to_string(),
+            friendly_name: Some("old".to_string()),
+            files_touched: vec![],
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(900),
+        },
+    ];
+
+    let output = format_swarm_reconcile(&ctx, &members, None, Some("run-current")).output;
+
+    assert!(output.contains("recovery: coordinator=present live=1 lease_expired=1"));
+    assert!(output.contains("max_status_age=900s"));
+    assert!(output.contains("hint=lease expired; run `swarm cleanup run_id=run-current`"));
 }
 
 #[test]
