@@ -31,6 +31,8 @@ pub struct PersistedAwaitMembersState {
     pub owned_only: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<String>,
     pub created_at_unix_ms: u64,
     pub deadline_unix_ms: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -130,6 +132,7 @@ pub(super) fn request_key(
     target_status: &[String],
     owned_only: bool,
     mode: Option<&str>,
+    run_id: Option<&str>,
 ) -> String {
     let mut requested = requested_ids.to_vec();
     requested.sort();
@@ -146,6 +149,7 @@ pub(super) fn request_key(
             target.join("\u{1f}"),
             format!("owned_only={owned_only}"),
             mode.unwrap_or("all").to_string(),
+            run_id.unwrap_or("").to_string(),
         ],
     )
 }
@@ -166,6 +170,7 @@ pub(super) fn ensure_pending_state(
     target_status: &[String],
     owned_only: bool,
     mode: Option<&str>,
+    run_id: Option<&str>,
     deadline_unix_ms: u64,
 ) -> PersistedAwaitMembersState {
     if let Some(existing) = load_state(key) {
@@ -180,6 +185,7 @@ pub(super) fn ensure_pending_state(
         requested_ids: requested_ids.to_vec(),
         owned_only,
         mode: mode.map(str::to_string),
+        run_id: run_id.map(str::to_string),
         created_at_unix_ms: now_unix_ms(),
         deadline_unix_ms,
         final_response: None,

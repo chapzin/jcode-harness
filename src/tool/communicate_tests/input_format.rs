@@ -149,12 +149,73 @@ fn cleanup_candidates_default_to_owned_terminal_workers() {
     ];
     let statuses = default_cleanup_target_statuses();
     assert_eq!(
-        cleanup_candidate_session_ids("coord", &members, &statuses, &[], false),
+        cleanup_candidate_session_ids("coord", &members, &statuses, &[], false, None),
         vec!["owned-done".to_string()]
     );
     assert_eq!(
-        cleanup_candidate_session_ids("coord", &members, &statuses, &[], true),
+        cleanup_candidate_session_ids("coord", &members, &statuses, &[], true, None),
         vec!["owned-done".to_string(), "user-created".to_string()]
+    );
+}
+
+#[test]
+fn cleanup_candidates_can_be_scoped_by_run_id() {
+    let members = vec![
+        AgentInfo {
+            session_id: "coord".to_string(),
+            friendly_name: Some("coord".to_string()),
+            files_touched: vec![],
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("coordinator".to_string()),
+            is_headless: None,
+            report_back_to_session_id: None,
+            run_id: None,
+            latest_completion_report: None,
+            live_attachments: None,
+            status_age_secs: None,
+        },
+        AgentInfo {
+            session_id: "current-run".to_string(),
+            friendly_name: Some("current".to_string()),
+            files_touched: vec![],
+            status: Some("completed".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: None,
+            status_age_secs: None,
+        },
+        AgentInfo {
+            session_id: "old-run".to_string(),
+            friendly_name: Some("old".to_string()),
+            files_touched: vec![],
+            status: Some("completed".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-old".to_string()),
+            latest_completion_report: None,
+            live_attachments: None,
+            status_age_secs: None,
+        },
+    ];
+    let statuses = default_cleanup_target_statuses();
+
+    assert_eq!(
+        cleanup_candidate_session_ids(
+            "coord",
+            &members,
+            &statuses,
+            &[],
+            false,
+            Some("run-current")
+        ),
+        vec!["current-run".to_string()]
     );
 }
 

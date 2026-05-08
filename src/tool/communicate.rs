@@ -90,14 +90,23 @@ fn cleanup_candidate_session_ids(
     target_status: &[String],
     requested_session_ids: &[String],
     force: bool,
+    run_id: Option<&str>,
 ) -> Vec<String> {
-    comm_cleanup_candidate_session_ids(
+    let mut ids = comm_cleanup_candidate_session_ids(
         owner_session_id,
         members,
         target_status,
         requested_session_ids,
         force,
-    )
+    );
+    if let Some(run_id) = run_id {
+        ids.retain(|candidate_id| {
+            members.iter().any(|member| {
+                member.session_id == *candidate_id && member.run_id.as_deref() == Some(run_id)
+            })
+        });
+    }
+    ids
 }
 
 async fn ensure_cleanup_coordinator(ctx: &ToolContext) -> Result<()> {
@@ -145,7 +154,11 @@ async fn fetch_swarm_members(session_id: &str) -> Result<Vec<AgentInfo>> {
     }
 }
 
-async fn cleanup_swarm_workers(ctx: &ToolContext, params: &CommunicateInput) -> Result<String> {
+async fn cleanup_swarm_workers_with_run_id(
+    ctx: &ToolContext,
+    params: &CommunicateInput,
+    run_id_scope: Option<&str>,
+) -> Result<String> {
     let members = fetch_swarm_members(&ctx.session_id).await?;
     let target_status = params
         .target_status
@@ -153,17 +166,22 @@ async fn cleanup_swarm_workers(ctx: &ToolContext, params: &CommunicateInput) -> 
         .unwrap_or_else(default_cleanup_target_statuses);
     let session_ids = params.session_ids.clone().unwrap_or_default();
     let force = params.force.unwrap_or(false);
+    let run_id_scope = run_id_scope.or(params.run_id.as_deref());
     let candidates = cleanup_candidate_session_ids(
         &ctx.session_id,
         &members,
         &target_status,
         &session_ids,
         force,
+        run_id_scope,
     );
 
     if candidates.is_empty() {
+        let scope_suffix = run_id_scope
+            .map(|run_id| format!(" for run_id={run_id}"))
+            .unwrap_or_default();
         return Ok(format!(
-            "No cleanup candidates found. Default cleanup only stops sessions spawned by this coordinator with status in [{}].",
+            "No cleanup candidates found{scope_suffix}. Default cleanup only stops sessions spawned by this coordinator with status in [{}].",
             target_status.join(", ")
         ));
     }
@@ -208,10 +226,15 @@ async fn cleanup_swarm_workers(ctx: &ToolContext, params: &CommunicateInput) -> 
     Ok(output)
 }
 
+async fn cleanup_swarm_workers(ctx: &ToolContext, params: &CommunicateInput) -> Result<String> {
+    cleanup_swarm_workers_with_run_id(ctx, params, params.run_id.as_deref()).await
+}
+
 async fn await_swarm_progress(
     ctx: &ToolContext,
     session_ids: Vec<String>,
     timeout_minutes: u64,
+    run_id: Option<&str>,
 ) -> Result<()> {
     let request = Request::CommAwaitMembers {
         id: REQUEST_ID,
@@ -220,6 +243,7 @@ async fn await_swarm_progress(
         session_ids,
         owned_only: None,
         mode: Some("any".to_string()),
+        run_id: run_id.map(str::to_string),
         timeout_secs: Some(timeout_minutes.max(1) * 60),
     };
     let socket_timeout = std::time::Duration::from_secs(timeout_minutes.max(1) * 60 + 30);
@@ -278,7 +302,8 @@ async fn run_swarm_plan_to_terminal(
             if retain_agents {
                 output.push_str("\nRetained spawned workers because retain_agents=true.");
             } else {
-                let cleanup = cleanup_swarm_workers(ctx, params).await?;
+                let cleanup =
+                    cleanup_swarm_workers_with_run_id(ctx, params, Some(run_id.as_str())).await?;
                 output.push_str(&format!("\n{}", cleanup));
             }
             return Ok(ToolOutput::new(output));
@@ -319,6 +344,10 @@ async fn run_swarm_plan_to_terminal(
             members
                 .into_iter()
                 .filter(|member| member.session_id != ctx.session_id)
+                .filter(|member| {
+                    member.report_back_to_session_id.as_deref() == Some(ctx.session_id.as_str())
+                })
+                .filter(|member| member.run_id.as_deref() == Some(run_id.as_str()))
                 .filter(|member| member.status.as_deref() == Some("running"))
                 .map(|member| member.session_id)
                 .collect::<Vec<_>>()
@@ -335,7 +364,7 @@ async fn run_swarm_plan_to_terminal(
             }
             continue;
         }
-        await_swarm_progress(ctx, await_sessions, timeout_minutes).await?;
+        await_swarm_progress(ctx, await_sessions, timeout_minutes, Some(run_id.as_str())).await?;
     }
 }
 
@@ -916,7 +945,7 @@ impl Tool for CommunicateTool {
                 },
                 "run_id": {
                     "type": "string",
-                    "description": "Optional run/generation id for spawned workers. run_plan and fill_slots generate one when omitted so workers from the same orchestration run can be diagnosed together."
+                    "description": "Optional run/generation id for spawned workers and await/cleanup scoping. run_plan and fill_slots generate one when omitted so workers from the same orchestration run can be diagnosed together."
                 },
                 "wake": {
                     "type": "boolean",
@@ -1787,6 +1816,7 @@ impl Tool for CommunicateTool {
                     session_ids,
                     owned_only,
                     mode: params.mode.clone(),
+                    run_id: params.run_id.clone(),
                     timeout_secs: Some(timeout_secs),
                 };
 

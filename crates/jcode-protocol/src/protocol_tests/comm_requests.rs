@@ -116,6 +116,7 @@ fn test_comm_await_members_roundtrip() -> Result<()> {
         session_ids: vec!["sess_a".to_string(), "sess_b".to_string()],
         owned_only: Some(true),
         mode: Some("any".to_string()),
+        run_id: Some("run-await-1".to_string()),
         timeout_secs: Some(120),
     };
     let json = serde_json::to_string(&req)?;
@@ -128,6 +129,7 @@ fn test_comm_await_members_roundtrip() -> Result<()> {
         session_ids,
         owned_only,
         mode,
+        run_id,
         timeout_secs,
         ..
     } = decoded
@@ -139,6 +141,7 @@ fn test_comm_await_members_roundtrip() -> Result<()> {
     assert_eq!(session_ids, vec!["sess_a", "sess_b"]);
     assert_eq!(owned_only, Some(true));
     assert_eq!(mode.as_deref(), Some("any"));
+    assert_eq!(run_id.as_deref(), Some("run-await-1"));
     assert_eq!(timeout_secs, Some(120));
     Ok(())
 }
@@ -152,6 +155,7 @@ fn test_comm_await_members_defaults() -> Result<()> {
         session_ids,
         owned_only,
         mode,
+        run_id,
         timeout_secs,
         ..
     } = decoded
@@ -164,6 +168,7 @@ fn test_comm_await_members_defaults() -> Result<()> {
     );
     assert_eq!(owned_only, None, "owned_only should default to None");
     assert_eq!(mode, None, "mode should default to None");
+    assert_eq!(run_id, None, "run_id should default to None");
     assert_eq!(timeout_secs, None, "timeout_secs should default to None");
     Ok(())
 }

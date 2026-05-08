@@ -29,6 +29,7 @@ async fn await_members_any_mode_returns_after_first_match() {
         vec!["completed".to_string()],
         vec![],
         false,
+        None,
         Some("any".to_string()),
         Some(60),
         CommAwaitMembersContext {

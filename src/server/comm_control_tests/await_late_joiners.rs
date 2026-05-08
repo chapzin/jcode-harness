@@ -28,6 +28,7 @@ async fn await_members_includes_late_joiners_when_watching_swarm() {
         vec![],
         false,
         None,
+        None,
         Some(2),
         CommAwaitMembersContext {
             client_event_tx: &client_tx,
@@ -109,6 +110,103 @@ async fn await_members_includes_late_joiners_when_watching_swarm() {
 }
 
 #[tokio::test]
+async fn await_members_owned_only_filters_snapshot_by_run_id() {
+    let (_env, _runtime) = RuntimeEnvGuard::new();
+    let swarm_id = "swarm-run-id";
+    let requester = "coord";
+    let current_run = "current-run";
+    let old_run = "old-run";
+    let legacy = "legacy";
+    let await_runtime = AwaitMembersRuntime::default();
+
+    let (client_tx, mut client_rx) = mpsc::unbounded_channel();
+    let mut current_member = member(current_run, swarm_id, "running");
+    current_member.report_back_to_session_id = Some(requester.to_string());
+    current_member.run_id = Some("run-current".to_string());
+    let mut old_member = member(old_run, swarm_id, "running");
+    old_member.report_back_to_session_id = Some(requester.to_string());
+    old_member.run_id = Some("run-old".to_string());
+    let mut legacy_member = member(legacy, swarm_id, "running");
+    legacy_member.report_back_to_session_id = Some(requester.to_string());
+
+    let swarm_members = Arc::new(RwLock::new(HashMap::from([
+        (requester.to_string(), member(requester, swarm_id, "ready")),
+        (current_run.to_string(), current_member),
+        (old_run.to_string(), old_member),
+        (legacy.to_string(), legacy_member),
+    ])));
+    let swarms_by_id = Arc::new(RwLock::new(HashMap::from([(
+        swarm_id.to_string(),
+        HashSet::from([
+            requester.to_string(),
+            current_run.to_string(),
+            old_run.to_string(),
+            legacy.to_string(),
+        ]),
+    )])));
+    let (swarm_event_tx, _swarm_event_rx) = broadcast::channel(32);
+
+    handle_comm_await_members(
+        1,
+        requester.to_string(),
+        vec![
+            "ready".to_string(),
+            "completed".to_string(),
+            "stopped".to_string(),
+            "failed".to_string(),
+        ],
+        vec![],
+        true,
+        Some("run-current".to_string()),
+        None,
+        Some(60),
+        CommAwaitMembersContext {
+            client_event_tx: &client_tx,
+            swarm_members: &swarm_members,
+            swarms_by_id: &swarms_by_id,
+            swarm_event_tx: &swarm_event_tx,
+            await_members_runtime: &await_runtime,
+        },
+    )
+    .await;
+
+    {
+        let mut members = swarm_members.write().await;
+        members
+            .get_mut(current_run)
+            .expect("current run exists")
+            .status = "ready".to_string();
+    }
+    let _ = swarm_event_tx.send(swarm_event(
+        current_run,
+        swarm_id,
+        SwarmEventType::StatusChange {
+            old_status: "running".to_string(),
+            new_status: "ready".to_string(),
+        },
+    ));
+
+    let response = tokio::time::timeout(std::time::Duration::from_secs(1), client_rx.recv())
+        .await
+        .expect("response should arrive")
+        .expect("channel should stay open");
+
+    match response {
+        ServerEvent::CommAwaitMembersResponse {
+            completed, members, ..
+        } => {
+            assert!(completed, "current run worker should complete await");
+            let watched = members
+                .into_iter()
+                .map(|member| member.session_id)
+                .collect::<HashSet<_>>();
+            assert_eq!(watched, HashSet::from([current_run.to_string()]));
+        }
+        other => panic!("expected CommAwaitMembersResponse, got {other:?}"),
+    }
+}
+
+#[tokio::test]
 async fn await_members_owned_only_snapshots_owned_non_terminal_workers() {
     let (_env, _runtime) = RuntimeEnvGuard::new();
     let swarm_id = "swarm-owned";
@@ -160,6 +258,7 @@ async fn await_members_owned_only_snapshots_owned_non_terminal_workers() {
         ],
         vec![],
         true,
+        None,
         None,
         Some(60),
         CommAwaitMembersContext {
@@ -252,6 +351,7 @@ async fn await_members_owned_only_empty_snapshot_does_not_fall_back_to_whole_swa
         ],
         vec![],
         true,
+        None,
         None,
         Some(60),
         CommAwaitMembersContext {

@@ -26,6 +26,7 @@ async fn await_members_stops_when_requesting_client_disconnects() {
         vec![],
         false,
         None,
+        None,
         Some(60),
         CommAwaitMembersContext {
             client_event_tx: &client_tx,

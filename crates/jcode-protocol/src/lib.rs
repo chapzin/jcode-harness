@@ -590,6 +590,9 @@ pub enum Request {
         /// Whether to wait for all matching members or wake when any member matches.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         mode: Option<String>,
+        /// Optional run/generation id used to scope implicit await candidates.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        run_id: Option<String>,
         /// Timeout in seconds (default 3600 = 1 hour)
         #[serde(default)]
         timeout_secs: Option<u64>,
