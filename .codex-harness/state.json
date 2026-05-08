@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Record final provider rate-limit cooldowns",
+  "focus": "Commit and push long Retry-After cooldown slice",
   "status": "done",
-  "activeContractId": "2026-05-08-record-final-provider-rate-limit-cooldowns-ab8700",
+  "activeContractId": "2026-05-08-honor-long-retry-after-cooldown-hints-e68e87",
   "counters": {
-    "contracts": 53,
-    "traces": 86,
-    "gates": 57,
-    "verifications": 74,
+    "contracts": 54,
+    "traces": 88,
+    "gates": 58,
+    "verifications": 76,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -21,7 +21,7 @@
     {
       "id": "decision-2026-05-06-1c16f8",
       "ts": "2026-05-06T19:09:22.556Z",
-      "text": "Responder ao usuário em português conforme preferência global registrada."
+      "text": "Responder ao usu\u00e1rio em portugu\u00eas conforme prefer\u00eancia global registrada."
     },
     {
       "id": "decision-2026-05-07-f58c86",
@@ -135,14 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T13:51:59.047Z",
-      "type": "state_update",
-      "note": "Focused verification task 118500ubfh, selfdev build task 238667qjmr, reload, and completion gate gate-2026-05-08-310552 passed.",
-      "status": "done",
-      "focus": "Commit and push assign_task operation_id stability slice",
-      "activeContractId": "2026-05-08-make-assign-task-operation-id-stable-across-payload-drif-97abe9"
-    },
     {
       "ts": "2026-05-08T13:54:12.028Z",
       "type": "contract_created",
@@ -718,6 +710,43 @@
       "contractId": "2026-05-08-record-final-provider-rate-limit-cooldowns-ab8700",
       "gateId": "gate-2026-05-08-92e298",
       "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T16:55:16.600Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-honor-long-retry-after-cooldown-hints-e68e87",
+      "summary": "Honor long Retry-After cooldown hints"
+    },
+    {
+      "ts": "2026-05-08T17:01:57.157Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-1c688308",
+      "contractId": "2026-05-08-honor-long-retry-after-cooldown-hints-e68e87",
+      "status": "pass",
+      "summary": "Focused long Retry-After cooldown verification passed."
+    },
+    {
+      "ts": "2026-05-08T17:01:57.157Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-0598a13f",
+      "contractId": "2026-05-08-honor-long-retry-after-cooldown-hints-e68e87",
+      "status": "pass",
+      "summary": "Selfdev build and reload passed for long Retry-After cooldown slice."
+    },
+    {
+      "ts": "2026-05-08T17:01:57.157Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-honor-long-retry-after-cooldown-hints-e68e87",
+      "gateId": "gate-2026-05-08-879f6d",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T17:01:57.157Z",
+      "type": "state_update",
+      "note": "Focused verification tasks 367569f45w and 4869828fqo, selfdev build task 536644xqw3, reload, and completion gate gate-2026-05-08-879f6d passed.",
+      "status": "done",
+      "focus": "Commit and push long Retry-After cooldown slice",
+      "activeContractId": "2026-05-08-honor-long-retry-after-cooldown-hints-e68e87"
     }
   ]
 }

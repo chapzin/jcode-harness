@@ -8,6 +8,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 pub(crate) const DEFAULT_RETRY_BACKOFF_CAP_MS: u64 = 10_000;
+pub(crate) const DEFAULT_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS: u64 = 5 * 60 * 1_000;
 pub(crate) const DEFAULT_PROVIDER_CONCURRENCY_LIMIT: usize = 2;
 
 static RETRY_JITTER_COUNTER: AtomicU64 = AtomicU64::new(1);
@@ -122,6 +123,23 @@ pub(crate) fn retry_after_delay_ms_from_error(error_str: &str, cap_delay_ms: u64
         .map(|seconds| seconds.saturating_mul(1_000).min(cap_delay_ms))
 }
 
+pub(crate) fn provider_rate_limit_cooldown_delay_ms_for_error(
+    error_str: &str,
+    retry_attempt: u32,
+    base_delay_ms: u64,
+    retry_cap_delay_ms: u64,
+) -> u64 {
+    retry_after_secs_from_error(error_str)
+        .map(|seconds| {
+            seconds
+                .saturating_mul(1_000)
+                .min(DEFAULT_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS)
+        })
+        .unwrap_or_else(|| {
+            retry_delay_ms_for_error(retry_attempt, base_delay_ms, retry_cap_delay_ms, error_str)
+        })
+}
+
 pub(crate) fn provider_rate_limit_cooldown_remaining_ms(
     provider: &str,
     model: &str,
@@ -150,7 +168,12 @@ pub(crate) fn record_provider_rate_limit_cooldown_for_retry(
         return None;
     }
 
-    let delay_ms = retry_delay_ms_for_error(retry_attempt, base_delay_ms, cap_delay_ms, error_str);
+    let delay_ms = provider_rate_limit_cooldown_delay_ms_for_error(
+        error_str,
+        retry_attempt,
+        base_delay_ms,
+        cap_delay_ms,
+    );
     record_provider_rate_limit_cooldown_ms(provider, model, delay_ms)
 }
 

@@ -1,0 +1,46 @@
+{
+  "id": "2026-05-08-honor-long-retry-after-cooldown-hints-e68e87",
+  "title": "Honor long Retry-After cooldown hints",
+  "goal": "Separate provider cooldown pacing from same-request retry sleep so long server Retry-After hints protect subsequent requests without changing the short retry backoff cap.",
+  "createdAt": "2026-05-08T16:55:16.599Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 6,
+    "maxMinutes": 30,
+    "maxToolCalls": 20
+  },
+  "permissions": [
+    "modify source",
+    "run focused tests",
+    "run selfdev build",
+    "commit and push"
+  ],
+  "completionConditions": [
+    "Shared provider cooldown recording uses full Retry-After hints beyond the short retry backoff cap.",
+    "Same-request retry delay behavior remains capped by DEFAULT_RETRY_BACKOFF_CAP_MS.",
+    "Excessively large Retry-After hints are bounded by a separate provider cooldown cap.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "outputPaths": [
+    "src/provider/routing.rs",
+    "src/provider/mod.rs",
+    "src/provider/tests/fallback_failover.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode provider_retry_after --lib -- --test-threads=1 --nocapture",
+    "cargo test -p jcode provider_rate_limit_cooldown --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build --target tui"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "retry_after_not_honored",
+    "unbounded_cooldown",
+    "retry_behavior_regression"
+  ],
+  "notes": "Follow-up to issue #27 after final retry cooldown recording. Keep scope in shared routing helper and provider governor tests."
+}

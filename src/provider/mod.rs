@@ -50,6 +50,13 @@ pub use route_builders::{
     build_openrouter_fallback_provider_route, is_listable_model_name,
     listable_model_names_from_routes, openrouter_catalog_model_id,
 };
+#[cfg(test)]
+pub(crate) use routing::{
+    DEFAULT_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS, clear_provider_concurrency_limiters,
+    clear_provider_rate_limit_cooldown, parse_retry_after_secs,
+    provider_rate_limit_cooldown_delay_ms_for_error, retry_after_delay_ms_from_error,
+    retry_backoff_delay_ms_for_nonce, retry_backoff_max_delay_ms,
+};
 pub(crate) use routing::{
     DEFAULT_RETRY_BACKOFF_CAP_MS, acquire_provider_concurrency_permit,
     anthropic_api_key_route_availability, anthropic_oauth_route_availability,
@@ -57,12 +64,6 @@ pub(crate) use routing::{
     provider_wait_status_duration, record_provider_rate_limit_cooldown_for_retry,
     retry_after_secs_from_headers, retry_after_suffix, retry_backoff_delay_ms,
     retry_delay_ms_for_error, should_eager_detect_copilot_tier,
-};
-#[cfg(test)]
-pub(crate) use routing::{
-    clear_provider_concurrency_limiters, clear_provider_rate_limit_cooldown,
-    parse_retry_after_secs, retry_after_delay_ms_from_error, retry_backoff_delay_ms_for_nonce,
-    retry_backoff_max_delay_ms,
 };
 
 pub fn set_model_with_auth_refresh(provider: &dyn Provider, model: &str) -> Result<()> {

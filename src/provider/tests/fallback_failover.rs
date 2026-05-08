@@ -139,6 +139,38 @@ fn provider_retry_delay_caps_retry_after_and_ignores_missing_hint() {
 }
 
 #[test]
+fn provider_cooldown_delay_honors_retry_after_beyond_retry_cap() {
+    assert_eq!(
+        retry_after_delay_ms_from_error("Rate limited (retry after 90s)", 10_000),
+        Some(10_000),
+        "same-request retry sleeps should stay bounded by the short retry cap"
+    );
+    assert_eq!(
+        provider_rate_limit_cooldown_delay_ms_for_error(
+            "Rate limited (retry after 90s)",
+            1,
+            1_000,
+            10_000,
+        ),
+        90_000,
+        "shared provider cooldown should honor the full server pacing hint"
+    );
+}
+
+#[test]
+fn provider_cooldown_delay_caps_extreme_retry_after_hints() {
+    assert_eq!(
+        provider_rate_limit_cooldown_delay_ms_for_error(
+            "HTTP 429 retry-after: 9999",
+            1,
+            1_000,
+            10_000,
+        ),
+        DEFAULT_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS
+    );
+}
+
+#[test]
 fn provider_rate_limit_cooldown_records_and_clears_scoped_delay() {
     clear_provider_rate_limit_cooldown("OpenAI", "gpt-test");
     assert_eq!(
