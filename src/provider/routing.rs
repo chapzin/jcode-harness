@@ -138,16 +138,19 @@ pub(crate) fn provider_rate_limit_cooldown_remaining_ms(
     Some(duration_to_ms_ceil(until.duration_since(now)))
 }
 
-pub(crate) fn record_provider_rate_limit_cooldown_for_error(
+pub(crate) fn record_provider_rate_limit_cooldown_for_retry(
     provider: &str,
     model: &str,
     error_str: &str,
-    delay_ms: u64,
+    retry_attempt: u32,
+    base_delay_ms: u64,
+    cap_delay_ms: u64,
 ) -> Option<u64> {
     if !error_has_rate_limit_signal(error_str) {
         return None;
     }
 
+    let delay_ms = retry_delay_ms_for_error(retry_attempt, base_delay_ms, cap_delay_ms, error_str);
     record_provider_rate_limit_cooldown_ms(provider, model, delay_ms)
 }
 

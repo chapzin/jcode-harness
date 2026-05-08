@@ -1,0 +1,49 @@
+{
+  "id": "gate-2026-05-08-92e298",
+  "ts": "2026-05-08T16:52:32.687Z",
+  "contractId": "2026-05-08-record-final-provider-rate-limit-cooldowns-ab8700",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/provider/routing.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/mod.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openai_provider_impl.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/anthropic.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openrouter_sse_stream.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/tests/fallback_failover.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "OpenAI records provider rate-limit cooldown before checking whether retry attempts remain.",
+    "Anthropic records provider rate-limit cooldown before checking whether retry attempts remain.",
+    "OpenRouter records provider rate-limit cooldown before checking whether retry attempts remain.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "uncheckedConditions": [],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/973852314x.output",
+    "/tmp/jcode-bg-tasks/0425808cpu.output",
+    "src/provider/routing.rs",
+    "src/provider/openai_provider_impl.rs",
+    "src/provider/anthropic.rs",
+    "src/provider/openrouter_sse_stream.rs",
+    "src/provider/tests/fallback_failover.rs"
+  ],
+  "notes": "Direct gate after audit lag. OpenAI, Anthropic, and OpenRouter compute retryability once, record rate-limit cooldown for retryable rate-limit errors with the next-attempt delay, then check whether attempts remain. This prevents the next request from stampeding after a final rate-limit failure."
+}

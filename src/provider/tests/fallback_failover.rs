@@ -147,11 +147,13 @@ fn provider_rate_limit_cooldown_records_and_clears_scoped_delay() {
     );
 
     assert_eq!(
-        record_provider_rate_limit_cooldown_for_error(
+        record_provider_rate_limit_cooldown_for_retry(
             "OpenAI",
             "gpt-test",
             "Rate limited (retry after 2s): slow down",
-            2_000,
+            1,
+            1_000,
+            10_000,
         ),
         Some(2_000)
     );
@@ -174,11 +176,13 @@ fn provider_rate_limit_cooldown_records_and_clears_scoped_delay() {
 fn provider_rate_limit_cooldown_ignores_non_rate_limit_errors() {
     clear_provider_rate_limit_cooldown("anthropic", "claude-test");
     assert_eq!(
-        record_provider_rate_limit_cooldown_for_error(
+        record_provider_rate_limit_cooldown_for_retry(
             "anthropic",
             "claude-test",
             "transient timeout without explicit throttling",
+            1,
             1_000,
+            10_000,
         ),
         None
     );
@@ -186,6 +190,54 @@ fn provider_rate_limit_cooldown_ignores_non_rate_limit_errors() {
         provider_rate_limit_cooldown_remaining_ms("anthropic", "claude-test"),
         None
     );
+}
+
+#[test]
+fn provider_rate_limit_cooldown_retry_helper_records_final_retry_hint() {
+    clear_provider_rate_limit_cooldown("OpenAI", "gpt-test");
+    assert_eq!(
+        record_provider_rate_limit_cooldown_for_retry(
+            "OpenAI",
+            "gpt-test",
+            "HTTP 429 retry-after: 3",
+            3,
+            1_000,
+            10_000,
+        ),
+        Some(3_000)
+    );
+
+    let remaining = provider_rate_limit_cooldown_remaining_ms("openai", "gpt-test")
+        .expect("retry helper should make final-attempt cooldown visible");
+    assert!(
+        (1..=3_000).contains(&remaining),
+        "unexpected cooldown remaining: {remaining}"
+    );
+    clear_provider_rate_limit_cooldown("openai", "gpt-test");
+}
+
+#[test]
+fn provider_rate_limit_cooldowns_record_before_retry_capacity_gate() {
+    for (provider, source) in [
+        ("openai", include_str!("../openai_provider_impl.rs")),
+        ("anthropic", include_str!("../anthropic.rs")),
+        ("openrouter", include_str!("../openrouter_sse_stream.rs")),
+    ] {
+        let retryable = source
+            .find("let retryable = is_retryable_error(&error_str);")
+            .unwrap_or_else(|| panic!("{provider} should compute retryability once"));
+        let cooldown_record = source[retryable..]
+            .find("record_provider_rate_limit_cooldown_for_retry")
+            .unwrap_or_else(|| panic!("{provider} should record provider cooldown"));
+        let retry_capacity_gate = source[retryable..]
+            .find("if retryable && attempt + 1 < MAX_RETRIES")
+            .unwrap_or_else(|| panic!("{provider} should still gate retries by capacity"));
+
+        assert!(
+            cooldown_record < retry_capacity_gate,
+            "{provider} should record rate-limit cooldown before checking remaining retries"
+        );
+    }
 }
 
 #[test]

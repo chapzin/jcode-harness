@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Emit provider cooldown status details",
+  "focus": "Record final provider rate-limit cooldowns",
   "status": "done",
-  "activeContractId": "2026-05-08-emit-provider-cooldown-status-details-c738e3",
+  "activeContractId": "2026-05-08-record-final-provider-rate-limit-cooldowns-ab8700",
   "counters": {
-    "contracts": 52,
-    "traces": 84,
-    "gates": 55,
-    "verifications": 72,
+    "contracts": 53,
+    "traces": 86,
+    "gates": 57,
+    "verifications": 74,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -135,43 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T13:36:33.662Z",
-      "type": "state_update",
-      "note": "Gate PASS. Commit and push task_control operation_id idempotency slice next.",
-      "status": "done",
-      "focus": "Commit and push task_control operation_id idempotency",
-      "activeContractId": "2026-05-08-make-task-control-operation-id-idempotent-c45e22"
-    },
-    {
-      "ts": "2026-05-08T13:46:28.301Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-make-assign-task-operation-id-stable-across-payload-drif-97abe9",
-      "summary": "Make assign_task operation_id stable across payload drift"
-    },
-    {
-      "ts": "2026-05-08T13:51:33.383Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-bce81f02",
-      "contractId": "2026-05-08-make-assign-task-operation-id-stable-across-payload-drif-97abe9",
-      "status": "pass",
-      "summary": "Focused assign_task operation_id verification passed"
-    },
-    {
-      "ts": "2026-05-08T13:51:41.364Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-6eff38d2",
-      "contractId": "2026-05-08-make-assign-task-operation-id-stable-across-payload-drif-97abe9",
-      "status": "pass",
-      "summary": "Selfdev build passed for assign_task operation_id slice"
-    },
-    {
-      "ts": "2026-05-08T13:51:51.962Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-make-assign-task-operation-id-stable-across-payload-drif-97abe9",
-      "gateId": "gate-2026-05-08-310552",
-      "verdict": "pass"
-    },
     {
       "ts": "2026-05-08T13:51:59.047Z",
       "type": "state_update",
@@ -718,6 +681,42 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-08-emit-provider-cooldown-status-details-c738e3",
       "gateId": "gate-2026-05-08-7563a2",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T16:46:30.429Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-record-final-provider-rate-limit-cooldowns-ab8700",
+      "summary": "Record final provider rate-limit cooldowns"
+    },
+    {
+      "ts": "2026-05-08T16:50:20.920Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-20c65b8f",
+      "contractId": "2026-05-08-record-final-provider-rate-limit-cooldowns-ab8700",
+      "status": "pass",
+      "summary": "Focused final provider rate-limit cooldown verification passed."
+    },
+    {
+      "ts": "2026-05-08T16:51:37.604Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-9550957a",
+      "contractId": "2026-05-08-record-final-provider-rate-limit-cooldowns-ab8700",
+      "status": "pass",
+      "summary": "Selfdev build and reload passed for final provider cooldown recording slice."
+    },
+    {
+      "ts": "2026-05-08T16:52:00.487Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-record-final-provider-rate-limit-cooldowns-ab8700",
+      "gateId": "gate-2026-05-08-1f10fd",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T16:52:32.687Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-record-final-provider-rate-limit-cooldowns-ab8700",
+      "gateId": "gate-2026-05-08-92e298",
       "verdict": "pass"
     }
   ]

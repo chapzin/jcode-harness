@@ -1294,19 +1294,16 @@ async fn run_stream_with_retries(
                 }
 
                 // Check if this is a transient/retryable error
-                if is_retryable_error(&error_str) && attempt + 1 < MAX_RETRIES {
-                    let next_delay = crate::provider::retry_delay_ms_for_error(
-                        attempt + 1,
-                        RETRY_BASE_DELAY_MS,
-                        crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
-                        &error_str,
-                    );
+                let retryable = is_retryable_error(&error_str);
+                if retryable {
                     if let Some(cooldown) =
-                        crate::provider::record_provider_rate_limit_cooldown_for_error(
+                        crate::provider::record_provider_rate_limit_cooldown_for_retry(
                             "anthropic",
                             &model_name,
                             &error_str,
-                            next_delay,
+                            attempt + 1,
+                            RETRY_BASE_DELAY_MS,
+                            crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
                         )
                     {
                         crate::logging::info(&format!(
@@ -1314,6 +1311,8 @@ async fn run_stream_with_retries(
                             model_name, cooldown
                         ));
                     }
+                }
+                if retryable && attempt + 1 < MAX_RETRIES {
                     crate::logging::info(&format!("Transient error, will retry: {}", e));
                     last_error = Some(e);
                     continue;

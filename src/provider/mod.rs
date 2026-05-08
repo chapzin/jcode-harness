@@ -54,7 +54,7 @@ pub(crate) use routing::{
     DEFAULT_RETRY_BACKOFF_CAP_MS, acquire_provider_concurrency_permit,
     anthropic_api_key_route_availability, anthropic_oauth_route_availability,
     is_transient_transport_error, provider_rate_limit_cooldown_remaining_ms,
-    provider_wait_status_duration, record_provider_rate_limit_cooldown_for_error,
+    provider_wait_status_duration, record_provider_rate_limit_cooldown_for_retry,
     retry_after_secs_from_headers, retry_after_suffix, retry_backoff_delay_ms,
     retry_delay_ms_for_error, should_eager_detect_copilot_tier,
 };

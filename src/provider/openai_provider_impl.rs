@@ -358,19 +358,16 @@ impl Provider for OpenAIProvider {
                         Err(OpenAIStreamFailure::Other(error)) => {
                             let elapsed_ms = attempt_started.elapsed().as_millis();
                             let error_str = error.to_string().to_lowercase();
-                            if is_retryable_error(&error_str) && attempt + 1 < MAX_RETRIES {
-                                let next_delay = crate::provider::retry_delay_ms_for_error(
-                                    attempt + 1,
-                                    RETRY_BASE_DELAY_MS,
-                                    crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
-                                    &error_str,
-                                );
+                            let retryable = is_retryable_error(&error_str);
+                            if retryable {
                                 if let Some(cooldown) =
-                                    crate::provider::record_provider_rate_limit_cooldown_for_error(
+                                    crate::provider::record_provider_rate_limit_cooldown_for_retry(
                                         "openai",
                                         &model_for_transport,
                                         &error_str,
-                                        next_delay,
+                                        attempt + 1,
+                                        RETRY_BASE_DELAY_MS,
+                                        crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
                                     )
                                 {
                                     crate::logging::info(&format!(
@@ -378,6 +375,8 @@ impl Provider for OpenAIProvider {
                                         model_for_transport, cooldown
                                     ));
                                 }
+                            }
+                            if retryable && attempt + 1 < MAX_RETRIES {
                                 crate::logging::info(&format!(
                                     "Transient error after {}ms, will retry: {}",
                                     elapsed_ms, error
