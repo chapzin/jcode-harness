@@ -74,6 +74,12 @@ struct ProcessingState<'a> {
     task: &'a mut Option<tokio::task::JoinHandle<()>>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AvailableModelsUpdateFlush {
+    Flushed,
+    Busy,
+}
+
 struct SwarmStatusRefs<'a> {
     members: &'a Arc<RwLock<HashMap<String, SwarmMember>>>,
     swarms_by_id: &'a Arc<RwLock<HashMap<String, HashSet<String>>>>,
@@ -1041,6 +1047,9 @@ pub(super) async fn handle_client(
     // otherwise monopolize the select loop before the initial subscribe/read.
     let mut client_subscribed = false;
     let mut pending_request = Some(initial_request);
+    let mut pending_models_updated = false;
+    let mut pending_models_updated_retry = tokio::time::interval(Duration::from_millis(250));
+    pending_models_updated_retry.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
     loop {
         let request = if let Some(request) = pending_request.take() {
@@ -1143,6 +1152,18 @@ pub(super) async fn handle_client(
                             });
                         }
                     }
+
+                    if pending_models_updated
+                        && try_enqueue_available_models_update(
+                            &agent,
+                            &client_event_tx,
+                            &mut last_available_models_snapshot,
+                            &client_connection_id,
+                            MAX_LIVE_AVAILABLE_MODELS_UPDATE_BYTES,
+                        ) == AvailableModelsUpdateFlush::Flushed
+                    {
+                        pending_models_updated = false;
+                    }
                 } else {
                     break;
                 }
@@ -1162,28 +1183,13 @@ pub(super) async fn handle_client(
             bus_event = bus_rx.recv(), if client_subscribed => {
                 match bus_event {
                     Ok(BusEvent::ModelsUpdated) => {
-                        let Some(event) = try_available_models_updated_event(&agent) else {
-                            crate::logging::info(&format!(
-                                "Skipping ModelsUpdated push for busy connection {}",
-                                client_connection_id
-                            ));
-                            continue;
-                        };
-                        let encoded_event = crate::protocol::encode_event(&event);
-                        if last_available_models_snapshot.as_ref() == Some(&encoded_event) {
-                            continue;
-                        }
-                        let encoded_len = encoded_event.len();
-                        if encoded_len > MAX_LIVE_AVAILABLE_MODELS_UPDATE_BYTES {
-                            crate::logging::warn(&format!(
-                                "Skipping oversized bus AvailableModelsUpdated frame for connection {} ({} bytes)",
-                                client_connection_id, encoded_len
-                            ));
-                            last_available_models_snapshot = Some(encoded_event);
-                            continue;
-                        }
-                        let _ = client_event_tx.send(event);
-                        last_available_models_snapshot = Some(encoded_event);
+                        pending_models_updated = try_enqueue_available_models_update(
+                            &agent,
+                            &client_event_tx,
+                            &mut last_available_models_snapshot,
+                            &client_connection_id,
+                            MAX_LIVE_AVAILABLE_MODELS_UPDATE_BYTES,
+                        ) == AvailableModelsUpdateFlush::Busy;
                     }
                     Ok(BusEvent::BatchProgress(progress)) => {
                         if progress.session_id == client_session_id {
@@ -1198,6 +1204,19 @@ pub(super) async fn handle_client(
                         }
                     }
                     _ => {}
+                }
+                continue;
+            }
+            _ = pending_models_updated_retry.tick(), if client_subscribed && pending_models_updated => {
+                if try_enqueue_available_models_update(
+                    &agent,
+                    &client_event_tx,
+                    &mut last_available_models_snapshot,
+                    &client_connection_id,
+                    MAX_LIVE_AVAILABLE_MODELS_UPDATE_BYTES,
+                ) == AvailableModelsUpdateFlush::Flushed
+                {
+                    pending_models_updated = false;
                 }
                 continue;
             }
@@ -2740,6 +2759,41 @@ async fn cancel_processing_message(
 fn try_available_models_snapshot(agent: &Arc<Mutex<Agent>>) -> Option<String> {
     let event = try_available_models_updated_event(agent)?;
     Some(crate::protocol::encode_event(&event))
+}
+
+fn try_enqueue_available_models_update(
+    agent: &Arc<Mutex<Agent>>,
+    client_event_tx: &mpsc::UnboundedSender<ServerEvent>,
+    last_available_models_snapshot: &mut Option<String>,
+    client_connection_id: &str,
+    max_live_available_models_update_bytes: usize,
+) -> AvailableModelsUpdateFlush {
+    let Some(event) = try_available_models_updated_event(agent) else {
+        crate::logging::info(&format!(
+            "Deferring ModelsUpdated push for busy connection {}",
+            client_connection_id
+        ));
+        return AvailableModelsUpdateFlush::Busy;
+    };
+
+    let encoded_event = crate::protocol::encode_event(&event);
+    if last_available_models_snapshot.as_ref() == Some(&encoded_event) {
+        return AvailableModelsUpdateFlush::Flushed;
+    }
+
+    let encoded_len = encoded_event.len();
+    if encoded_len > max_live_available_models_update_bytes {
+        crate::logging::warn(&format!(
+            "Skipping oversized bus AvailableModelsUpdated frame for connection {} ({} bytes)",
+            client_connection_id, encoded_len
+        ));
+        *last_available_models_snapshot = Some(encoded_event);
+        return AvailableModelsUpdateFlush::Flushed;
+    }
+
+    let _ = client_event_tx.send(event);
+    *last_available_models_snapshot = Some(encoded_event);
+    AvailableModelsUpdateFlush::Flushed
 }
 
 fn queue_soft_interrupt(

@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Publish model updates for provider runtime state",
+  "focus": "Defer busy ModelsUpdated pushes for remote clients",
   "status": "done",
-  "activeContractId": "2026-05-08-publish-model-updates-for-provider-runtime-state-489159",
+  "activeContractId": "2026-05-08-defer-busy-modelsupdated-pushes-for-remote-clients-18eebf",
   "counters": {
-    "contracts": 60,
-    "traces": 109,
-    "gates": 64,
-    "verifications": 89,
+    "contracts": 61,
+    "traces": 113,
+    "gates": 66,
+    "verifications": 91,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -135,58 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T15:48:29.914Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-01a01253",
-      "contractId": "2026-05-08-share-retry-after-provider-handling-9940a8",
-      "status": "pass",
-      "summary": "Shared provider Retry-After verification passed"
-    },
-    {
-      "ts": "2026-05-08T15:49:31.037Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-44b64774",
-      "contractId": "2026-05-08-share-retry-after-provider-handling-9940a8",
-      "status": "pass",
-      "summary": "selfdev build and reload passed for shared provider Retry-After slice"
-    },
-    {
-      "ts": "2026-05-08T15:49:46.128Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-share-retry-after-provider-handling-9940a8",
-      "gateId": "gate-2026-05-08-3d1c21",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-08T15:51:48.221Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-share-provider-retry-backoff-jitter-00ac72",
-      "summary": "Share provider retry backoff jitter"
-    },
-    {
-      "ts": "2026-05-08T15:55:36.904Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-e4055a2d",
-      "contractId": "2026-05-08-share-provider-retry-backoff-jitter-00ac72",
-      "status": "pass",
-      "summary": "Focused provider retry backoff verification passed: formatter, provider_retry_backoff tests, cargo check, and diff whitespace check."
-    },
-    {
-      "ts": "2026-05-08T15:56:39.292Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-04218962",
-      "contractId": "2026-05-08-share-provider-retry-backoff-jitter-00ac72",
-      "status": "pass",
-      "summary": "Selfdev build and reload passed for provider retry backoff jitter slice."
-    },
-    {
-      "ts": "2026-05-08T15:56:50.468Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-share-provider-retry-backoff-jitter-00ac72",
-      "gateId": "gate-2026-05-08-9b63e1",
-      "verdict": "pass"
-    },
     {
       "ts": "2026-05-08T15:58:03.923Z",
       "type": "contract_created",
@@ -723,6 +671,58 @@
       "contractId": "2026-05-08-publish-model-updates-for-provider-runtime-state-489159",
       "kind": "verification",
       "summary": "Governance audit passed for ModelsUpdated provider runtime state slice."
+    },
+    {
+      "ts": "2026-05-08T17:54:37.849Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-defer-busy-modelsupdated-pushes-for-remote-clients-18eebf",
+      "summary": "Defer busy ModelsUpdated pushes for remote clients"
+    },
+    {
+      "ts": "2026-05-08T18:00:22.721Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-2b2da50c",
+      "contractId": "2026-05-08-defer-busy-modelsupdated-pushes-for-remote-clients-18eebf",
+      "status": "pass",
+      "summary": "Focused verification passed for deferred ModelsUpdated push when agent lock is busy."
+    },
+    {
+      "ts": "2026-05-08T18:00:38.292Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-e58cd3df",
+      "contractId": "2026-05-08-defer-busy-modelsupdated-pushes-for-remote-clients-18eebf",
+      "status": "pass",
+      "summary": "Selfdev build and reload passed for deferred ModelsUpdated push slice."
+    },
+    {
+      "ts": "2026-05-08T18:00:45.559Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-defer-busy-modelsupdated-pushes-for-remote-clients-18eebf",
+      "gateId": "gate-2026-05-08-b56976",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T18:00:57.787Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-091d7794",
+      "contractId": "2026-05-08-defer-busy-modelsupdated-pushes-for-remote-clients-18eebf",
+      "kind": "verification",
+      "summary": "Governance audit passed for deferred ModelsUpdated remote-client slice."
+    },
+    {
+      "ts": "2026-05-08T18:01:29.173Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-defer-busy-modelsupdated-pushes-for-remote-clients-18eebf",
+      "gateId": "gate-2026-05-08-c964f5",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T18:01:50.187Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-4c0a73cf",
+      "contractId": "2026-05-08-defer-busy-modelsupdated-pushes-for-remote-clients-18eebf",
+      "kind": "verification",
+      "summary": "Governance audit passed after output path correction for deferred ModelsUpdated slice."
     }
   ]
 }

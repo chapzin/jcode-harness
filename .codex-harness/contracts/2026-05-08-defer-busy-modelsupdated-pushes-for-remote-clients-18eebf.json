@@ -1,0 +1,47 @@
+{
+  "id": "2026-05-08-defer-busy-modelsupdated-pushes-for-remote-clients-18eebf",
+  "title": "Defer busy ModelsUpdated pushes for remote clients",
+  "goal": "Ensure provider runtime ModelsUpdated pushes are deferred instead of dropped when the remote session agent is temporarily busy, so cooldown/backpressure route state eventually reaches clients.",
+  "createdAt": "2026-05-08T17:54:37.848Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 30
+  },
+  "permissions": [
+    "read repo",
+    "edit server code/tests",
+    "run focused tests",
+    "selfdev build/reload",
+    "commit and push",
+    "comment issue #27"
+  ],
+  "completionConditions": [
+    "ModelsUpdated bus events are not permanently lost when the session agent lock is busy.",
+    "Busy lock path marks a pending model update and a later idle/request boundary flushes AvailableModelsUpdated if the snapshot changed.",
+    "Focused tests cover busy lock skip followed by successful deferred AvailableModelsUpdated send.",
+    "Focused tests, cargo fmt/check, cargo check, selfdev build/reload, governance, commit/push, and issue #27 update pass."
+  ],
+  "outputPaths": [
+    "src/server/client_lifecycle.rs",
+    "src/server/client_lifecycle_tests.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode models_updated --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "formatting_failure",
+    "duplicate_update_spam",
+    "lost_remote_update",
+    "governance_failure"
+  ],
+  "notes": "Follow-up to 1b2201ef. The bus now publishes ModelsUpdated on provider runtime state changes, but client_lifecycle currently logs and skips when try_available_models_updated_event cannot acquire the agent lock."
+}
