@@ -1,0 +1,69 @@
+{
+  "id": "gate-2026-05-08-310552",
+  "ts": "2026-05-08T13:51:51.962Z",
+  "contractId": "2026-05-08-make-assign-task-operation-id-stable-across-payload-drif-97abe9",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "crates/jcode-protocol/src/lib.rs",
+      "exists": true
+    },
+    {
+      "path": "crates/jcode-protocol/src/protocol_tests/comm_requests.rs",
+      "exists": true
+    },
+    {
+      "path": "src/protocol_tests/comm_requests.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate_tests/input_format.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/client_lifecycle.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/comm_control.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/comm_control_tests/assign_task.rs",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/state.json",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/traces/2026-05-08.jsonl",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "CommAssignTask accepts optional request_nonce propagated from swarm operation_id for explicit retry idempotency.",
+    "assign_task with request_nonce duplicate calls replay original AssignTask response instead of assigning another task or using drifted payload.",
+    "assign_task without operation_id remains unchanged and uses the existing payload-derived mutation key.",
+    "spawn/prefer_spawn and assign_next internal assign_task calls preserve their current idempotency behavior.",
+    "Focused protocol/server/tool tests, cargo fmt/check, git diff check, selfdev build and reload passed before commit."
+  ],
+  "uncheckedConditions": [
+    "CommAssignTask accepts an optional request_nonce propagated from swarm operation_id for explicit retry idempotency.",
+    "When assign_task is called with request_nonce, duplicate calls replay the original AssignTask response instead of assigning another task or using drifted payload fields.",
+    "assign_task behavior without operation_id remains unchanged and still uses the existing payload-derived mutation key.",
+    "Focused protocol/server/tool tests, cargo fmt/check, git diff --check, selfdev build/reload, governance, commit, and push pass."
+  ],
+  "evidence": [
+    "Protocol schema/test updates in crates/jcode-protocol/src/lib.rs and protocol_tests/comm_requests.rs cover request_nonce roundtrip.",
+    "src/tool/communicate.rs forwards explicit operation_id to direct and spawn/prefer_spawn assign_task requests.",
+    "src/server/comm_control.rs uses a nonce-based mutation key only when request_nonce is present and keeps the default payload-derived key otherwise.",
+    "src/server/comm_control_tests/assign_task.rs regression proves replay across worker/message drift and leaves the second task unassigned.",
+    "Verification task 118500ubfh passed focused tests, cargo check and diff check; selfdev build task 238667qjmr passed; reload succeeded."
+  ],
+  "notes": "Assign_task explicit operation_id now provides stable retry idempotency across payload drift while preserving default payload-keyed behavior for calls without operation_id."
+}

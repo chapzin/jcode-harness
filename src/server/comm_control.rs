@@ -810,6 +810,7 @@ pub(super) async fn handle_comm_assign_task(
     target_session: Option<String>,
     task_id: Option<String>,
     message: Option<String>,
+    request_nonce: Option<String>,
     client_event_tx: &mpsc::UnboundedSender<ServerEvent>,
     sessions: &SessionAgents,
     soft_interrupt_queues: &super::SessionInterruptQueues,
@@ -846,20 +847,33 @@ pub(super) async fn handle_comm_assign_task(
         None => return,
     };
 
-    let mutation_key = swarm_mutation_request_key(
-        &req_session_id,
-        "assign_task",
-        &[
-            swarm_id.clone(),
-            requested_target_session
-                .clone()
-                .unwrap_or_else(|| "__next_available__".to_string()),
-            requested_task_id
-                .clone()
-                .unwrap_or_else(|| "__next_runnable__".to_string()),
-            message.clone().unwrap_or_default(),
-        ],
-    );
+    let mutation_key = request_nonce
+        .as_deref()
+        .map(str::trim)
+        .filter(|nonce| !nonce.is_empty())
+        .map(|nonce| {
+            swarm_mutation_request_key(
+                &req_session_id,
+                "assign_task",
+                &[swarm_id.clone(), format!("nonce:{nonce}")],
+            )
+        })
+        .unwrap_or_else(|| {
+            swarm_mutation_request_key(
+                &req_session_id,
+                "assign_task",
+                &[
+                    swarm_id.clone(),
+                    requested_target_session
+                        .clone()
+                        .unwrap_or_else(|| "__next_available__".to_string()),
+                    requested_task_id
+                        .clone()
+                        .unwrap_or_else(|| "__next_runnable__".to_string()),
+                    message.clone().unwrap_or_default(),
+                ],
+            )
+        });
     let Some(mutation_state) = begin_swarm_mutation_or_replay(
         swarm_mutation_runtime,
         &mutation_key,
@@ -1213,6 +1227,7 @@ async fn dispatch_resolved_assign_next(
             Some(target_session),
             Some(selected_task_id),
             message,
+            None,
             &capture_tx,
             sessions,
             soft_interrupt_queues,
@@ -1248,6 +1263,7 @@ async fn dispatch_resolved_assign_next(
             Some(target_session),
             Some(selected_task_id),
             message,
+            None,
             client_event_tx,
             sessions,
             soft_interrupt_queues,
@@ -1459,6 +1475,7 @@ pub(super) async fn handle_comm_assign_next(
         target_session,
         None,
         message,
+        None,
         client_event_tx,
         sessions,
         soft_interrupt_queues,
@@ -1938,6 +1955,7 @@ async fn handle_comm_task_control_resolved(
                 Some(assignee),
                 Some(task_id),
                 Some(retry_note),
+                None,
                 client_event_tx,
                 sessions,
                 soft_interrupt_queues,
@@ -2061,6 +2079,7 @@ async fn handle_comm_task_control_resolved(
                 Some(new_target),
                 Some(task_id),
                 forwarded_message,
+                None,
                 client_event_tx,
                 sessions,
                 soft_interrupt_queues,

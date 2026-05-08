@@ -134,6 +134,20 @@ fn communicate_input_accepts_operation_id_for_assign_next() {
 }
 
 #[test]
+fn communicate_input_accepts_operation_id_for_assign_task() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "assign_task",
+        "operation_id": " issue-13-assign-task-1 "
+    }))
+    .expect("assign_task operation_id should deserialize");
+
+    assert_eq!(
+        explicit_operation_request_nonce(parsed.operation_id.as_deref()).as_deref(),
+        Some("op:issue-13-assign-task-1")
+    );
+}
+
+#[test]
 fn communicate_input_accepts_operation_id_for_task_control() {
     let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
         "action": "wake",

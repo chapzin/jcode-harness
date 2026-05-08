@@ -1,0 +1,56 @@
+{
+  "id": "2026-05-08-make-assign-task-operation-id-stable-across-payload-drif-97abe9",
+  "title": "Make assign_task operation_id stable across payload drift",
+  "goal": "Implement a bounded issue #13 idempotency slice so explicit operation_id/request_nonce deduplicates assign_task retries even when message, target, or selected next task inputs drift after the first assignment succeeds.",
+  "createdAt": "2026-05-08T13:46:28.299Z",
+  "status": "active",
+  "requiredInputs": [
+    "chapzin/jcode-harness issue #13 robust swarm orchestration",
+    "Existing assign_task mutation state replay support",
+    "Current CommAssignTask mutation key is payload-derived and the swarm tool does not forward operation_id to assign_task"
+  ],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 40
+  },
+  "permissions": [
+    "Modify protocol, swarm tool, assign_task server handler, lifecycle dispatch, and focused tests",
+    "Run cargo fmt/check/test and selfdev build",
+    "Commit and push"
+  ],
+  "completionConditions": [
+    "CommAssignTask accepts an optional request_nonce propagated from swarm operation_id for explicit retry idempotency.",
+    "When assign_task is called with request_nonce, duplicate calls replay the original AssignTask response instead of assigning another task or using drifted payload fields.",
+    "assign_task behavior without operation_id remains unchanged and still uses the existing payload-derived mutation key.",
+    "spawn/prefer_spawn and assign_next internal assign_task calls preserve their current idempotency behavior.",
+    "Focused protocol/server/tool tests, cargo fmt/check, git diff --check, selfdev build/reload, governance, commit, and push pass."
+  ],
+  "outputPaths": [
+    "crates/jcode-protocol/src/lib.rs",
+    "crates/jcode-protocol/src/protocol_tests/comm_requests.rs",
+    "src/protocol_tests/comm_requests.rs",
+    "src/tool/communicate.rs",
+    "src/tool/communicate_tests/input_format.rs",
+    "src/server/client_lifecycle.rs",
+    "src/server/comm_control.rs",
+    "src/server/comm_control_tests/assign_task.rs",
+    ".codex-harness/state.json",
+    ".codex-harness/traces/2026-05-08.jsonl"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode-protocol test_comm_assign_task_roundtrip_without_explicit_task_id",
+    "cargo test -p jcode assign_task_operation_id --lib -- --test-threads=1 --nocapture",
+    "cargo test -p jcode tool::communicate::tests::communicate_input_accepts_operation_id_for_assign_task --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check"
+  ],
+  "failureTaxonomy": [
+    "Changing default assign_task behavior without operation_id",
+    "Breaking assign_next outer idempotency or spawn assignment flow",
+    "Persisting assign_task final response before assignment side effects finish",
+    "Over-expanding into full ProviderLimiter/rate-limit issue #27 implementation"
+  ],
+  "notes": "Keep the slice explicit-only: request_nonce changes the mutation key only when operation_id is supplied. Default assign_task must remain payload-derived."
+}

@@ -51,6 +51,7 @@ async fn assign_task_rejects_explicit_blocked_task() {
         Some(worker.to_string()),
         Some("blocked".to_string()),
         None,
+        None,
         &client_tx,
         &sessions,
         &soft_interrupt_queues,

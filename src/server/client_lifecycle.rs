@@ -540,6 +540,7 @@ async fn handle_lightweight_control_request(
             target_session,
             task_id,
             message,
+            request_nonce,
         } => {
             handle_comm_assign_task(
                 id,
@@ -547,6 +548,7 @@ async fn handle_lightweight_control_request(
                 target_session,
                 task_id,
                 message,
+                request_nonce,
                 &client_event_tx,
                 sessions,
                 soft_interrupt_queues,
@@ -2375,6 +2377,7 @@ pub(super) async fn handle_client(
                 target_session,
                 task_id,
                 message,
+                request_nonce,
             } => {
                 handle_comm_assign_task(
                     id,
@@ -2382,6 +2385,7 @@ pub(super) async fn handle_client(
                     target_session,
                     task_id,
                     message,
+                    request_nonce,
                     &client_event_tx,
                     &sessions,
                     &soft_interrupt_queues,

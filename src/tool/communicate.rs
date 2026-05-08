@@ -584,6 +584,7 @@ async fn assign_task_to_session(
         target_session: Some(target_session.clone()),
         task_id: params.task_id.clone(),
         message: params.message.clone(),
+        request_nonce: explicit_operation_request_nonce(params.operation_id.as_deref()),
     };
 
     match send_request(retry_request).await {
@@ -2040,6 +2041,7 @@ impl Tool for CommunicateTool {
                     target_session: params.target_session.clone(),
                     task_id: params.task_id.clone(),
                     message: params.message.clone(),
+                    request_nonce: explicit_operation_request_nonce(params.operation_id.as_deref()),
                 };
 
                 match send_request(request).await {

@@ -320,9 +320,11 @@ fn test_comm_assign_task_roundtrip_without_explicit_task_id() -> Result<()> {
         target_session: None,
         task_id: None,
         message: Some("Take the next highest-priority runnable task.".to_string()),
+        request_nonce: Some("op:assign-task-1".to_string()),
     };
     let json = serde_json::to_string(&req)?;
     assert!(json.contains("\"type\":\"comm_assign_task\""));
+    assert!(json.contains("\"request_nonce\":\"op:assign-task-1\""));
     assert!(!json.contains("\"task_id\""));
     let decoded = parse_request_json(&json)?;
     assert_eq!(decoded.id(), 57);
@@ -331,6 +333,7 @@ fn test_comm_assign_task_roundtrip_without_explicit_task_id() -> Result<()> {
         target_session,
         task_id,
         message,
+        request_nonce,
         ..
     } = decoded
     else {
@@ -343,6 +346,7 @@ fn test_comm_assign_task_roundtrip_without_explicit_task_id() -> Result<()> {
         message.as_deref(),
         Some("Take the next highest-priority runnable task.")
     );
+    assert_eq!(request_nonce.as_deref(), Some("op:assign-task-1"));
     Ok(())
 }
 

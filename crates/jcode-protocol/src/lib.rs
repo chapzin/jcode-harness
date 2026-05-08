@@ -523,6 +523,9 @@ pub enum Request {
         task_id: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         message: Option<String>,
+        /// Optional idempotency nonce for explicit assign_task retries.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        request_nonce: Option<String>,
     },
 
     /// Assign the next runnable unassigned task from the plan (coordinator only)

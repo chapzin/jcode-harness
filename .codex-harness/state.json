@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Commit and push task_control operation_id idempotency",
+  "focus": "Commit and push assign_task operation_id stability slice",
   "status": "done",
-  "activeContractId": "2026-05-08-make-task-control-operation-id-idempotent-c45e22",
+  "activeContractId": "2026-05-08-make-assign-task-operation-id-stable-across-payload-drif-97abe9",
   "counters": {
-    "contracts": 36,
-    "traces": 46,
-    "gates": 35,
-    "verifications": 38,
+    "contracts": 37,
+    "traces": 48,
+    "gates": 36,
+    "verifications": 40,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -112,46 +112,14 @@
       "id": "decision-2026-05-08-f5b780",
       "ts": "2026-05-08T13:36:33.662Z",
       "text": "Completed issue #13 task_control idempotency slice: explicit operation_id/request_nonce now replays wake/start/resume task_control responses without repeating side effects, while default task_control remains non-idempotent."
+    },
+    {
+      "id": "decision-2026-05-08-0335ee",
+      "ts": "2026-05-08T13:51:59.046Z",
+      "text": "Completed issue #13 assign_task idempotency slice: explicit operation_id/request_nonce now replays the original assign_task assignment across payload drift, while default assign_task remains payload-derived."
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-07T21:15:35.766Z",
-      "type": "state_update",
-      "note": "Implemented and validated safe offline demo runner. Next: commit and push.",
-      "status": "done",
-      "focus": "Issue #2 offline demo runner",
-      "activeContractId": "2026-05-07-add-offline-demo-runner-4e8c91"
-    },
-    {
-      "ts": "2026-05-07T21:21:56.855Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-add-demo-run-sandbox-6f0d2a",
-      "summary": "Add demo run sandbox"
-    },
-    {
-      "ts": "2026-05-07T21:21:56.855Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-07-e2a7d1",
-      "contractId": "2026-05-07-add-demo-run-sandbox-6f0d2a",
-      "status": "pass",
-      "summary": "demo run sandbox validation passed"
-    },
-    {
-      "ts": "2026-05-07T21:21:56.855Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-07-add-demo-run-sandbox-6f0d2a",
-      "gateId": "gate-2026-05-07-c6e8fa",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-07T21:21:56.855Z",
-      "type": "state_update",
-      "note": "Implemented and validated sandboxed demo runner. Next: commit and push.",
-      "status": "done",
-      "focus": "Issue #2 demo run sandbox",
-      "activeContractId": "2026-05-07-add-demo-run-sandbox-6f0d2a"
-    },
     {
       "ts": "2026-05-07T21:24:56.488Z",
       "type": "contract_created",
@@ -699,6 +667,43 @@
       "status": "done",
       "focus": "Commit and push task_control operation_id idempotency",
       "activeContractId": "2026-05-08-make-task-control-operation-id-idempotent-c45e22"
+    },
+    {
+      "ts": "2026-05-08T13:46:28.301Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-make-assign-task-operation-id-stable-across-payload-drif-97abe9",
+      "summary": "Make assign_task operation_id stable across payload drift"
+    },
+    {
+      "ts": "2026-05-08T13:51:33.383Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-bce81f02",
+      "contractId": "2026-05-08-make-assign-task-operation-id-stable-across-payload-drif-97abe9",
+      "status": "pass",
+      "summary": "Focused assign_task operation_id verification passed"
+    },
+    {
+      "ts": "2026-05-08T13:51:41.364Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-6eff38d2",
+      "contractId": "2026-05-08-make-assign-task-operation-id-stable-across-payload-drif-97abe9",
+      "status": "pass",
+      "summary": "Selfdev build passed for assign_task operation_id slice"
+    },
+    {
+      "ts": "2026-05-08T13:51:51.962Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-make-assign-task-operation-id-stable-across-payload-drif-97abe9",
+      "gateId": "gate-2026-05-08-310552",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T13:51:59.047Z",
+      "type": "state_update",
+      "note": "Focused verification task 118500ubfh, selfdev build task 238667qjmr, reload, and completion gate gate-2026-05-08-310552 passed.",
+      "status": "done",
+      "focus": "Commit and push assign_task operation_id stability slice",
+      "activeContractId": "2026-05-08-make-assign-task-operation-id-stable-across-payload-drif-97abe9"
     }
   ]
 }
