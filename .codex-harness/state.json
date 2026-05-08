@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Commit and push provider model route cooldown metadata slice",
+  "focus": "Surface provider backpressure in model routes",
   "status": "done",
-  "activeContractId": "2026-05-08-surface-provider-cooldowns-in-model-routes-4c0d9e",
+  "activeContractId": "2026-05-08-surface-provider-backpressure-in-model-routes-55ae8d",
   "counters": {
-    "contracts": 56,
-    "traces": 93,
-    "gates": 60,
-    "verifications": 81,
+    "contracts": 57,
+    "traces": 97,
+    "gates": 61,
+    "verifications": 83,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -21,7 +21,7 @@
     {
       "id": "decision-2026-05-06-1c16f8",
       "ts": "2026-05-06T19:09:22.556Z",
-      "text": "Responder ao usu\u00e1rio em portugu\u00eas conforme prefer\u00eancia global registrada."
+      "text": "Responder ao usuário em português conforme preferência global registrada."
     },
     {
       "id": "decision-2026-05-07-f58c86",
@@ -135,88 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T14:06:38.022Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-628071a2",
-      "contractId": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e",
-      "status": "pass",
-      "summary": "Selfdev build passed for coordinator retry slice"
-    },
-    {
-      "ts": "2026-05-08T14:06:46.099Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e",
-      "gateId": "gate-2026-05-08-38861f",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-08T14:06:58.313Z",
-      "type": "state_update",
-      "note": "Initial formatting failure resolved by cargo fmt. Focused verification task 091300dyxx, selfdev build task 137550y5y4, reload, and completion gate gate-2026-05-08-38861f passed.",
-      "status": "done",
-      "focus": "Commit and push coordinator retry slice",
-      "activeContractId": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e"
-    },
-    {
-      "ts": "2026-05-08T14:10:26.273Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-make-run-plan-operation-id-scope-stable-843df5",
-      "summary": "Make run_plan operation_id scope stable"
-    },
-    {
-      "ts": "2026-05-08T14:12:42.420Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-fe9df229",
-      "contractId": "2026-05-08-make-run-plan-operation-id-scope-stable-843df5",
-      "status": "pass",
-      "summary": "Focused run_plan operation_id verification passed"
-    },
-    {
-      "ts": "2026-05-08T14:12:49.994Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-fd70c530",
-      "contractId": "2026-05-08-make-run-plan-operation-id-scope-stable-843df5",
-      "status": "pass",
-      "summary": "Selfdev build passed for run_plan operation_id slice"
-    },
-    {
-      "ts": "2026-05-08T14:13:01.888Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-make-run-plan-operation-id-scope-stable-843df5",
-      "gateId": "gate-2026-05-08-5919bc",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-08T14:13:10.908Z",
-      "type": "state_update",
-      "note": "Focused verification task 475720az5f, selfdev build task 516485zbpx, reload, and completion gate gate-2026-05-08-5919bc passed.",
-      "status": "done",
-      "focus": "Commit and push run_plan operation_id scope stability slice",
-      "activeContractId": "2026-05-08-make-run-plan-operation-id-scope-stable-843df5"
-    },
-    {
-      "ts": "2026-05-08T14:17:14.598Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
-      "summary": "Stable spawned worker run ids for operation_id retries"
-    },
-    {
-      "ts": "2026-05-08T14:20:07.592Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-3cc06798",
-      "contractId": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
-      "status": "pass",
-      "summary": "Focused spawned_worker_run_id verification passed"
-    },
-    {
-      "ts": "2026-05-08T14:20:38.469Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-7b1da30c",
-      "contractId": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
-      "status": "pass",
-      "summary": "Selfdev build passed for stable spawned worker run id slice"
-    },
     {
       "ts": "2026-05-08T14:21:44.750Z",
       "type": "verification_recorded",
@@ -754,6 +672,51 @@
       "status": "done",
       "focus": "Commit and push provider model route cooldown metadata slice",
       "activeContractId": "2026-05-08-surface-provider-cooldowns-in-model-routes-4c0d9e"
+    },
+    {
+      "ts": "2026-05-08T17:23:19.325Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-surface-provider-backpressure-in-model-routes-55ae8d",
+      "summary": "Surface provider backpressure in model routes"
+    },
+    {
+      "ts": "2026-05-08T17:26:39.293Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-0782fbf1",
+      "contractId": "2026-05-08-surface-provider-backpressure-in-model-routes-55ae8d",
+      "status": "pass",
+      "summary": "Focused verification passed for model route backpressure detail slice"
+    },
+    {
+      "ts": "2026-05-08T17:26:44.181Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-ddc4f656",
+      "contractId": "2026-05-08-surface-provider-backpressure-in-model-routes-55ae8d",
+      "status": "pass",
+      "summary": "Selfdev build passed for provider model route backpressure slice"
+    },
+    {
+      "ts": "2026-05-08T17:26:51.030Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-926d0260",
+      "contractId": "2026-05-08-surface-provider-backpressure-in-model-routes-55ae8d",
+      "kind": "success",
+      "summary": "Reload succeeded for provider model route backpressure slice"
+    },
+    {
+      "ts": "2026-05-08T17:26:57.459Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-surface-provider-backpressure-in-model-routes-55ae8d",
+      "gateId": "gate-2026-05-08-7743f2",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T17:27:12.710Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-ef0305cf",
+      "contractId": "2026-05-08-surface-provider-backpressure-in-model-routes-55ae8d",
+      "kind": "verification",
+      "summary": "Governance audit passed for provider model route backpressure slice"
     }
   ]
 }

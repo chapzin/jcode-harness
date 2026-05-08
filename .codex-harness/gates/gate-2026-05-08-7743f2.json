@@ -1,0 +1,41 @@
+{
+  "id": "gate-2026-05-08-7743f2",
+  "ts": "2026-05-08T17:26:57.459Z",
+  "contractId": "2026-05-08-surface-provider-backpressure-in-model-routes-55ae8d",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/provider/routing.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/mod.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/tests/fallback_failover.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Routes for an actively saturated provider/model semaphore receive provider backpressure limit detail while available remains true.",
+    "Cooldown routes remain unavailable and cooldown detail prefixes backpressure and existing route details.",
+    "OpenRouter endpoint routes use shared openrouter scope for both cooldown and backpressure state.",
+    "Focused cargo fmt/test/check/diff verification passed in task 091540ja96.",
+    "Selfdev build and reload passed in task 1420875s3b."
+  ],
+  "uncheckedConditions": [
+    "Routes for an actively saturated provider/model semaphore receive a compact provider backpressure detail without becoming unavailable.",
+    "Cooldown detail still takes precedence and can coexist with existing details.",
+    "OpenRouter endpoint routes use the shared openrouter scope for backpressure, matching cooldown behavior.",
+    "Focused tests, cargo fmt/check, cargo check, selfdev build/reload, governance, commit/push, and issue #27 update pass."
+  ],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/091540ja96.output",
+    "/tmp/jcode-bg-tasks/1420875s3b.output",
+    "src/provider/routing.rs",
+    "src/provider/mod.rs",
+    "src/provider/tests/fallback_failover.rs"
+  ],
+  "notes": "Observational route metadata slice only. Semaphore saturation does not mark routes unavailable because requests can wait for permits."
+}

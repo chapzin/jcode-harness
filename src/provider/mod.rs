@@ -60,10 +60,11 @@ pub(crate) use routing::{
 pub(crate) use routing::{
     DEFAULT_RETRY_BACKOFF_CAP_MS, acquire_provider_concurrency_permit,
     anthropic_api_key_route_availability, anthropic_oauth_route_availability,
-    is_transient_transport_error, provider_rate_limit_cooldown_remaining_ms,
-    provider_wait_status_duration, record_provider_rate_limit_cooldown_for_retry,
-    retry_after_secs_from_headers, retry_after_suffix, retry_backoff_delay_ms,
-    retry_delay_ms_for_error, should_eager_detect_copilot_tier,
+    is_transient_transport_error, provider_concurrency_backpressure_limit,
+    provider_rate_limit_cooldown_remaining_ms, provider_wait_status_duration,
+    record_provider_rate_limit_cooldown_for_retry, retry_after_secs_from_headers,
+    retry_after_suffix, retry_backoff_delay_ms, retry_delay_ms_for_error,
+    should_eager_detect_copilot_tier,
 };
 
 pub fn set_model_with_auth_refresh(provider: &dyn Provider, model: &str) -> Result<()> {
@@ -1149,7 +1150,7 @@ impl Provider for MultiProvider {
 
         dedupe_model_routes(routes)
             .into_iter()
-            .map(apply_provider_cooldown_to_route)
+            .map(apply_provider_runtime_state_to_route)
             .collect()
     }
 
@@ -1884,24 +1885,34 @@ impl Provider for MultiProvider {
     }
 }
 
-fn apply_provider_cooldown_to_route(mut route: ModelRoute) -> ModelRoute {
+fn apply_provider_runtime_state_to_route(mut route: ModelRoute) -> ModelRoute {
     let Some(provider) = provider_cooldown_scope_for_route(&route) else {
         return route;
     };
-    let Some(delay_ms) = provider_rate_limit_cooldown_remaining_ms(provider, &route.model) else {
-        return route;
-    };
 
-    route.available = false;
-    let cooldown_detail = format!(
-        "rate-limit cooldown {}",
-        provider_wait_status_duration(delay_ms)
-    );
-    if route.detail.trim().is_empty() {
-        route.detail = cooldown_detail;
-    } else {
-        route.detail = format!("{}; {}", cooldown_detail, route.detail);
+    let cooldown_detail =
+        provider_rate_limit_cooldown_remaining_ms(provider, &route.model).map(|delay_ms| {
+            route.available = false;
+            format!(
+                "rate-limit cooldown {}",
+                provider_wait_status_duration(delay_ms)
+            )
+        });
+
+    let backpressure_detail = provider_concurrency_backpressure_limit(provider, &route.model)
+        .map(|limit| format!("provider backpressure limit={limit}"));
+
+    if cooldown_detail.is_none() && backpressure_detail.is_none() {
+        return route;
     }
+
+    let existing_detail = route.detail.trim().to_string();
+    route.detail = cooldown_detail
+        .into_iter()
+        .chain(backpressure_detail)
+        .chain((!existing_detail.is_empty()).then_some(existing_detail))
+        .collect::<Vec<_>>()
+        .join("; ");
     route
 }
 

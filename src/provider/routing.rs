@@ -247,6 +247,21 @@ pub(crate) async fn acquire_provider_concurrency_permit(
     })
 }
 
+pub(crate) fn provider_concurrency_backpressure_limit(
+    provider: &str,
+    model: &str,
+) -> Option<usize> {
+    let limit = provider_concurrency_limit();
+    if limit == 0 {
+        return None;
+    }
+
+    let key = provider_rate_limit_key(provider, model)?;
+    let guard = PROVIDER_CONCURRENCY_LIMITERS.lock().ok()?;
+    let semaphore = guard.get(&key)?;
+    (semaphore.available_permits() == 0).then_some(limit)
+}
+
 fn provider_concurrency_limit() -> usize {
     std::env::var(PROVIDER_CONCURRENCY_LIMIT_ENV)
         .ok()
