@@ -1172,6 +1172,14 @@ async fn run_stream_with_retries(
                 },
             }))
             .await;
+        let _ = tx
+            .send(Ok(StreamEvent::StatusDetail {
+                detail: format!(
+                    "rate-limit cooldown {}",
+                    crate::provider::provider_wait_status_duration(delay)
+                ),
+            }))
+            .await;
         crate::logging::info(&format!(
             "Anthropic provider rate-limit cooldown active for model='{}' ({}ms remaining)",
             model_name, delay
@@ -1186,7 +1194,10 @@ async fn run_stream_with_retries(
     {
         let _ = tx
             .send(Ok(StreamEvent::StatusDetail {
-                detail: format!("provider backpressure {}ms", permit.waited_ms()),
+                detail: format!(
+                    "provider backpressure {}",
+                    crate::provider::provider_wait_status_duration(permit.waited_ms())
+                ),
             }))
             .await;
         crate::logging::info(&format!(

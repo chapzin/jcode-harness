@@ -1,0 +1,47 @@
+{
+  "id": "2026-05-08-emit-provider-cooldown-status-details-c738e3",
+  "title": "Emit provider cooldown status details",
+  "goal": "Make provider cooldown waits visible in reactive status details for Anthropic and OpenRouter, matching OpenAI's user-facing rate-limit feedback.",
+  "createdAt": "2026-05-08T16:39:35.563Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 6,
+    "maxMinutes": 30,
+    "maxToolCalls": 20
+  },
+  "permissions": [
+    "modify source",
+    "run focused tests",
+    "run selfdev build",
+    "commit and push"
+  ],
+  "completionConditions": [
+    "Anthropic emits a StatusDetail during provider rate-limit cooldown waits.",
+    "OpenRouter emits a StatusDetail during provider rate-limit cooldown waits.",
+    "Provider wait durations use a shared compact formatter so cooldown/backpressure details are consistent.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "outputPaths": [
+    "src/provider/routing.rs",
+    "src/provider/mod.rs",
+    "src/provider/anthropic.rs",
+    "src/provider/openrouter_sse_stream.rs",
+    "src/provider/openai.rs",
+    "src/provider/tests/fallback_failover.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode provider_wait_status --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build --target tui"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "missing_status_detail",
+    "provider_behavior_regression"
+  ],
+  "notes": "Small follow-up to issue #27 after documenting backpressure configuration. Keep behavior limited to status detail visibility and shared formatting."
+}

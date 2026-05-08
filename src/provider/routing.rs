@@ -79,6 +79,26 @@ pub(crate) fn retry_after_suffix(retry_after_secs: Option<u64>) -> String {
         .unwrap_or_default()
 }
 
+pub(crate) fn provider_wait_status_duration(delay_ms: u64) -> String {
+    let duration = Duration::from_millis(delay_ms);
+    let secs = duration.as_secs();
+    if secs >= 3600 {
+        let hours = secs / 3600;
+        let mins = (secs % 3600) / 60;
+        format!("{}h {}m", hours, mins)
+    } else if secs >= 60 {
+        let mins = secs / 60;
+        let rem_secs = secs % 60;
+        format!("{}m {}s", mins, rem_secs)
+    } else if secs > 0 {
+        format!("{}s", secs)
+    } else if delay_ms > 0 {
+        "<1s".to_string()
+    } else {
+        "0s".to_string()
+    }
+}
+
 pub(crate) fn retry_backoff_delay_ms(attempt: u32, base_delay_ms: u64, cap_delay_ms: u64) -> u64 {
     retry_backoff_delay_ms_for_nonce(attempt, base_delay_ms, cap_delay_ms, retry_jitter_nonce())
 }

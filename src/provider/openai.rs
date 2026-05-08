@@ -307,18 +307,8 @@ async fn emit_status_detail(tx: &mpsc::Sender<Result<StreamEvent>>, detail: impl
 }
 
 fn format_status_duration(duration: Duration) -> String {
-    let secs = duration.as_secs();
-    if secs >= 3600 {
-        let hours = secs / 3600;
-        let mins = (secs % 3600) / 60;
-        format!("{}h {}m", hours, mins)
-    } else if secs >= 60 {
-        let mins = secs / 60;
-        let rem_secs = secs % 60;
-        format!("{}m {}s", mins, rem_secs)
-    } else {
-        format!("{}s", secs)
-    }
+    let delay_ms = duration.as_millis().try_into().unwrap_or(u64::MAX);
+    crate::provider::provider_wait_status_duration(delay_ms)
 }
 
 async fn ensure_persistent_ws_is_healthy(state: &mut PersistentWsState) -> Result<bool, String> {

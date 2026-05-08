@@ -237,6 +237,41 @@ fn provider_concurrency_backpressure_zero_disables_permit() {
 }
 
 #[test]
+fn provider_wait_status_duration_uses_compact_labels() {
+    assert_eq!(provider_wait_status_duration(0), "0s");
+    assert_eq!(provider_wait_status_duration(500), "<1s");
+    assert_eq!(provider_wait_status_duration(9_000), "9s");
+    assert_eq!(provider_wait_status_duration(125_000), "2m 5s");
+    assert_eq!(provider_wait_status_duration(7_260_000), "2h 1m");
+}
+
+#[test]
+fn provider_wait_status_details_cover_anthropic_and_openrouter_cooldowns() {
+    let anthropic_source = include_str!("../anthropic.rs");
+    let openrouter_source = include_str!("../openrouter_sse_stream.rs");
+
+    for (provider, source) in [
+        ("anthropic", anthropic_source),
+        ("openrouter", openrouter_source),
+    ] {
+        let cooldown_status = source
+            .find("rate-limit cooldown {}")
+            .unwrap_or_else(|| panic!("{provider} should emit cooldown status detail"));
+        let compact_formatter = source[cooldown_status..]
+            .find("provider_wait_status_duration(delay)")
+            .unwrap_or_else(|| panic!("{provider} cooldown status should use shared formatter"));
+        let sleep = source[cooldown_status..]
+            .find("tokio::time::sleep")
+            .unwrap_or_else(|| panic!("{provider} cooldown should still sleep"));
+
+        assert!(
+            compact_formatter < sleep,
+            "{provider} should emit formatted cooldown status before sleeping"
+        );
+    }
+}
+
+#[test]
 fn test_parse_provider_hint_supports_known_values() {
     assert_eq!(
         MultiProvider::parse_provider_hint("claude"),

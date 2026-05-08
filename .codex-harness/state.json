@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Document provider backpressure configuration",
+  "focus": "Emit provider cooldown status details",
   "status": "done",
-  "activeContractId": "2026-05-08-document-provider-backpressure-configuration-b88554",
+  "activeContractId": "2026-05-08-emit-provider-cooldown-status-details-c738e3",
   "counters": {
-    "contracts": 51,
-    "traces": 82,
-    "gates": 53,
-    "verifications": 70,
+    "contracts": 52,
+    "traces": 84,
+    "gates": 55,
+    "verifications": 72,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -135,43 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T13:30:10.696Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-make-task-control-operation-id-idempotent-c45e22",
-      "summary": "Make task_control operation_id idempotent"
-    },
-    {
-      "ts": "2026-05-08T13:36:33.652Z",
-      "type": "trace_recorded",
-      "traceId": "trace-2026-05-08-ff6008b8",
-      "contractId": "2026-05-08-make-task-control-operation-id-idempotent-c45e22",
-      "kind": "failure",
-      "summary": "Initial task_control verification wrapper timed out at one second before tests ran."
-    },
-    {
-      "ts": "2026-05-08T13:36:33.655Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-d3634551",
-      "contractId": "2026-05-08-make-task-control-operation-id-idempotent-c45e22",
-      "status": "pass",
-      "summary": "Focused task_control operation_id idempotency verification passed."
-    },
-    {
-      "ts": "2026-05-08T13:36:33.657Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-3fd74a8b",
-      "contractId": "2026-05-08-make-task-control-operation-id-idempotent-c45e22",
-      "status": "pass",
-      "summary": "Coordinated selfdev build and reload passed for task_control idempotency."
-    },
-    {
-      "ts": "2026-05-08T13:36:33.659Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-make-task-control-operation-id-idempotent-c45e22",
-      "gateId": "gate-2026-05-08-7d76d7",
-      "verdict": "pass"
-    },
     {
       "ts": "2026-05-08T13:36:33.662Z",
       "type": "state_update",
@@ -719,6 +682,42 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-08-document-provider-backpressure-configuration-b88554",
       "gateId": "gate-2026-05-08-eede82",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T16:39:35.564Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-emit-provider-cooldown-status-details-c738e3",
+      "summary": "Emit provider cooldown status details"
+    },
+    {
+      "ts": "2026-05-08T16:42:19.430Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-0ca5a578",
+      "contractId": "2026-05-08-emit-provider-cooldown-status-details-c738e3",
+      "status": "pass",
+      "summary": "Focused provider cooldown status detail verification passed."
+    },
+    {
+      "ts": "2026-05-08T16:43:09.905Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-df6413a5",
+      "contractId": "2026-05-08-emit-provider-cooldown-status-details-c738e3",
+      "status": "pass",
+      "summary": "Selfdev build and reload passed for provider cooldown StatusDetail slice."
+    },
+    {
+      "ts": "2026-05-08T16:43:43.750Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-emit-provider-cooldown-status-details-c738e3",
+      "gateId": "gate-2026-05-08-2f4ea6",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T16:44:01.007Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-emit-provider-cooldown-status-details-c738e3",
+      "gateId": "gate-2026-05-08-7563a2",
       "verdict": "pass"
     }
   ]
