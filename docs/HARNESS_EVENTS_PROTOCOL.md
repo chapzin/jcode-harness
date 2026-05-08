@@ -225,6 +225,26 @@ Endpoint details:
 
 Start with NDJSON/replay. Add SSE when you need live visual progress. Use WebSocket only when the UI must send real-time control messages.
 
+## Broker adapter seam
+
+NATS JetStream and Redis Streams remain optional future adapters. The core build has no broker dependency; it exposes a small sink/source seam over `HarnessEvent` so adapters can be feature-gated later.
+
+Current local implementations:
+
+- `HarnessEventSink` publishes a redacted event and returns `HarnessEventSinkAck`.
+- `HarnessEventSource` reads replayable events after an optional last event id.
+- `HarnessEventNdjsonSink` and `HarnessEventNdjsonSource` provide the local fallback every broker-backed path should preserve.
+
+Route mapping for future adapters:
+
+| Adapter | Mapping |
+| --- | --- |
+| NATS subject | `jcode.harness_events.v1.run.<hex_run_id>[.session.<hex_session_id>][.task.<hex_task_id>]` |
+| Redis stream key | `jcode:harness-events:v1:run:<hex_run_id>:events[:session:<hex_session_id>][:task:<hex_task_id>]` |
+| Durable consumer | `jcode-harness-<hex_run_id>` |
+
+Route metadata is derived with `harness_event_broker_route(&event)` and must not be written back into the event schema. Run, session, and task ids are hex-encoded before entering subjects/keys so broker separators and wildcards cannot collide with user-provided ids. Broker outage policy should be: write local NDJSON first, attempt broker publish second, surface broker failures as warnings/evidence instead of deleting or rewriting local proof.
+
 ## WebSocket control command core
 
 The #24 control-channel foundation is transport-neutral: a WebSocket client sends a JSON command, the gateway validates read/write authorization, and the core converts the command into a redacted audit event. This keeps dashboard control auditable even before a full browser UI exists.

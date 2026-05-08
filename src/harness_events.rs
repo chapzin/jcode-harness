@@ -241,6 +241,86 @@ pub struct HarnessEventSamplingDecision {
     pub reason: Option<String>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HarnessEventSinkAck {
+    pub sink: String,
+    pub durable: bool,
+    pub event_id: String,
+    pub run_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HarnessEventBrokerRoute {
+    pub run_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>,
+    pub nats_subject: String,
+    pub redis_stream_key: String,
+    pub durable_consumer: String,
+}
+
+pub trait HarnessEventSink {
+    fn sink_name(&self) -> &str;
+    fn publish_event(&mut self, event: &HarnessEvent) -> anyhow::Result<HarnessEventSinkAck>;
+    fn flush(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+
+pub trait HarnessEventSource {
+    fn source_name(&self) -> &str;
+    fn read_events_after(
+        &self,
+        run_id: &str,
+        last_event_id: Option<&str>,
+    ) -> anyhow::Result<Vec<HarnessEvent>>;
+}
+
+#[derive(Clone, Debug)]
+pub struct HarnessEventNdjsonSink {
+    path: PathBuf,
+}
+
+impl HarnessEventNdjsonSink {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self { path: path.into() }
+    }
+
+    pub fn for_run(run_id: &str) -> Self {
+        Self::new(harness_event_log_path(run_id))
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct HarnessEventNdjsonSource {
+    log_dir: PathBuf,
+}
+
+impl HarnessEventNdjsonSource {
+    pub fn new(log_dir: impl Into<PathBuf>) -> Self {
+        Self {
+            log_dir: log_dir.into(),
+        }
+    }
+
+    pub fn default_dir() -> Self {
+        Self::new(default_harness_event_log_dir())
+    }
+
+    pub fn event_log_path(&self, run_id: &str) -> PathBuf {
+        self.log_dir
+            .join(format!("{}.ndjson", sanitize_run_id(run_id)))
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HarnessApprovalDecision {
@@ -840,6 +920,101 @@ pub fn append_harness_event_ndjson(
         .append(true)
         .open(path)?;
     write_harness_event_ndjson(&mut file, event)
+}
+
+impl HarnessEventSink for HarnessEventNdjsonSink {
+    fn sink_name(&self) -> &str {
+        "ndjson"
+    }
+
+    fn publish_event(&mut self, event: &HarnessEvent) -> anyhow::Result<HarnessEventSinkAck> {
+        append_harness_event_ndjson(&self.path, event)?;
+        Ok(HarnessEventSinkAck {
+            sink: self.sink_name().to_string(),
+            durable: true,
+            event_id: event.event_id.clone(),
+            run_id: event.run_id.clone(),
+            message_id: Some(format!("{}:{}", event.run_id, event.sequence)),
+        })
+    }
+}
+
+impl HarnessEventSource for HarnessEventNdjsonSource {
+    fn source_name(&self) -> &str {
+        "ndjson"
+    }
+
+    fn read_events_after(
+        &self,
+        run_id: &str,
+        last_event_id: Option<&str>,
+    ) -> anyhow::Result<Vec<HarnessEvent>> {
+        let path = self.event_log_path(run_id);
+        if !path.exists() {
+            return Ok(Vec::new());
+        }
+        let events = read_harness_event_ndjson(path)?;
+        Ok(harness_events_after_last_event_id(&events, last_event_id).to_vec())
+    }
+}
+
+pub fn harness_event_broker_route(event: &HarnessEvent) -> HarnessEventBrokerRoute {
+    let run_id = encode_harness_event_broker_token(&event.run_id);
+    let session_id = event
+        .session_id
+        .as_deref()
+        .map(encode_harness_event_broker_token)
+        .filter(|value| !value.is_empty());
+    let task_id = event
+        .payload
+        .get("task_id")
+        .and_then(Value::as_str)
+        .map(encode_harness_event_broker_token)
+        .filter(|value| !value.is_empty());
+
+    let mut subject_parts = vec!["jcode", "harness_events", "v1", "run"]
+        .into_iter()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    subject_parts.push(run_id.clone());
+    if let Some(session_id) = &session_id {
+        subject_parts.push("session".to_string());
+        subject_parts.push(session_id.clone());
+    }
+    if let Some(task_id) = &task_id {
+        subject_parts.push("task".to_string());
+        subject_parts.push(task_id.clone());
+    }
+
+    let mut redis_stream_key = format!("jcode:harness-events:v1:run:{run_id}:events");
+    if let Some(session_id) = &session_id {
+        redis_stream_key.push_str(":session:");
+        redis_stream_key.push_str(session_id);
+    }
+    if let Some(task_id) = &task_id {
+        redis_stream_key.push_str(":task:");
+        redis_stream_key.push_str(task_id);
+    }
+    let durable_consumer = format!("jcode-harness-{}", run_id);
+
+    HarnessEventBrokerRoute {
+        run_id,
+        session_id,
+        task_id,
+        nats_subject: subject_parts.join("."),
+        redis_stream_key,
+        durable_consumer,
+    }
+}
+
+pub fn encode_harness_event_broker_token(value: &str) -> String {
+    if value.is_empty() {
+        return "b00".to_string();
+    }
+    let mut encoded = String::with_capacity(1 + value.len().saturating_mul(2));
+    encoded.push('b');
+    encoded.push_str(&hex::encode(value.as_bytes()));
+    encoded
 }
 
 pub fn render_harness_event_sse(
@@ -2631,5 +2806,113 @@ mod tests {
         assert_eq!(event.sequence, 1);
         assert_eq!(event.kind, HarnessEventKind::RunStarted);
         assert!(event.event_id.starts_with("hevt_"));
+    }
+
+    #[test]
+    fn broker_route_sanitizes_subjects_keys_and_consumers() {
+        let event = HarnessEvent::new(
+            "hevt_broker",
+            "Run/Prod A",
+            DateTime::parse_from_rfc3339("2026-05-08T05:21:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            1,
+            HarnessEventLevel::Info,
+            HarnessEventKind::ToolFinished,
+            json!({"task_id": "Task:42", "status": "ok"}),
+        )
+        .with_session_id("Session 1");
+
+        let route = harness_event_broker_route(&event);
+
+        let run_token = encode_harness_event_broker_token("Run/Prod A");
+        let session_token = encode_harness_event_broker_token("Session 1");
+        let task_token = encode_harness_event_broker_token("Task:42");
+
+        assert_eq!(route.run_id, run_token);
+        assert_eq!(route.session_id.as_deref(), Some(session_token.as_str()));
+        assert_eq!(route.task_id.as_deref(), Some(task_token.as_str()));
+        assert_eq!(
+            route.nats_subject,
+            format!(
+                "jcode.harness_events.v1.run.{run_token}.session.{session_token}.task.{task_token}"
+            )
+        );
+        assert_eq!(
+            route.redis_stream_key,
+            format!(
+                "jcode:harness-events:v1:run:{run_token}:events:session:{session_token}:task:{task_token}"
+            )
+        );
+        assert_eq!(route.durable_consumer, format!("jcode-harness-{run_token}"));
+        assert!(!route.nats_subject.contains("Run/Prod A"));
+        assert!(!route.redis_stream_key.contains("Session 1"));
+    }
+
+    #[test]
+    fn broker_token_encodes_untrusted_ids_without_wildcards_or_collisions() {
+        let slash = encode_harness_event_broker_token("a/b");
+        let underscore = encode_harness_event_broker_token("a_b");
+        let wildcard = encode_harness_event_broker_token("run.*.>");
+
+        assert_ne!(slash, underscore);
+        assert!(wildcard.starts_with('b'));
+        assert!(
+            wildcard
+                .chars()
+                .all(|ch| ch.is_ascii_hexdigit() || ch == 'b')
+        );
+        assert!(
+            !wildcard
+                .chars()
+                .any(|ch| matches!(ch, '*' | '>' | '.' | ':' | '/' | ' '))
+        );
+        assert_eq!(encode_harness_event_broker_token(""), "b00");
+    }
+
+    #[test]
+    fn ndjson_sink_and_source_traits_round_trip_after_last_event_id() {
+        let temp = tempfile::Builder::new()
+            .prefix("jcode-harness-events-sink-source-")
+            .tempdir()
+            .unwrap();
+        let path = temp.path().join("run_sink.ndjson");
+        let mut sink = HarnessEventNdjsonSink::new(&path);
+        let source = HarnessEventNdjsonSource::new(temp.path());
+        let first = HarnessEvent::new(
+            "hevt_first",
+            "run_sink",
+            DateTime::parse_from_rfc3339("2026-05-08T05:22:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            1,
+            HarnessEventLevel::Info,
+            HarnessEventKind::RunStarted,
+            json!({"status": "started"}),
+        );
+        let second = HarnessEvent::new(
+            "hevt_second",
+            "run_sink",
+            DateTime::parse_from_rfc3339("2026-05-08T05:22:01Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            2,
+            HarnessEventLevel::Info,
+            HarnessEventKind::RunCompleted,
+            json!({"status": "ok"}),
+        );
+
+        let ack = sink.publish_event(&first).unwrap();
+        sink.publish_event(&second).unwrap();
+        sink.flush().unwrap();
+        let tail = source
+            .read_events_after("run_sink", Some("hevt_first"))
+            .unwrap();
+
+        assert_eq!(ack.sink, "ndjson");
+        assert!(ack.durable);
+        assert_eq!(ack.message_id.as_deref(), Some("run_sink:1"));
+        assert_eq!(tail.len(), 1);
+        assert_eq!(tail[0].event_id, "hevt_second");
     }
 }

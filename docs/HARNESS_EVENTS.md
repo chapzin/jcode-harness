@@ -18,6 +18,8 @@ Implemented in `src/harness_events.rs`:
 - Default payload redaction before events leave the bus.
 - Local NDJSON writer/append helpers for already-redacted `HarnessEvent` objects.
 - `HarnessControlCommand` plus `harness_control_command_event_draft` for auditable dashboard/WebSocket control commands.
+- `HarnessEventSink` / `HarnessEventSource` traits plus NDJSON implementations for future broker adapters.
+- Deterministic broker route mapping for NATS subjects, Redis stream keys, and durable consumer names without storing broker IDs in the event schema.
 
 Consumers should subscribe to the in-process bus first, then attach sinks such as NDJSON, SSE, or future WebSocket/broker adapters.
 
@@ -159,6 +161,26 @@ Sink guarantees:
 - payloads have already passed through the core redaction path.
 
 The default log directory is under `JCODE_RUNTIME_DIR` when set, otherwise the platform runtime directory, in a `harness-events/` subdirectory. Runtime producer coverage is currently incremental: `jcode run --ndjson` writes typed run/tool summary events and exposes `harness_run_id` plus `harness_event_log` in its `start`, `done`, and `error` records.
+
+## Pluggable sinks, sources, and broker routes
+
+The first #22 slice keeps local-first builds dependency-free while defining the extension seam for NATS JetStream, Redis Streams, or other durable adapters.
+
+Core traits:
+
+- `HarnessEventSink::publish_event(&HarnessEvent)` returns a `HarnessEventSinkAck` with sink name, durability, event id, run id, and optional message id.
+- `HarnessEventSource::read_events_after(run_id, last_event_id)` returns replayable events with `Last-Event-ID` semantics.
+- `HarnessEventNdjsonSink` and `HarnessEventNdjsonSource` implement those traits over the existing local NDJSON logs.
+
+Broker routing stays outside the event envelope. `harness_event_broker_route(&event)` derives deterministic adapter metadata:
+
+```text
+nats_subject:     jcode.harness_events.v1.run.<hex_run_id>[.session.<hex_session_id>][.task.<hex_task_id>]
+redis_stream_key: jcode:harness-events:v1:run:<hex_run_id>:events[:session:<hex_session_id>][:task:<hex_task_id>]
+durable_consumer: jcode-harness-<hex_run_id>
+```
+
+The route encodes run/session/task components as ASCII-safe hex tokens so broker separators and wildcards cannot collide with user-provided ids. Future broker adapters should use this mapping for publish/consume configuration, while still writing local NDJSON evidence first so broker outages do not erase audit trails.
 
 ## SSE protocol core
 
