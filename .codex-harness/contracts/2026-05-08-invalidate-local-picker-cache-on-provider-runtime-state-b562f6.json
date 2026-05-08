@@ -1,0 +1,51 @@
+{
+  "id": "2026-05-08-invalidate-local-picker-cache-on-provider-runtime-state-b562f6",
+  "title": "Invalidate local picker cache on provider runtime state",
+  "goal": "Prevent stale local model picker cache entries from hiding new provider cooldown/backpressure details by adding a provider runtime state revision to local picker cache signatures.",
+  "createdAt": "2026-05-08T17:36:05.764Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 30
+  },
+  "permissions": [
+    "read repo",
+    "edit provider/tui code/tests",
+    "run focused tests",
+    "selfdev build/reload",
+    "commit and push",
+    "comment issue #27"
+  ],
+  "completionConditions": [
+    "Provider runtime state revision increments when cooldown/backpressure visible state can change.",
+    "Local model picker cache signatures include provider runtime state revision so cached entries refresh after cooldown/backpressure transitions.",
+    "Remote picker cache behavior remains unchanged except existing remote route markers.",
+    "Focused tests, cargo fmt/check, cargo check, selfdev build/reload, governance, commit/push, and issue #27 update pass."
+  ],
+  "outputPaths": [
+    "src/provider/routing.rs",
+    "src/provider/mod.rs",
+    "src/provider/tests/fallback_failover.rs",
+    "src/tui/app.rs",
+    "src/tui/app/inline_interactive.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode provider_runtime_state_revision --lib -- --test-threads=1 --nocapture",
+    "cargo test -p jcode model_picker_cache_signature_includes_provider_runtime_state --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "formatting_failure",
+    "cache_staleness_regression",
+    "runtime_revision_overbump_unacceptable",
+    "governance_failure"
+  ],
+  "notes": "Follow-up to 65c5fa90. Runtime state is now applied to synthetic routes, but cache signature can still reuse old entries if cooldown/backpressure state changes after the first open."
+}

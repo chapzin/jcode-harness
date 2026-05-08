@@ -14,6 +14,7 @@ const PROVIDER_RATE_LIMIT_COOLDOWN_CAP_ENV: &str = "JCODE_PROVIDER_RATE_LIMIT_CO
 const PROVIDER_CONCURRENCY_LIMIT_ENV: &str = "JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL";
 
 static RETRY_JITTER_COUNTER: AtomicU64 = AtomicU64::new(1);
+static PROVIDER_RUNTIME_STATE_REVISION: AtomicU64 = AtomicU64::new(1);
 static PROVIDER_RATE_LIMIT_COOLDOWNS: LazyLock<Mutex<HashMap<String, Instant>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 static PROVIDER_CONCURRENCY_LIMITERS: LazyLock<Mutex<HashMap<String, Arc<Semaphore>>>> =
@@ -154,6 +155,7 @@ pub(crate) fn provider_rate_limit_cooldown_remaining_ms(
     let until = guard.get(&key).copied()?;
     if until <= now {
         guard.remove(&key);
+        bump_provider_runtime_state_revision();
         return None;
     }
 
@@ -187,7 +189,9 @@ pub(crate) fn clear_provider_rate_limit_cooldown(provider: &str, model: &str) {
         return;
     };
     if let Ok(mut guard) = PROVIDER_RATE_LIMIT_COOLDOWNS.lock() {
-        guard.remove(&key);
+        if guard.remove(&key).is_some() {
+            bump_provider_runtime_state_revision();
+        }
     }
 }
 
@@ -217,6 +221,33 @@ impl ProviderConcurrencyPermit {
     }
 }
 
+impl Drop for ProviderConcurrencyPermit {
+    fn drop(&mut self) {
+        bump_provider_runtime_state_revision();
+    }
+}
+
+pub(crate) fn provider_runtime_state_revision() -> u64 {
+    prune_expired_provider_rate_limit_cooldowns();
+    PROVIDER_RUNTIME_STATE_REVISION.load(Ordering::Relaxed)
+}
+
+fn bump_provider_runtime_state_revision() {
+    PROVIDER_RUNTIME_STATE_REVISION.fetch_add(1, Ordering::Relaxed);
+}
+
+fn prune_expired_provider_rate_limit_cooldowns() {
+    let now = Instant::now();
+    let Ok(mut guard) = PROVIDER_RATE_LIMIT_COOLDOWNS.lock() else {
+        return;
+    };
+    let before = guard.len();
+    guard.retain(|_, until| *until > now);
+    if guard.len() != before {
+        bump_provider_runtime_state_revision();
+    }
+}
+
 pub(crate) async fn acquire_provider_concurrency_permit(
     provider: &str,
     model: &str,
@@ -238,6 +269,7 @@ pub(crate) async fn acquire_provider_concurrency_permit(
 
     let wait_started = Instant::now();
     let permit = semaphore.acquire_owned().await.ok()?;
+    bump_provider_runtime_state_revision();
     Some(ProviderConcurrencyPermit {
         provider: provider.trim().to_string(),
         model: model.trim().to_string(),
@@ -280,6 +312,7 @@ pub(crate) fn provider_rate_limit_cooldown_cap_ms() -> u64 {
 pub(crate) fn clear_provider_concurrency_limiters() {
     if let Ok(mut guard) = PROVIDER_CONCURRENCY_LIMITERS.lock() {
         guard.clear();
+        bump_provider_runtime_state_revision();
     }
 }
 
@@ -302,6 +335,7 @@ fn record_provider_rate_limit_cooldown_ms(
             }
         })
         .or_insert(until);
+    bump_provider_runtime_state_revision();
     Some(delay_ms)
 }
 

@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Apply provider runtime state to simplified model picker",
+  "focus": "Invalidate local picker cache on provider runtime state",
   "status": "done",
-  "activeContractId": "2026-05-08-apply-provider-runtime-state-to-simplified-model-picker-5eeed2",
+  "activeContractId": "2026-05-08-invalidate-local-picker-cache-on-provider-runtime-state-b562f6",
   "counters": {
-    "contracts": 58,
-    "traces": 101,
-    "gates": 62,
-    "verifications": 85,
+    "contracts": 59,
+    "traces": 106,
+    "gates": 63,
+    "verifications": 87,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -135,55 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T14:27:57.731Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-8d27fb5e",
-      "contractId": "2026-05-08-operation-scoped-cleanup-and-await-followups-a0a848",
-      "status": "pass",
-      "summary": "Selfdev rebuild and reload metadata refresh passed"
-    },
-    {
-      "ts": "2026-05-08T14:28:09.717Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-operation-scoped-cleanup-and-await-followups-a0a848",
-      "gateId": "gate-2026-05-08-3fe9c0",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-08T14:29:11.341Z",
-      "type": "knowledge_queried",
-      "summary": "durable swarm run recovery cleanup operation id"
-    },
-    {
-      "ts": "2026-05-08T14:30:15.441Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-run-scoped-await-no-candidates-guidance-bbd166",
-      "summary": "Run scoped await no-candidates guidance"
-    },
-    {
-      "ts": "2026-05-08T14:32:02.989Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-dddc7f7a",
-      "contractId": "2026-05-08-run-scoped-await-no-candidates-guidance-bbd166",
-      "status": "pass",
-      "summary": "Focused await_members run-scoped no-candidates verification passed"
-    },
-    {
-      "ts": "2026-05-08T14:34:12.255Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-d80b8923",
-      "contractId": "2026-05-08-run-scoped-await-no-candidates-guidance-bbd166",
-      "status": "pass",
-      "summary": "selfdev build and reload passed for run-scoped await no-candidates guidance"
-    },
-    {
-      "ts": "2026-05-08T14:34:20.665Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-run-scoped-await-no-candidates-guidance-bbd166",
-      "gateId": "gate-2026-05-08-8492de",
-      "verdict": "pass"
-    },
     {
       "ts": "2026-05-08T15:35:25.907Z",
       "type": "contract_created",
@@ -717,6 +668,59 @@
       "contractId": "2026-05-08-apply-provider-runtime-state-to-simplified-model-picker-5eeed2",
       "kind": "verification",
       "summary": "Governance audit passed for simplified picker runtime state slice"
+    },
+    {
+      "ts": "2026-05-08T17:36:05.766Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-invalidate-local-picker-cache-on-provider-runtime-state-b562f6",
+      "summary": "Invalidate local picker cache on provider runtime state"
+    },
+    {
+      "ts": "2026-05-08T17:38:16.641Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-10a7c6e6",
+      "contractId": "2026-05-08-invalidate-local-picker-cache-on-provider-runtime-state-b562f6",
+      "kind": "failure",
+      "summary": "Focused verification failed due to private cache signature helper in test"
+    },
+    {
+      "ts": "2026-05-08T17:42:10.990Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-fe9684d2",
+      "contractId": "2026-05-08-invalidate-local-picker-cache-on-provider-runtime-state-b562f6",
+      "status": "pass",
+      "summary": "Focused verification passed for provider runtime state cache invalidation slice"
+    },
+    {
+      "ts": "2026-05-08T17:42:19.637Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-2215ad82",
+      "contractId": "2026-05-08-invalidate-local-picker-cache-on-provider-runtime-state-b562f6",
+      "status": "pass",
+      "summary": "Selfdev build passed for provider runtime state cache invalidation slice"
+    },
+    {
+      "ts": "2026-05-08T17:42:33.211Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-910a8ee9",
+      "contractId": "2026-05-08-invalidate-local-picker-cache-on-provider-runtime-state-b562f6",
+      "kind": "success",
+      "summary": "Reload succeeded for provider runtime state cache invalidation slice"
+    },
+    {
+      "ts": "2026-05-08T17:42:43.755Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-invalidate-local-picker-cache-on-provider-runtime-state-b562f6",
+      "gateId": "gate-2026-05-08-b01a36",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T17:43:00.887Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-3e1f241c",
+      "contractId": "2026-05-08-invalidate-local-picker-cache-on-provider-runtime-state-b562f6",
+      "kind": "verification",
+      "summary": "Governance audit passed for provider runtime state cache invalidation slice"
     }
   ]
 }

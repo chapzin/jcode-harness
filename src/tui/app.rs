@@ -228,6 +228,7 @@ struct ModelPickerCacheSignature {
     available_efforts: Vec<String>,
     simplified_model_picker: bool,
     catalog_revision: u64,
+    provider_runtime_state_revision: u64,
     remote_provider_name: Option<String>,
     remote_available_len: usize,
     remote_available_first: Option<String>,

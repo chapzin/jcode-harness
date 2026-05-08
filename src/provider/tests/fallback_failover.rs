@@ -626,6 +626,80 @@ fn provider_runtime_state_to_routes_is_used_by_simplified_picker() {
 }
 
 #[test]
+fn provider_runtime_state_revision_changes_for_cooldown_and_backpressure() {
+    with_env_var("JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL", "1", || {
+        clear_provider_concurrency_limiters();
+        clear_provider_rate_limit_cooldown("openai", "gpt-test");
+        let base = provider_runtime_state_revision();
+
+        record_provider_rate_limit_cooldown_for_retry(
+            "openai",
+            "gpt-test",
+            "HTTP 429 retry-after: 2",
+            1,
+            1_000,
+            10_000,
+        );
+        let after_cooldown = provider_runtime_state_revision();
+        assert!(
+            after_cooldown > base,
+            "recording cooldown should bump runtime state revision"
+        );
+
+        clear_provider_rate_limit_cooldown("openai", "gpt-test");
+        let after_clear = provider_runtime_state_revision();
+        assert!(
+            after_clear > after_cooldown,
+            "clearing visible cooldown should bump runtime state revision"
+        );
+
+        enter_test_runtime().block_on(async {
+            let permit = acquire_provider_concurrency_permit("openai", "gpt-test")
+                .await
+                .expect("permit should acquire");
+            let after_acquire = provider_runtime_state_revision();
+            assert!(
+                after_acquire > after_clear,
+                "acquiring a backpressure permit should bump runtime state revision"
+            );
+
+            drop(permit);
+            assert!(
+                provider_runtime_state_revision() > after_acquire,
+                "releasing a backpressure permit should bump runtime state revision"
+            );
+        });
+        clear_provider_concurrency_limiters();
+    });
+}
+
+#[test]
+fn provider_runtime_state_revision_prunes_expired_cooldowns() {
+    clear_provider_rate_limit_cooldown("openai", "gpt-expired");
+    let before = provider_runtime_state_revision();
+    record_provider_rate_limit_cooldown_for_retry(
+        "openai",
+        "gpt-expired",
+        "HTTP 429 retry-after: 1",
+        1,
+        1_000,
+        10_000,
+    );
+    let after_record = provider_runtime_state_revision();
+    assert!(after_record > before);
+
+    std::thread::sleep(std::time::Duration::from_millis(1_050));
+    assert_eq!(
+        provider_rate_limit_cooldown_remaining_ms("openai", "gpt-expired"),
+        None
+    );
+    assert!(
+        provider_runtime_state_revision() > after_record,
+        "runtime state revision should advance when expired cooldown is pruned"
+    );
+}
+
+#[test]
 fn test_parse_provider_hint_supports_known_values() {
     assert_eq!(
         MultiProvider::parse_provider_hint("claude"),

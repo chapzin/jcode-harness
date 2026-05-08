@@ -33,7 +33,7 @@ impl App {
             route.model, route.provider, route.api_method, route.available, route.detail
         )
     }
-    fn model_picker_cache_signature(
+    pub(super) fn model_picker_cache_signature(
         &self,
         current_model: &str,
         config_default_model: Option<String>,
@@ -58,6 +58,11 @@ impl App {
                 .collect(),
             simplified_model_picker: crate::perf::tui_policy().simplified_model_picker,
             catalog_revision: self.model_picker_catalog_revision,
+            provider_runtime_state_revision: if self.is_remote {
+                0
+            } else {
+                crate::provider::provider_runtime_state_revision()
+            },
             remote_provider_name: self.remote_provider_name.clone(),
             remote_available_len: self.remote_available_entries.len(),
             remote_available_first: self.remote_available_entries.first().cloned(),
