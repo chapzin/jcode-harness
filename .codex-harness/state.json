@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Surface provider backpressure in model routes",
+  "focus": "Apply provider runtime state to simplified model picker",
   "status": "done",
-  "activeContractId": "2026-05-08-surface-provider-backpressure-in-model-routes-55ae8d",
+  "activeContractId": "2026-05-08-apply-provider-runtime-state-to-simplified-model-picker-5eeed2",
   "counters": {
-    "contracts": 57,
-    "traces": 97,
-    "gates": 61,
-    "verifications": 83,
+    "contracts": 58,
+    "traces": 101,
+    "gates": 62,
+    "verifications": 85,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -135,51 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T14:21:44.750Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-ef89daf5",
-      "contractId": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
-      "status": "pass",
-      "summary": "Selfdev rebuild and reload metadata refresh passed"
-    },
-    {
-      "ts": "2026-05-08T14:21:54.592Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
-      "gateId": "gate-2026-05-08-c33109",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-08T14:22:07.071Z",
-      "type": "trace_recorded",
-      "traceId": "trace-2026-05-08-8a2c9c08",
-      "contractId": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
-      "kind": "decision",
-      "summary": "Chose operation-scoped run_id for retryable spawned workers"
-    },
-    {
-      "ts": "2026-05-08T14:23:47.725Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-operation-scoped-cleanup-and-await-followups-a0a848",
-      "summary": "Operation scoped cleanup and await followups"
-    },
-    {
-      "ts": "2026-05-08T14:26:23.774Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-077cb0eb",
-      "contractId": "2026-05-08-operation-scoped-cleanup-and-await-followups-a0a848",
-      "status": "pass",
-      "summary": "Focused operation_run_scope verification passed"
-    },
-    {
-      "ts": "2026-05-08T14:26:54.147Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-f9c5c751",
-      "contractId": "2026-05-08-operation-scoped-cleanup-and-await-followups-a0a848",
-      "status": "pass",
-      "summary": "Selfdev build passed for operation scoped cleanup/await slice"
-    },
     {
       "ts": "2026-05-08T14:27:57.731Z",
       "type": "verification_recorded",
@@ -717,6 +672,51 @@
       "contractId": "2026-05-08-surface-provider-backpressure-in-model-routes-55ae8d",
       "kind": "verification",
       "summary": "Governance audit passed for provider model route backpressure slice"
+    },
+    {
+      "ts": "2026-05-08T17:29:48.330Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-apply-provider-runtime-state-to-simplified-model-picker-5eeed2",
+      "summary": "Apply provider runtime state to simplified model picker"
+    },
+    {
+      "ts": "2026-05-08T17:32:31.377Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-45c3fa80",
+      "contractId": "2026-05-08-apply-provider-runtime-state-to-simplified-model-picker-5eeed2",
+      "status": "pass",
+      "summary": "Focused verification passed for simplified picker runtime state slice"
+    },
+    {
+      "ts": "2026-05-08T17:32:40.867Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-71d30874",
+      "contractId": "2026-05-08-apply-provider-runtime-state-to-simplified-model-picker-5eeed2",
+      "status": "pass",
+      "summary": "Selfdev build passed for simplified picker runtime state slice"
+    },
+    {
+      "ts": "2026-05-08T17:32:48.487Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-8bff6fac",
+      "contractId": "2026-05-08-apply-provider-runtime-state-to-simplified-model-picker-5eeed2",
+      "kind": "success",
+      "summary": "Reload succeeded for simplified picker runtime state slice"
+    },
+    {
+      "ts": "2026-05-08T17:33:02.208Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-apply-provider-runtime-state-to-simplified-model-picker-5eeed2",
+      "gateId": "gate-2026-05-08-8105a0",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T17:33:25.805Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-a44d4c96",
+      "contractId": "2026-05-08-apply-provider-runtime-state-to-simplified-model-picker-5eeed2",
+      "kind": "verification",
+      "summary": "Governance audit passed for simplified picker runtime state slice"
     }
   ]
 }

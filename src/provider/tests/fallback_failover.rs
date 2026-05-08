@@ -550,6 +550,82 @@ fn provider_model_route_backpressure_uses_openrouter_scope_and_preserves_cooldow
 }
 
 #[test]
+fn provider_runtime_state_to_routes_decorates_synthetic_picker_routes() {
+    with_env_var("JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL", "1", || {
+        with_env_var_removed("JCODE_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS", || {
+            clear_provider_concurrency_limiters();
+            clear_provider_rate_limit_cooldown("openai", "gpt-test");
+            enter_test_runtime().block_on(async {
+                let _held_permit = acquire_provider_concurrency_permit("openai", "gpt-test")
+                    .await
+                    .expect("first permit should saturate the provider/model limiter");
+                record_provider_rate_limit_cooldown_for_retry(
+                    "openai",
+                    "gpt-test",
+                    "HTTP 429 retry-after: 2",
+                    1,
+                    1_000,
+                    10_000,
+                );
+
+                let routes = apply_provider_runtime_state_to_routes(vec![
+                    ModelRoute {
+                        model: "gpt-test".to_string(),
+                        provider: "OpenAI".to_string(),
+                        api_method: "openai-oauth".to_string(),
+                        available: true,
+                        detail: String::new(),
+                        cheapness: None,
+                    },
+                    ModelRoute {
+                        model: "gemini-test".to_string(),
+                        provider: "Gemini".to_string(),
+                        api_method: "code-assist-oauth".to_string(),
+                        available: true,
+                        detail: String::new(),
+                        cheapness: None,
+                    },
+                ]);
+
+                let openai = routes
+                    .iter()
+                    .find(|route| route.provider == "OpenAI")
+                    .expect("openai synthetic route should remain present");
+                assert!(!openai.available);
+                assert!(openai.detail.starts_with("rate-limit cooldown "));
+                assert!(openai.detail.contains("provider backpressure limit=1"));
+
+                let gemini = routes
+                    .iter()
+                    .find(|route| route.provider == "Gemini")
+                    .expect("unrelated routes should remain present");
+                assert!(gemini.available);
+                assert!(gemini.detail.is_empty());
+            });
+            clear_provider_rate_limit_cooldown("openai", "gpt-test");
+            clear_provider_concurrency_limiters();
+        });
+    });
+}
+
+#[test]
+fn provider_runtime_state_to_routes_is_used_by_simplified_picker() {
+    let source = include_str!("../../tui/app/inline_interactive.rs");
+    let simplified_picker = source
+        .find("fn simplified_model_routes_for_picker")
+        .expect("simplified picker should exist");
+    let next_picker_function = source[simplified_picker..]
+        .find("pub(super) fn open_model_picker")
+        .expect("simplified picker should precede open_model_picker");
+    let simplified_body = &source[simplified_picker..simplified_picker + next_picker_function];
+
+    assert!(
+        simplified_body.contains("crate::provider::apply_provider_runtime_state_to_routes(routes)"),
+        "simplified picker should apply shared provider runtime state to synthetic routes"
+    );
+}
+
+#[test]
 fn test_parse_provider_hint_supports_known_values() {
     assert_eq!(
         MultiProvider::parse_provider_hint("claude"),

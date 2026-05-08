@@ -234,7 +234,7 @@ impl App {
             });
         }
 
-        routes
+        crate::provider::apply_provider_runtime_state_to_routes(routes)
     }
 
     pub(super) fn open_model_picker(&mut self) {

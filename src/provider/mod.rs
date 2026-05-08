@@ -1148,10 +1148,7 @@ impl Provider for MultiProvider {
             ));
         }
 
-        dedupe_model_routes(routes)
-            .into_iter()
-            .map(apply_provider_runtime_state_to_route)
-            .collect()
+        apply_provider_runtime_state_to_routes(dedupe_model_routes(routes))
     }
 
     async fn prefetch_models(&self) -> Result<()> {
@@ -1883,6 +1880,13 @@ impl Provider for MultiProvider {
         self.auto_select_multi_account_for_provider(target);
         Ok(())
     }
+}
+
+pub(crate) fn apply_provider_runtime_state_to_routes(routes: Vec<ModelRoute>) -> Vec<ModelRoute> {
+    routes
+        .into_iter()
+        .map(apply_provider_runtime_state_to_route)
+        .collect()
 }
 
 fn apply_provider_runtime_state_to_route(mut route: ModelRoute) -> ModelRoute {
