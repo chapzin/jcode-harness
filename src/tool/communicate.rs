@@ -811,6 +811,132 @@ fn format_swarm_health_for_run(
     ToolOutput::new(output)
 }
 
+fn reconcile_status_label(member: &AgentInfo) -> &str {
+    member.status.as_deref().unwrap_or("unknown")
+}
+
+fn format_swarm_reconcile(
+    ctx: &ToolContext,
+    members: &[AgentInfo],
+    plan: Option<&PlanGraphStatus>,
+    run_id_scope: Option<&str>,
+) -> ToolOutput {
+    let original_count = members.len();
+    let scoped_members = run_scoped_members(members, run_id_scope);
+    let members = scoped_members.as_slice();
+
+    let mut owned = 0usize;
+    let mut active = 0usize;
+    let mut terminal = 0usize;
+    let mut stale = 0usize;
+    let mut active_members = Vec::new();
+    let mut terminal_members = Vec::new();
+    let mut stale_members = Vec::new();
+
+    for member in members {
+        let status = reconcile_status_label(member);
+        let is_self = member.session_id == ctx.session_id;
+        let is_owned = health_is_owned_by(member, &ctx.session_id);
+        let is_terminal = health_is_terminal_status(status);
+        let is_stale = health_is_stale_status(status);
+
+        if is_owned {
+            owned += 1;
+        }
+        if is_stale {
+            stale += 1;
+            stale_members.push(format!("{}({status})", health_member_name(member)));
+        } else if is_terminal {
+            terminal += 1;
+            terminal_members.push(format!("{}({status})", health_member_name(member)));
+        } else if !is_self {
+            active += 1;
+            active_members.push(format!("{}({status})", health_member_name(member)));
+        }
+    }
+
+    let run_suffix = run_id_scope
+        .map(|run_id| format!(" run_id={run_id}"))
+        .unwrap_or_default();
+    let scoped_hint = run_id_scope
+        .map(|run_id| format!(" for run_id={run_id}"))
+        .unwrap_or_else(|| " for the current swarm".to_string());
+
+    let mut output = String::new();
+    let _ = writeln!(output, "Swarm reconcile");
+    match run_id_scope {
+        Some(run_id) => {
+            let _ = writeln!(
+                output,
+                "- scope: run_id={run_id} (showing {}/{})",
+                members.len(),
+                original_count
+            );
+        }
+        None => {
+            let _ = writeln!(output, "- scope: current swarm");
+        }
+    }
+    let _ = writeln!(
+        output,
+        "- members: total={} owned={} active={} terminal={} stale={}",
+        members.len(),
+        owned,
+        active,
+        terminal,
+        stale
+    );
+    if let Some(plan) = plan {
+        let _ = writeln!(
+            output,
+            "- plan: ready={} active={} blocked={} completed={} cycle={}",
+            plan.ready_ids.len(),
+            plan.active_ids.len(),
+            plan.blocked_ids.len(),
+            plan.completed_ids.len(),
+            plan.cycle_ids.len()
+        );
+    } else {
+        let _ = writeln!(output, "- plan: unavailable");
+    }
+
+    if !active_members.is_empty() {
+        let _ = writeln!(
+            output,
+            "- active members: {}",
+            format_named_members(active_members, "none")
+        );
+    }
+    if !terminal_members.is_empty() {
+        let _ = writeln!(
+            output,
+            "- terminal members: {}",
+            format_named_members(terminal_members, "none")
+        );
+    }
+    if !stale_members.is_empty() {
+        let _ = writeln!(
+            output,
+            "- stale members: {}",
+            format_named_members(stale_members, "none")
+        );
+    }
+
+    let next_step = if active > 0 {
+        format!("swarm await_members{run_suffix} mode=all")
+    } else if stale > 0 || terminal > 0 {
+        format!("swarm cleanup{run_suffix}")
+    } else if plan.is_some_and(|plan| !plan.ready_ids.is_empty() || !plan.next_ready_ids.is_empty())
+    {
+        format!("swarm assign_next{run_suffix} spawn_if_needed=true")
+    } else {
+        format!("No immediate action needed{scoped_hint}.")
+    };
+    let _ = writeln!(output, "- next: {next_step}");
+
+    ToolOutput::new(output)
+}
+
 #[cfg(unix)]
 fn unix_socket_inode(socket_path: &Path) -> Option<String> {
     let socket_path = socket_path.to_string_lossy();
@@ -966,7 +1092,7 @@ impl Tool for CommunicateTool {
                     "type": "string",
                     "enum": ["share", "share_append", "read", "message", "broadcast", "dm", "channel", "list", "list_channels", "channel_members",
                              "propose_plan", "approve_plan", "reject_plan", "spawn", "stop", "assign_role",
-                             "status", "health", "report", "plan_status", "summary", "read_context", "resync_plan", "assign_task", "assign_next", "fill_slots", "run_plan", "cleanup",
+                             "status", "health", "reconcile", "report", "plan_status", "summary", "read_context", "resync_plan", "assign_task", "assign_next", "fill_slots", "run_plan", "cleanup",
                              "start", "start_task", "wake", "resume", "retry", "reassign", "replace", "salvage",
                              "subscribe_channel", "unsubscribe_channel", "await_members"],
                     "description": "Action. For spawn, prefer including prompt with the initial task so the new agent starts useful work immediately."
@@ -1272,6 +1398,17 @@ impl Tool for CommunicateTool {
                     ),
                     None => format_swarm_health(&ctx, &socket_path, &listener_pids, &members),
                 })
+            }
+
+            "reconcile" => {
+                let members = fetch_swarm_members(&ctx.session_id).await?;
+                let plan = fetch_plan_status(&ctx.session_id).await.ok();
+                Ok(format_swarm_reconcile(
+                    &ctx,
+                    &members,
+                    plan.as_ref(),
+                    params.run_id.as_deref(),
+                ))
             }
 
             "list_channels" => {

@@ -459,6 +459,112 @@ fn format_swarm_health_can_be_scoped_to_one_run_id() {
 }
 
 #[test]
+fn format_swarm_reconcile_suggests_next_step_for_active_run() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let members = vec![
+        AgentInfo {
+            session_id: "coord".to_string(),
+            friendly_name: Some("coord".to_string()),
+            files_touched: vec![],
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("coordinator".to_string()),
+            is_headless: Some(false),
+            report_back_to_session_id: None,
+            run_id: None,
+            latest_completion_report: None,
+            live_attachments: Some(1),
+            status_age_secs: Some(1),
+        },
+        AgentInfo {
+            session_id: "current-worker".to_string(),
+            friendly_name: Some("current".to_string()),
+            files_touched: vec![],
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(3),
+        },
+        AgentInfo {
+            session_id: "old-worker".to_string(),
+            friendly_name: Some("old".to_string()),
+            files_touched: vec![],
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-old".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(10),
+        },
+    ];
+
+    let output = format_swarm_reconcile(&ctx, &members, None, Some("run-current")).output;
+
+    assert!(output.contains("Swarm reconcile"));
+    assert!(output.contains("scope: run_id=run-current (showing 1/3)"));
+    assert!(output.contains("members: total=1 owned=1 active=1 terminal=0 stale=0"));
+    assert!(output.contains("active members: current(running)"));
+    assert!(output.contains("next: swarm await_members run_id=run-current mode=all"));
+    assert!(!output.contains("run-old"));
+}
+
+#[test]
+fn format_swarm_reconcile_suggests_assign_next_for_ready_plan() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let plan = crate::protocol::PlanGraphStatus {
+        swarm_id: Some("swarm-1".to_string()),
+        version: 2,
+        item_count: 1,
+        ready_ids: vec!["task-1".to_string()],
+        blocked_ids: vec![],
+        active_ids: vec![],
+        completed_ids: vec![],
+        cycle_ids: vec![],
+        unresolved_dependency_ids: vec![],
+        next_ready_ids: vec!["task-1".to_string()],
+        newly_ready_ids: vec![],
+    };
+
+    let output = format_swarm_reconcile(&ctx, &[], Some(&plan), Some("run-next")).output;
+
+    assert!(output.contains("scope: run_id=run-next (showing 0/0)"));
+    assert!(output.contains("plan: ready=1 active=0 blocked=0 completed=0 cycle=0"));
+    assert!(output.contains("next: swarm assign_next run_id=run-next spawn_if_needed=true"));
+}
+
+#[test]
+fn format_swarm_reconcile_suggests_cleanup_for_terminal_or_stale_members() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let members = vec![AgentInfo {
+        session_id: "done-worker".to_string(),
+        friendly_name: Some("done".to_string()),
+        files_touched: vec![],
+        status: Some("ready".to_string()),
+        detail: None,
+        role: Some("agent".to_string()),
+        is_headless: Some(true),
+        report_back_to_session_id: Some("coord".to_string()),
+        run_id: Some("run-current".to_string()),
+        latest_completion_report: None,
+        live_attachments: Some(0),
+        status_age_secs: Some(30),
+    }];
+
+    let output = format_swarm_reconcile(&ctx, &members, None, Some("run-current")).output;
+
+    assert!(output.contains("terminal members: done(ready)"));
+    assert!(output.contains("next: swarm cleanup run_id=run-current"));
+}
+
+#[test]
 fn format_tool_summary_includes_call_count() {
     let output = super::format_tool_summary(
         "session-123",
