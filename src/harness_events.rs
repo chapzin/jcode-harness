@@ -1558,6 +1558,83 @@ fn ensure_harness_grpc_queue_capacity(
     Ok(())
 }
 
+pub fn harness_grpc_local_prototype_smoke_report() -> anyhow::Result<Value> {
+    let mut control_plane = HarnessGrpcLocalControlPlane::new(2);
+    let identity = HarnessGrpcAgentIdentity::new("agent-demo-worker", "run_grpc_demo", "worker")
+        .with_capability("tasks")
+        .with_capability("events")
+        .with_capability("control_commands");
+    let registration = control_plane.register_agent(identity.clone())?;
+
+    let assignment = HarnessGrpcTaskAssignment::new(
+        "task-grpc-demo",
+        "run_grpc_demo",
+        "execute deterministic local gRPC control-plane smoke",
+    );
+    control_plane.assign_task(&identity.agent_id, assignment.clone())?;
+    let worker_task = control_plane
+        .poll_task(&identity.agent_id)?
+        .ok_or_else(|| anyhow::anyhow!("gRPC local smoke worker did not receive task"))?;
+
+    let event = HarnessEvent::new(
+        "hevt_grpc_demo_tool_finished",
+        "run_grpc_demo",
+        DateTime::parse_from_rfc3339("2026-05-08T06:47:00Z")?.with_timezone(&Utc),
+        1,
+        HarnessEventLevel::Info,
+        HarnessEventKind::ToolFinished,
+        json!({"tool": "grpc-local-smoke", "status": "ok", "api_key": "sk-demo-redacted"}),
+    );
+    control_plane.upload_event_frame(&identity.agent_id, harness_grpc_event_frame(&event)?)?;
+    let uploaded_events = control_plane.drain_events()?;
+
+    let cancel_frame = control_plane.cancel_run(
+        &identity.agent_id,
+        "run_grpc_demo",
+        Some("orchestrator-demo".to_string()),
+        Some("deterministic smoke cancellation".to_string()),
+        Some("cmd-grpc-demo-cancel".to_string()),
+    )?;
+    let worker_command_frame = control_plane
+        .poll_command_frame(&identity.agent_id)?
+        .ok_or_else(|| anyhow::anyhow!("gRPC local smoke worker did not receive command"))?;
+    let worker_command = harness_control_command_from_grpc_frame(&worker_command_frame)?;
+
+    let disconnected = control_plane.disconnect_agent(&identity.agent_id)?;
+    let reconnected = control_plane.reconnect_agent(identity)?;
+
+    Ok(json!({
+        "status": "ok",
+        "offline": true,
+        "network_required": false,
+        "credentials_required": false,
+        "protocol": HARNESS_GRPC_CONTROL_PACKAGE,
+        "protocol_version": HARNESS_GRPC_CONTROL_PROTOCOL_VERSION,
+        "event_schema_version": HARNESS_EVENT_SCHEMA_VERSION,
+        "registration": registration,
+        "task_assignment": {
+            "task_id": worker_task.task_id,
+            "run_id": worker_task.run_id,
+            "instructions_present": !worker_task.instructions.is_empty(),
+        },
+        "event_upload": {
+            "count": uploaded_events.len(),
+            "event_id": uploaded_events.first().map(|event| event.event_id.as_str()),
+            "redacted": uploaded_events
+                .first()
+                .is_some_and(|event| event.payload["api_key"] == HARNESS_EVENT_REDACTED),
+        },
+        "control_command": {
+            "command_name": cancel_frame.command_name,
+            "requires_write_authorization": cancel_frame.requires_write_authorization,
+            "round_tripped": matches!(worker_command, HarnessControlCommand::CancelRun { .. }),
+        },
+        "disconnect": disconnected,
+        "reconnect": reconnected,
+        "connected_workers": control_plane.connected_worker_count(),
+    }))
+}
+
 pub fn harness_grpc_event_frame(event: &HarnessEvent) -> anyhow::Result<HarnessGrpcEventFrame> {
     harness_grpc_event_frame_with_artifacts(event, Vec::new())
 }
@@ -4484,6 +4561,21 @@ mod tests {
             ))
             .unwrap_err();
         assert!(err.to_string().contains("identity does not match"));
+    }
+
+    #[test]
+    fn grpc_local_prototype_smoke_report_covers_process_demo_contract() {
+        let report = harness_grpc_local_prototype_smoke_report().unwrap();
+
+        assert_eq!(report["status"], "ok");
+        assert_eq!(report["protocol"], HARNESS_GRPC_CONTROL_PACKAGE);
+        assert_eq!(report["registration"]["agent_id"], "agent-demo-worker");
+        assert_eq!(report["task_assignment"]["task_id"], "task-grpc-demo");
+        assert_eq!(report["event_upload"]["redacted"], true);
+        assert_eq!(report["control_command"]["command_name"], "cancel_run");
+        assert_eq!(report["control_command"]["round_tripped"], true);
+        assert_eq!(report["disconnect"]["connected"], false);
+        assert_eq!(report["reconnect"]["reconnected"], true);
     }
 
     #[test]

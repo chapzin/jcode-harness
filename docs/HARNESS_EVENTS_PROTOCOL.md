@@ -325,6 +325,8 @@ The Rust bridge intentionally avoids a schema fork:
 
 The local prototype slice is `HarnessGrpcLocalControlPlane`. It is not a network server; it is a dependency-free semantics harness that runs one orchestrator with one or more local workers through the same typed frames. It covers registration/reconnect, queued task assignment, event upload, command delivery, `cancel_run`, bounded queue backpressure, and disconnect behavior so the future tonic implementation can be tested against an already-stable contract.
 
+The deterministic process smoke is exposed through `jcode-harness demo grpc-control --json`; the demo manifest also includes `grpc-control-plane-local`, so `jcode-harness demo run grpc-control-plane-local --json` launches the smoke in a child `jcode-harness` process and validates the JSON transcript offline.
+
 Auth policy before any non-local exposure: the prototype must bind to loopback by default, require explicit opt-in for remote listeners, and reuse the existing read/write control authorization distinction before forwarding commands to workers.
 
 ## CI recipe

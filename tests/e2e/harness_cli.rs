@@ -828,6 +828,7 @@ fn harness_demo_json_lists_offline_claim_demos_without_credentials() -> Result<(
         "swarm",
         "browser",
         "skills",
+        "grpc",
         "release-gates",
     ] {
         assert!(
@@ -960,7 +961,7 @@ fn harness_demo_run_sandbox_executes_project_writes_without_mutating_cwd() -> Re
         !std::path::Path::new(sandbox_path).exists(),
         "sandbox should be removed by default: {sandbox_path}"
     );
-    assert_eq!(report["results"].as_array().map(Vec::len), Some(8));
+    assert_eq!(report["results"].as_array().map(Vec::len), Some(9));
     for result in report["results"].as_array().expect("results") {
         assert_eq!(result["status"], "pass", "result: {result:?}");
         assert_eq!(result["executed_root"], sandbox_path);
@@ -972,6 +973,51 @@ fn harness_demo_run_sandbox_executes_project_writes_without_mutating_cwd() -> Re
         !cwd.join(".jcode").exists(),
         "sandboxed demo run must not write into requested cwd"
     );
+
+    Ok(())
+}
+
+#[test]
+fn harness_demo_grpc_control_runs_as_child_process_smoke() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-demo-grpc-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let direct = harness_command(&home, &cwd)
+        .args(["demo", "grpc-control", "--json"])
+        .output()?;
+    assert!(direct.status.success(), "stderr: {}", stderr_text(&direct));
+    let direct_report: Value = serde_json::from_str(&stdout_text(&direct))?;
+    assert_eq!(direct_report["status"], "ok");
+    assert_eq!(
+        direct_report["control_command"]["command_name"],
+        "cancel_run"
+    );
+    assert_eq!(direct_report["event_upload"]["redacted"], true);
+
+    let output = harness_command(&home, &cwd)
+        .args(["demo", "run", "grpc-control-plane-local", "--cwd"])
+        .arg(&cwd)
+        .arg("--json")
+        .output()?;
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout_text(&output))?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["requested"], "grpc-control-plane-local");
+    let result = &report["results"].as_array().expect("results")[0];
+    assert_eq!(result["status"], "pass");
+    assert_eq!(result["project_writes"], false);
+    assert_eq!(result["json_parseable"], true);
+    let child_report: Value = serde_json::from_str(result["stdout"].as_str().unwrap_or(""))?;
+    assert_eq!(
+        child_report["registration"]["agent_id"],
+        "agent-demo-worker"
+    );
+    assert_eq!(child_report["reconnect"]["reconnected"], true);
 
     Ok(())
 }

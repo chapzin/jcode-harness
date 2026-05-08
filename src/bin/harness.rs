@@ -181,6 +181,16 @@ struct DemoArgs {
 enum DemoCommand {
     /// Execute one offline demo, or all non-writing demos by default
     Run(DemoRunArgs),
+    /// Run the deterministic local gRPC control-plane prototype smoke
+    #[command(name = "grpc-control")]
+    GrpcControl(DemoGrpcControlArgs),
+}
+
+#[derive(Parser)]
+struct DemoGrpcControlArgs {
+    /// Emit JSON smoke report
+    #[arg(long)]
+    json: bool,
 }
 
 #[derive(Parser)]
@@ -2646,6 +2656,7 @@ fn run_demo(args: DemoArgs) -> Result<()> {
     if let Some(command) = args.command {
         return match command {
             DemoCommand::Run(run_args) => run_demo_run(run_args),
+            DemoCommand::GrpcControl(grpc_args) => run_demo_grpc_control(grpc_args),
         };
     }
 
@@ -2684,6 +2695,45 @@ fn run_demo(args: DemoArgs) -> Result<()> {
             println!("{}. {}", idx + 1, step.as_str().unwrap_or(""));
         }
     }
+    Ok(())
+}
+
+fn run_demo_grpc_control(args: DemoGrpcControlArgs) -> Result<()> {
+    let report = jcode::harness_events::harness_grpc_local_prototype_smoke_report()?;
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+
+    println!(
+        "jcode-harness demo grpc-control: {}",
+        report["status"].as_str().unwrap_or("ok")
+    );
+    println!("Offline: {}", report["offline"].as_bool().unwrap_or(true));
+    println!(
+        "Protocol: {}",
+        report["protocol"]
+            .as_str()
+            .unwrap_or("jcode.harness_events.v1")
+    );
+    println!(
+        "Task: {}",
+        report["task_assignment"]["task_id"]
+            .as_str()
+            .unwrap_or("task-grpc-demo")
+    );
+    println!(
+        "Command: {}",
+        report["control_command"]["command_name"]
+            .as_str()
+            .unwrap_or("cancel_run")
+    );
+    println!(
+        "Reconnect: {}",
+        report["reconnect"]["reconnected"]
+            .as_bool()
+            .unwrap_or(false)
+    );
     Ok(())
 }
 
@@ -2998,6 +3048,16 @@ fn build_demo_manifest(root: &std::path::Path) -> serde_json::Value {
                 false,
                 vec!["selected preserves router order", "policy records selected/skipped decisions", "entries include origin and allowed_tools"],
                 "The command only reads skill metadata from built-in and local skill origins."
+            ),
+            demo_manifest_entry(
+                "grpc-control-plane-local",
+                "grpc",
+                "Exercise the local gRPC control-plane prototype transcript.",
+                "The distributed-agent contract can exchange task, event, command, cancel, and reconnect messages offline before a network server is enabled.",
+                vec!["jcode-harness", "demo", "grpc-control", "--json"],
+                false,
+                vec!["registration succeeds", "task assignment is delivered", "event upload is redacted", "cancel_run command round-trips", "worker reconnects"],
+                "This command runs the dependency-free local semantics harness; future tonic transport should preserve the same frames."
             ),
             demo_manifest_entry(
                 "release-gate-smoke",
