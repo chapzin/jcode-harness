@@ -164,6 +164,7 @@ struct HarnessEventExportReport {
 #[derive(Serialize)]
 struct HarnessEventReplayOutput {
     summary: crate::harness_events::HarnessEventLogSummary,
+    timeline: Vec<crate::harness_events::HarnessEventTimelineItem>,
     events: Vec<crate::harness_events::HarnessEvent>,
 }
 
@@ -232,9 +233,14 @@ pub fn run_events_replay_command(
     let path = crate::harness_events::harness_event_log_path(run_id);
     let events = crate::harness_events::read_harness_event_ndjson(&path)?;
     let summary = crate::harness_events::summarize_harness_events(&path, &events);
+    let timeline = crate::harness_events::build_harness_event_timeline(&events);
 
     let content = if emit_json {
-        serde_json::to_string_pretty(&HarnessEventReplayOutput { summary, events })?
+        serde_json::to_string_pretty(&HarnessEventReplayOutput {
+            summary,
+            timeline,
+            events,
+        })?
     } else {
         crate::harness_events::render_harness_event_replay_markdown(&events)
     };

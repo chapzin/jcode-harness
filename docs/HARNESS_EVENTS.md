@@ -152,7 +152,7 @@ jcode events replay --run run_123 --json > replay.json
 - `tail --ndjson` writes only raw event NDJSON to stdout.
 - `export` validates each source line as `HarnessEvent` before rewriting normalized NDJSON.
 - `export --json` requires `--output` so stdout remains machine-safe.
-- `replay` reconstructs a local audit timeline as Markdown by default, or JSON with `--json`.
+- `replay` reconstructs a local audit timeline as Markdown by default, or JSON with `--json`. Replay output includes phase grouping, elapsed milliseconds, parent event references, child counts, duration hints, and explicit failure points.
 
 ## Minimal producer usage
 

@@ -90,6 +90,25 @@ pub struct HarnessEventLogSummary {
     pub error: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct HarnessEventTimelineItem {
+    pub ordinal: usize,
+    pub sequence: u64,
+    pub event_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_event_id: Option<String>,
+    pub timestamp: DateTime<Utc>,
+    pub elapsed_ms: Option<u128>,
+    pub phase: String,
+    pub level: HarnessEventLevel,
+    pub kind: HarnessEventKind,
+    pub status: String,
+    pub duration_ms: Option<u128>,
+    pub child_count: usize,
+    pub failure: bool,
+    pub details: String,
+}
+
 impl HarnessEvent {
     pub fn new(
         event_id: impl Into<String>,
@@ -458,6 +477,7 @@ pub fn list_harness_event_logs() -> anyhow::Result<Vec<HarnessEventLogSummary>> 
 
 pub fn render_harness_event_replay_markdown(events: &[HarnessEvent]) -> String {
     let summary = summarize_harness_events("<memory>", events);
+    let timeline = build_harness_event_timeline(events);
     let mut output = String::new();
     output.push_str(&format!("# Harness event replay: {}\n\n", summary.run_id));
     output.push_str("## Summary\n\n");
@@ -472,32 +492,203 @@ pub fn render_harness_event_replay_markdown(events: &[HarnessEvent]) -> String {
     if let Some(duration_ms) = summary.duration_ms {
         output.push_str(&format!("- Duration: {} ms\n", duration_ms));
     }
-    output.push_str("\n## Timeline\n\n");
-    output.push_str("| Seq | Time | Level | Kind | Event | Details |\n");
-    output.push_str("| ---: | --- | --- | --- | --- | --- |\n");
-    for event in events {
-        output.push_str(&format!(
-            "| {} | `{}` | `{}` | `{}` | `{}` | {} |\n",
-            event.sequence,
-            event.timestamp,
-            event_label(&event.level),
-            event_label(&event.kind),
-            escape_markdown_table_cell(&event.event_id),
-            escape_markdown_table_cell(&event_payload_summary(&event.payload)),
-        ));
+    output.push_str("\n## Failure points\n\n");
+    let failures = timeline
+        .iter()
+        .filter(|item| item.failure)
+        .collect::<Vec<_>>();
+    if failures.is_empty() {
+        output.push_str("- None\n");
+    } else {
+        for item in failures {
+            output.push_str(&format!(
+                "- seq {} `{}` `{}`: {}\n",
+                item.sequence,
+                event_label(&item.kind),
+                escape_markdown_table_cell(&item.event_id),
+                escape_markdown_table_cell(&item.details),
+            ));
+        }
+    }
+
+    output.push_str("\n## Timeline by phase\n\n");
+    for phase in timeline_phase_order(&timeline) {
+        let phase_items = timeline
+            .iter()
+            .filter(|item| item.phase == phase)
+            .collect::<Vec<_>>();
+        if phase_items.is_empty() {
+            continue;
+        }
+        output.push_str(&format!("### {}\n\n", phase_title(&phase)));
+        output.push_str(
+            "| Seq | +ms | Level | Kind | Event | Parent | Children | Status | Details |\n",
+        );
+        output.push_str("| ---: | ---: | --- | --- | --- | --- | ---: | --- | --- |\n");
+        for item in phase_items {
+            output.push_str(&format!(
+                "| {} | {} | `{}` | `{}` | `{}` | {} | {} | `{}` | {} |\n",
+                item.sequence,
+                item.elapsed_ms
+                    .map(|elapsed| elapsed.to_string())
+                    .unwrap_or_default(),
+                event_label(&item.level),
+                event_label(&item.kind),
+                escape_markdown_table_cell(&item.event_id),
+                item.parent_event_id
+                    .as_deref()
+                    .map(escape_markdown_table_cell)
+                    .unwrap_or_default(),
+                item.child_count,
+                escape_markdown_table_cell(&item.status),
+                escape_markdown_table_cell(&item.details),
+            ));
+        }
+        output.push('\n');
     }
     output
 }
 
-fn infer_harness_event_status(events: &[HarnessEvent]) -> &'static str {
-    if events.iter().any(|event| {
-        matches!(
-            event.kind,
-            HarnessEventKind::RunFailed
-                | HarnessEventKind::TestFailed
-                | HarnessEventKind::GateFailed
+pub fn build_harness_event_timeline(events: &[HarnessEvent]) -> Vec<HarnessEventTimelineItem> {
+    let first_timestamp = events.iter().map(|event| event.timestamp).min();
+    let mut child_counts: HashMap<&str, usize> = HashMap::new();
+    for event in events {
+        if let Some(parent_event_id) = event.parent_event_id.as_deref() {
+            *child_counts.entry(parent_event_id).or_insert(0) += 1;
+        }
+    }
+
+    events
+        .iter()
+        .enumerate()
+        .map(|(index, event)| {
+            let failure = event_is_failure(event);
+            HarnessEventTimelineItem {
+                ordinal: index + 1,
+                sequence: event.sequence,
+                event_id: event.event_id.clone(),
+                parent_event_id: event.parent_event_id.clone(),
+                timestamp: event.timestamp,
+                elapsed_ms: first_timestamp
+                    .and_then(|first| (event.timestamp - first).num_milliseconds().try_into().ok()),
+                phase: event_phase(event.kind).to_string(),
+                level: event.level,
+                kind: event.kind,
+                status: event_status(event).to_string(),
+                duration_ms: payload_duration_ms(&event.payload),
+                child_count: child_counts
+                    .get(event.event_id.as_str())
+                    .copied()
+                    .unwrap_or(0),
+                failure,
+                details: event_payload_summary(&event.payload),
+            }
+        })
+        .collect()
+}
+
+fn event_phase(kind: HarnessEventKind) -> &'static str {
+    match kind {
+        HarnessEventKind::RunStarted => "run",
+        HarnessEventKind::RunCompleted | HarnessEventKind::RunFailed => "completion",
+        HarnessEventKind::SkillSelected => "planning",
+        HarnessEventKind::MemoryLookupStarted | HarnessEventKind::MemoryLookupFinished => "memory",
+        HarnessEventKind::ToolStarted | HarnessEventKind::ToolFinished => "tool_execution",
+        HarnessEventKind::FileChanged => "files",
+        HarnessEventKind::TestStarted
+        | HarnessEventKind::TestPassed
+        | HarnessEventKind::TestFailed => "tests",
+        HarnessEventKind::GatePassed | HarnessEventKind::GateFailed => "gates",
+        HarnessEventKind::HumanApprovalRequired => "approval",
+    }
+}
+
+fn timeline_phase_order(timeline: &[HarnessEventTimelineItem]) -> Vec<String> {
+    let preferred = [
+        "run",
+        "planning",
+        "memory",
+        "tool_execution",
+        "files",
+        "tests",
+        "gates",
+        "approval",
+        "completion",
+    ];
+    let mut phases = Vec::new();
+    for phase in preferred {
+        if timeline.iter().any(|item| item.phase == phase) {
+            phases.push(phase.to_string());
+        }
+    }
+    for item in timeline {
+        if !phases.contains(&item.phase) {
+            phases.push(item.phase.clone());
+        }
+    }
+    phases
+}
+
+fn phase_title(phase: &str) -> String {
+    phase
+        .split('_')
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                Some(first) => format!("{}{}", first.to_ascii_uppercase(), chars.as_str()),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn event_status(event: &HarnessEvent) -> &'static str {
+    if event_is_failure(event) {
+        "failed"
+    } else if let Some(status) = event.payload.get("status").and_then(Value::as_str) {
+        match status {
+            "ok" | "passed" | "completed" => "completed",
+            "started" | "running" => "started",
+            _ => "info",
+        }
+    } else {
+        match event.kind {
+            HarnessEventKind::RunStarted
+            | HarnessEventKind::MemoryLookupStarted
+            | HarnessEventKind::ToolStarted
+            | HarnessEventKind::TestStarted => "started",
+            HarnessEventKind::RunCompleted
+            | HarnessEventKind::MemoryLookupFinished
+            | HarnessEventKind::ToolFinished
+            | HarnessEventKind::TestPassed
+            | HarnessEventKind::GatePassed => "completed",
+            HarnessEventKind::HumanApprovalRequired => "attention_required",
+            _ => "info",
+        }
+    }
+}
+
+fn event_is_failure(event: &HarnessEvent) -> bool {
+    matches!(
+        event.kind,
+        HarnessEventKind::RunFailed | HarnessEventKind::TestFailed | HarnessEventKind::GateFailed
+    ) || matches!(event.level, HarnessEventLevel::Error)
+        || matches!(
+            event.payload.get("status").and_then(Value::as_str),
+            Some("failed" | "error")
         )
-    }) {
+}
+
+fn payload_duration_ms(payload: &Value) -> Option<u128> {
+    payload
+        .get("duration_ms")
+        .and_then(Value::as_u64)
+        .map(u128::from)
+}
+
+fn infer_harness_event_status(events: &[HarnessEvent]) -> &'static str {
+    if events.iter().any(event_is_failure) {
         "failed"
     } else if events
         .iter()
@@ -574,7 +765,6 @@ fn sanitize_run_id(run_id: &str) -> String {
         sanitized
     }
 }
-
 pub struct HarnessEventBus {
     sender: broadcast::Sender<HarnessEvent>,
     sequences: Mutex<HashMap<String, u64>>,
@@ -1017,8 +1207,52 @@ mod tests {
 
         assert!(markdown.contains("# Harness event replay: run_replay"));
         assert!(markdown.contains("## Summary"));
-        assert!(markdown.contains("| Seq | Time | Level | Kind | Event | Details |"));
+        assert!(markdown.contains("## Failure points"));
+        assert!(markdown.contains("## Timeline by phase"));
+        assert!(markdown.contains("### Tool Execution"));
+        assert!(markdown.contains(
+            "| Seq | +ms | Level | Kind | Event | Parent | Children | Status | Details |"
+        ));
         assert!(markdown.contains("tool=cargo test"));
+    }
+
+    #[test]
+    fn timeline_items_include_phase_elapsed_parent_child_and_failure() {
+        let start = HarnessEvent::new(
+            "hevt_start",
+            "run_timeline",
+            DateTime::parse_from_rfc3339("2026-05-08T03:42:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            1,
+            HarnessEventLevel::Info,
+            HarnessEventKind::RunStarted,
+            json!({"status": "started"}),
+        );
+        let tool = HarnessEvent::new(
+            "hevt_tool",
+            "run_timeline",
+            DateTime::parse_from_rfc3339("2026-05-08T03:42:01Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            2,
+            HarnessEventLevel::Error,
+            HarnessEventKind::ToolFinished,
+            json!({"tool": "bash", "status": "failed", "duration_ms": 1000}),
+        )
+        .with_parent_event_id("hevt_start");
+
+        let timeline = build_harness_event_timeline(&[start, tool]);
+
+        assert_eq!(timeline[0].phase, "run");
+        assert_eq!(timeline[0].elapsed_ms, Some(0));
+        assert_eq!(timeline[0].child_count, 1);
+        assert_eq!(timeline[1].phase, "tool_execution");
+        assert_eq!(timeline[1].elapsed_ms, Some(1000));
+        assert_eq!(timeline[1].parent_event_id.as_deref(), Some("hevt_start"));
+        assert_eq!(timeline[1].duration_ms, Some(1000));
+        assert_eq!(timeline[1].status, "failed");
+        assert!(timeline[1].failure);
     }
 
     #[tokio::test]
