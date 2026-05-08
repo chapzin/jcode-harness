@@ -184,6 +184,8 @@ The route encodes run/session/task components as ASCII-safe hex tokens so broker
 
 Broker messages use a versioned envelope from `serialize_harness_event_broker_payload`. The current delivery semantics are explicitly `at_least_once`: consumers must deduplicate by the envelope `dedupe_key` (`schema_version` + `event_id`). `HarnessEventDelivery` and `HarnessEventDeliveryAck` carry adapter-neutral message id, redelivery, attempt, and ack outcome metadata so future JetStream and Redis adapters do not need to fork the event schema.
 
+`HarnessEventMemoryBroker` exercises the same envelope and ack contract without pulling broker dependencies into the core build. It is useful for adapter tests and local contract validation, but it is not durable evidence; real runs should still preserve NDJSON first.
+
 ## SSE protocol core
 
 The first SSE slice is transport-neutral framing for future local dashboard endpoints. A `HarnessEvent` maps to a Server-Sent Events message as:

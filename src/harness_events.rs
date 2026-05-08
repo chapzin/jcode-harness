@@ -345,6 +345,14 @@ pub struct HarnessEventNdjsonSource {
     log_dir: PathBuf,
 }
 
+#[derive(Clone, Debug)]
+pub struct HarnessEventMemoryBroker {
+    name: String,
+    deliveries: Vec<HarnessEventDelivery>,
+    acknowledgements: Vec<HarnessEventDeliveryAck>,
+    next_message_sequence: u64,
+}
+
 impl HarnessEventNdjsonSource {
     pub fn new(log_dir: impl Into<PathBuf>) -> Self {
         Self {
@@ -359,6 +367,113 @@ impl HarnessEventNdjsonSource {
     pub fn event_log_path(&self, run_id: &str) -> PathBuf {
         self.log_dir
             .join(format!("{}.ndjson", sanitize_run_id(run_id)))
+    }
+}
+
+impl Default for HarnessEventMemoryBroker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl HarnessEventMemoryBroker {
+    pub fn new() -> Self {
+        Self::with_name("memory-broker")
+    }
+
+    pub fn with_name(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            deliveries: Vec::new(),
+            acknowledgements: Vec::new(),
+            next_message_sequence: 1,
+        }
+    }
+
+    pub fn deliveries(&self) -> &[HarnessEventDelivery] {
+        &self.deliveries
+    }
+
+    pub fn acknowledgements(&self) -> &[HarnessEventDeliveryAck] {
+        &self.acknowledgements
+    }
+
+    pub fn read_deliveries_after(
+        &self,
+        run_id: &str,
+        last_event_id: Option<&str>,
+    ) -> Vec<HarnessEventDelivery> {
+        let deliveries = self
+            .deliveries
+            .iter()
+            .filter(|delivery| delivery.envelope.event.run_id == run_id)
+            .collect::<Vec<_>>();
+
+        let Some(last_event_id) = last_event_id.filter(|id| !id.is_empty()) else {
+            return deliveries.into_iter().cloned().collect();
+        };
+
+        deliveries
+            .iter()
+            .position(|delivery| delivery.envelope.event.event_id == last_event_id)
+            .map(|index| {
+                deliveries[index + 1..]
+                    .iter()
+                    .map(|delivery| (*delivery).clone())
+                    .collect()
+            })
+            .unwrap_or_else(|| deliveries.into_iter().cloned().collect())
+    }
+
+    pub fn pending_deliveries(&self, run_id: &str) -> Vec<HarnessEventDelivery> {
+        let final_dedupes = self.final_acknowledged_dedupe_keys();
+        self.deliveries
+            .iter()
+            .filter(|delivery| delivery.envelope.event.run_id == run_id)
+            .filter(|delivery| !final_dedupes.contains_key(&delivery.envelope.dedupe_key))
+            .cloned()
+            .collect()
+    }
+
+    pub fn redeliver_pending(&mut self, run_id: &str) -> Vec<HarnessEventDelivery> {
+        let final_dedupes = self.final_acknowledged_dedupe_keys();
+        let mut redelivered = Vec::new();
+        for delivery in self.deliveries.iter_mut() {
+            if delivery.envelope.event.run_id != run_id {
+                continue;
+            }
+            if final_dedupes.contains_key(&delivery.envelope.dedupe_key) {
+                continue;
+            }
+            delivery.redelivered = true;
+            delivery.delivery_attempt = delivery.delivery_attempt.saturating_add(1).max(1);
+            redelivered.push(delivery.clone());
+        }
+        redelivered
+    }
+
+    pub fn ack_delivery(
+        &mut self,
+        delivery: &HarnessEventDelivery,
+        outcome: HarnessEventAckOutcome,
+        detail: Option<String>,
+    ) -> HarnessEventDeliveryAck {
+        let ack = harness_event_delivery_ack(delivery, outcome, detail);
+        self.acknowledgements.push(ack.clone());
+        ack
+    }
+
+    fn final_acknowledged_dedupe_keys(&self) -> HashMap<String, bool> {
+        self.acknowledgements
+            .iter()
+            .filter(|ack| {
+                matches!(
+                    ack.outcome,
+                    HarnessEventAckOutcome::Acked | HarnessEventAckOutcome::Dropped
+                )
+            })
+            .map(|ack| (ack.dedupe_key.clone(), true))
+            .collect()
     }
 }
 
@@ -996,6 +1111,53 @@ impl HarnessEventSource for HarnessEventNdjsonSource {
         }
         let events = read_harness_event_ndjson(path)?;
         Ok(harness_events_after_last_event_id(&events, last_event_id).to_vec())
+    }
+}
+
+impl HarnessEventSink for HarnessEventMemoryBroker {
+    fn sink_name(&self) -> &str {
+        &self.name
+    }
+
+    fn publish_event(&mut self, event: &HarnessEvent) -> anyhow::Result<HarnessEventSinkAck> {
+        let message_id = format!("memory:{}", self.next_message_sequence);
+        self.next_message_sequence = self.next_message_sequence.saturating_add(1);
+
+        let payload = serialize_harness_event_broker_payload(event)?;
+        let envelope = deserialize_harness_event_broker_payload(&payload)?;
+        self.deliveries.push(HarnessEventDelivery {
+            route: harness_event_broker_route(&envelope.event),
+            envelope,
+            message_id: Some(message_id.clone()),
+            redelivered: false,
+            delivery_attempt: 1,
+        });
+
+        Ok(HarnessEventSinkAck {
+            sink: self.sink_name().to_string(),
+            durable: false,
+            event_id: event.event_id.clone(),
+            run_id: event.run_id.clone(),
+            message_id: Some(message_id),
+        })
+    }
+}
+
+impl HarnessEventSource for HarnessEventMemoryBroker {
+    fn source_name(&self) -> &str {
+        &self.name
+    }
+
+    fn read_events_after(
+        &self,
+        run_id: &str,
+        last_event_id: Option<&str>,
+    ) -> anyhow::Result<Vec<HarnessEvent>> {
+        Ok(self
+            .read_deliveries_after(run_id, last_event_id)
+            .into_iter()
+            .map(|delivery| delivery.envelope.event)
+            .collect())
     }
 }
 
@@ -3041,6 +3203,95 @@ mod tests {
         assert_eq!(ack.event_id, "hevt_delivery");
         assert_eq!(ack.message_id.as_deref(), Some("nats:42"));
         assert_eq!(ack.detail.as_deref(), Some("processed"));
+    }
+
+    #[test]
+    fn memory_broker_sink_source_round_trips_delivery_envelopes() {
+        let mut broker = HarnessEventMemoryBroker::new();
+        let first = HarnessEvent::new(
+            "hevt_memory_first",
+            "run_memory",
+            DateTime::parse_from_rfc3339("2026-05-08T05:38:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            1,
+            HarnessEventLevel::Info,
+            HarnessEventKind::RunStarted,
+            json!({"status": "started"}),
+        );
+        let second = HarnessEvent::new(
+            "hevt_memory_second",
+            "run_memory",
+            DateTime::parse_from_rfc3339("2026-05-08T05:38:01Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            2,
+            HarnessEventLevel::Info,
+            HarnessEventKind::RunCompleted,
+            json!({"status": "ok"}),
+        );
+
+        let ack = broker.publish_event(&first).unwrap();
+        broker.publish_event(&second).unwrap();
+        let tail = broker
+            .read_events_after("run_memory", Some("hevt_memory_first"))
+            .unwrap();
+        let deliveries = broker.read_deliveries_after("run_memory", None);
+
+        assert_eq!(ack.sink, "memory-broker");
+        assert!(!ack.durable);
+        assert_eq!(ack.message_id.as_deref(), Some("memory:1"));
+        assert_eq!(tail.len(), 1);
+        assert_eq!(tail[0].event_id, "hevt_memory_second");
+        assert_eq!(deliveries.len(), 2);
+        assert_eq!(deliveries[0].envelope.dedupe_key, "v1:hevt_memory_first");
+        assert_eq!(deliveries[1].message_id.as_deref(), Some("memory:2"));
+    }
+
+    #[test]
+    fn memory_broker_redelivers_only_unacked_messages() {
+        let mut broker = HarnessEventMemoryBroker::new();
+        let first = HarnessEvent::new(
+            "hevt_ack_first",
+            "run_ack",
+            DateTime::parse_from_rfc3339("2026-05-08T05:39:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            1,
+            HarnessEventLevel::Info,
+            HarnessEventKind::ToolFinished,
+            json!({"status": "ok"}),
+        );
+        let second = HarnessEvent::new(
+            "hevt_ack_second",
+            "run_ack",
+            DateTime::parse_from_rfc3339("2026-05-08T05:39:01Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            2,
+            HarnessEventLevel::Warn,
+            HarnessEventKind::ToolFinished,
+            json!({"status": "retry"}),
+        );
+
+        broker.publish_event(&first).unwrap();
+        broker.publish_event(&second).unwrap();
+        let pending = broker.pending_deliveries("run_ack");
+        let ack = broker.ack_delivery(
+            &pending[0],
+            HarnessEventAckOutcome::Acked,
+            Some("processed".to_string()),
+        );
+        broker.ack_delivery(&pending[1], HarnessEventAckOutcome::Nacked, None);
+        let redelivered = broker.redeliver_pending("run_ack");
+
+        assert_eq!(ack.outcome, HarnessEventAckOutcome::Acked);
+        assert_eq!(broker.acknowledgements().len(), 2);
+        assert_eq!(redelivered.len(), 1);
+        assert_eq!(redelivered[0].envelope.event.event_id, "hevt_ack_second");
+        assert!(redelivered[0].redelivered);
+        assert_eq!(redelivered[0].delivery_attempt, 2);
+        assert_eq!(broker.pending_deliveries("run_ack").len(), 1);
     }
 
     #[test]

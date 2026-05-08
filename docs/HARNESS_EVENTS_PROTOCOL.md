@@ -234,6 +234,7 @@ Current local implementations:
 - `HarnessEventSink` publishes a redacted event and returns `HarnessEventSinkAck`.
 - `HarnessEventSource` reads replayable events after an optional last event id.
 - `HarnessEventNdjsonSink` and `HarnessEventNdjsonSource` provide the local fallback every broker-backed path should preserve.
+- `HarnessEventMemoryBroker` is the dependency-free adapter harness for tests and future adapter development: it serializes through the broker envelope, exposes delivery metadata, tracks ack outcomes, and can redeliver unacked messages with incremented attempts.
 
 Route mapping for future adapters:
 
@@ -254,6 +255,7 @@ Broker payload and ack contract:
 - `HarnessEventDeliveryAck` records `pending`, `acked`, `nacked`, `redelivered`, or `dropped` outcomes without promising that NATS and Redis have identical ack semantics.
 - JetStream publish ack should mean broker persistence; consumer ack should mean processing completed.
 - Redis `XADD` id should map to `message_id`; `XACK` only applies when consumer groups are used.
+- The memory broker is not durable and should not be used as audit evidence; use it to verify adapter-independent publish/consume/ack behavior before wiring NATS or Redis.
 
 ## WebSocket control command core
 
