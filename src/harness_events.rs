@@ -353,6 +353,27 @@ pub struct HarnessEventMemoryBroker {
     next_message_sequence: u64,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HarnessEventFanoutReport {
+    pub sink: String,
+    pub event_id: String,
+    pub run_id: String,
+    pub local_ack: HarnessEventSinkAck,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub broker_ack: Option<HarnessEventSinkAck>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub broker_error: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct HarnessEventFanoutSink<L, B> {
+    name: String,
+    local_sink: L,
+    broker_sink: B,
+    fail_on_broker_error: bool,
+    last_report: Option<HarnessEventFanoutReport>,
+}
+
 impl HarnessEventNdjsonSource {
     pub fn new(log_dir: impl Into<PathBuf>) -> Self {
         Self {
@@ -474,6 +495,78 @@ impl HarnessEventMemoryBroker {
             })
             .map(|ack| (ack.dedupe_key.clone(), true))
             .collect()
+    }
+}
+
+impl<L, B> HarnessEventFanoutSink<L, B>
+where
+    L: HarnessEventSink,
+    B: HarnessEventSink,
+{
+    pub fn new(local_sink: L, broker_sink: B) -> Self {
+        Self::with_name("fanout", local_sink, broker_sink)
+    }
+
+    pub fn with_name(name: impl Into<String>, local_sink: L, broker_sink: B) -> Self {
+        Self {
+            name: name.into(),
+            local_sink,
+            broker_sink,
+            fail_on_broker_error: false,
+            last_report: None,
+        }
+    }
+
+    pub fn with_fail_on_broker_error(mut self, fail_on_broker_error: bool) -> Self {
+        self.fail_on_broker_error = fail_on_broker_error;
+        self
+    }
+
+    pub fn local_sink(&self) -> &L {
+        &self.local_sink
+    }
+
+    pub fn broker_sink(&self) -> &B {
+        &self.broker_sink
+    }
+
+    pub fn last_report(&self) -> Option<&HarnessEventFanoutReport> {
+        self.last_report.as_ref()
+    }
+
+    pub fn publish_fanout_event(
+        &mut self,
+        event: &HarnessEvent,
+    ) -> anyhow::Result<HarnessEventFanoutReport> {
+        let local_ack = self.local_sink.publish_event(event)?;
+        let broker_result = self.broker_sink.publish_event(event);
+        let report = match broker_result {
+            Ok(broker_ack) => HarnessEventFanoutReport {
+                sink: self.name.clone(),
+                event_id: event.event_id.clone(),
+                run_id: event.run_id.clone(),
+                local_ack,
+                broker_ack: Some(broker_ack),
+                broker_error: None,
+            },
+            Err(error) if self.fail_on_broker_error => {
+                let sanitized_error = redact_harness_event_error_message(error);
+                anyhow::bail!(
+                    "harness event broker fanout failed after local audit write: {sanitized_error}"
+                );
+            }
+            Err(error) => HarnessEventFanoutReport {
+                sink: self.name.clone(),
+                event_id: event.event_id.clone(),
+                run_id: event.run_id.clone(),
+                local_ack,
+                broker_ack: None,
+                broker_error: Some(redact_harness_event_error_message(error)),
+            },
+        };
+
+        self.last_report = Some(report.clone());
+        Ok(report)
     }
 }
 
@@ -1140,6 +1233,71 @@ impl HarnessEventSink for HarnessEventMemoryBroker {
             run_id: event.run_id.clone(),
             message_id: Some(message_id),
         })
+    }
+}
+
+impl<L, B> HarnessEventSink for HarnessEventFanoutSink<L, B>
+where
+    L: HarnessEventSink,
+    B: HarnessEventSink,
+{
+    fn sink_name(&self) -> &str {
+        &self.name
+    }
+
+    fn publish_event(&mut self, event: &HarnessEvent) -> anyhow::Result<HarnessEventSinkAck> {
+        let report = self.publish_fanout_event(event)?;
+        Ok(HarnessEventSinkAck {
+            sink: report.sink,
+            durable: report.local_ack.durable,
+            event_id: report.event_id,
+            run_id: report.run_id,
+            message_id: report.local_ack.message_id,
+        })
+    }
+
+    fn flush(&mut self) -> anyhow::Result<()> {
+        self.local_sink.flush()?;
+        self.broker_sink.flush()?;
+        Ok(())
+    }
+}
+
+fn redact_harness_event_error_message(error: impl std::fmt::Display) -> String {
+    let message = error.to_string();
+    let redacted = message
+        .split_whitespace()
+        .map(|word| {
+            let candidate = word.trim_matches(|ch: char| {
+                matches!(
+                    ch,
+                    ',' | ';'
+                        | ':'
+                        | '.'
+                        | '!'
+                        | '?'
+                        | '('
+                        | ')'
+                        | '['
+                        | ']'
+                        | '{'
+                        | '}'
+                        | '"'
+                        | '\''
+                )
+            });
+            if looks_like_secret_value(candidate) {
+                HARNESS_EVENT_REDACTED.to_string()
+            } else {
+                truncate_payload_string(word)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    if redacted.is_empty() {
+        HARNESS_EVENT_REDACTED.to_string()
+    } else {
+        redacted
     }
 }
 
@@ -2143,6 +2301,29 @@ mod tests {
             } else {
                 crate::env::remove_var(self.key);
             }
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct FailingBrokerSink {
+        error: String,
+    }
+
+    impl FailingBrokerSink {
+        fn new(error: impl Into<String>) -> Self {
+            Self {
+                error: error.into(),
+            }
+        }
+    }
+
+    impl HarnessEventSink for FailingBrokerSink {
+        fn sink_name(&self) -> &str {
+            "failing-broker"
+        }
+
+        fn publish_event(&mut self, _event: &HarnessEvent) -> anyhow::Result<HarnessEventSinkAck> {
+            anyhow::bail!("{}", self.error)
         }
     }
 
@@ -3292,6 +3473,115 @@ mod tests {
         assert!(redelivered[0].redelivered);
         assert_eq!(redelivered[0].delivery_attempt, 2);
         assert_eq!(broker.pending_deliveries("run_ack").len(), 1);
+    }
+
+    #[test]
+    fn fanout_sink_writes_local_audit_before_broker_publish() {
+        let temp = tempfile::Builder::new()
+            .prefix("jcode-harness-events-fanout-")
+            .tempdir()
+            .unwrap();
+        let path = temp.path().join("run_fanout.ndjson");
+        let local_sink = HarnessEventNdjsonSink::new(&path);
+        let memory_broker = HarnessEventMemoryBroker::new();
+        let mut fanout = HarnessEventFanoutSink::new(local_sink, memory_broker);
+        let event = HarnessEvent::new(
+            "hevt_fanout",
+            "run_fanout",
+            DateTime::parse_from_rfc3339("2026-05-08T05:46:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            1,
+            HarnessEventLevel::Info,
+            HarnessEventKind::RunStarted,
+            json!({"status": "started"}),
+        );
+
+        let report = fanout.publish_fanout_event(&event).unwrap();
+        let local_events = read_harness_event_ndjson(&path).unwrap();
+
+        assert_eq!(report.sink, "fanout");
+        assert!(report.local_ack.durable);
+        assert_eq!(report.local_ack.sink, "ndjson");
+        assert_eq!(report.broker_ack.as_ref().unwrap().sink, "memory-broker");
+        assert_eq!(local_events.len(), 1);
+        assert_eq!(local_events[0].event_id, "hevt_fanout");
+        assert_eq!(fanout.broker_sink().deliveries().len(), 1);
+        assert_eq!(
+            fanout
+                .last_report()
+                .unwrap()
+                .broker_ack
+                .as_ref()
+                .unwrap()
+                .event_id,
+            "hevt_fanout"
+        );
+    }
+
+    #[test]
+    fn fanout_sink_preserves_local_audit_when_broker_fails() {
+        let temp = tempfile::Builder::new()
+            .prefix("jcode-harness-events-fanout-fail-")
+            .tempdir()
+            .unwrap();
+        let path = temp.path().join("run_fanout_fail.ndjson");
+        let local_sink = HarnessEventNdjsonSink::new(&path);
+        let failing_broker = FailingBrokerSink::new("broker down token sk-should-not-leak");
+        let mut fanout = HarnessEventFanoutSink::new(local_sink, failing_broker);
+        let event = HarnessEvent::new(
+            "hevt_fanout_fail",
+            "run_fanout_fail",
+            DateTime::parse_from_rfc3339("2026-05-08T05:47:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            1,
+            HarnessEventLevel::Warn,
+            HarnessEventKind::ToolFinished,
+            json!({"status": "warn"}),
+        );
+
+        let report = fanout.publish_fanout_event(&event).unwrap();
+        let local_events = read_harness_event_ndjson(&path).unwrap();
+        let broker_error = report.broker_error.as_deref().unwrap();
+
+        assert_eq!(local_events.len(), 1);
+        assert_eq!(local_events[0].event_id, "hevt_fanout_fail");
+        assert_eq!(report.local_ack.sink, "ndjson");
+        assert!(report.broker_ack.is_none());
+        assert!(broker_error.contains(HARNESS_EVENT_REDACTED));
+        assert!(!broker_error.contains("sk-should-not-leak"));
+    }
+
+    #[test]
+    fn fanout_sink_strict_mode_still_writes_audit_before_error() {
+        let temp = tempfile::Builder::new()
+            .prefix("jcode-harness-events-fanout-strict-")
+            .tempdir()
+            .unwrap();
+        let path = temp.path().join("run_fanout_strict.ndjson");
+        let local_sink = HarnessEventNdjsonSink::new(&path);
+        let failing_broker = FailingBrokerSink::new("broker unavailable");
+        let mut fanout =
+            HarnessEventFanoutSink::new(local_sink, failing_broker).with_fail_on_broker_error(true);
+        let event = HarnessEvent::new(
+            "hevt_fanout_strict",
+            "run_fanout_strict",
+            DateTime::parse_from_rfc3339("2026-05-08T05:48:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            1,
+            HarnessEventLevel::Error,
+            HarnessEventKind::GateFailed,
+            json!({"status": "failed"}),
+        );
+
+        let error = fanout.publish_fanout_event(&event).unwrap_err();
+        let local_events = read_harness_event_ndjson(&path).unwrap();
+
+        assert_eq!(local_events.len(), 1);
+        assert_eq!(local_events[0].event_id, "hevt_fanout_strict");
+        assert!(error.to_string().contains("after local audit write"));
     }
 
     #[test]

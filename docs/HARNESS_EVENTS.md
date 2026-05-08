@@ -186,6 +186,8 @@ Broker messages use a versioned envelope from `serialize_harness_event_broker_pa
 
 `HarnessEventMemoryBroker` exercises the same envelope and ack contract without pulling broker dependencies into the core build. It is useful for adapter tests and local contract validation, but it is not durable evidence; real runs should still preserve NDJSON first.
 
+`HarnessEventFanoutSink` composes that policy directly: it writes local NDJSON/audit evidence first, then attempts broker publish. Normal mode captures broker failure in `HarnessEventFanoutReport` without losing the local proof; strict mode can return an error after the local write has succeeded.
+
 ## SSE protocol core
 
 The first SSE slice is transport-neutral framing for future local dashboard endpoints. A `HarnessEvent` maps to a Server-Sent Events message as:

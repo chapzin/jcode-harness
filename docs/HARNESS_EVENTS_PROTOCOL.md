@@ -235,6 +235,7 @@ Current local implementations:
 - `HarnessEventSource` reads replayable events after an optional last event id.
 - `HarnessEventNdjsonSink` and `HarnessEventNdjsonSource` provide the local fallback every broker-backed path should preserve.
 - `HarnessEventMemoryBroker` is the dependency-free adapter harness for tests and future adapter development: it serializes through the broker envelope, exposes delivery metadata, tracks ack outcomes, and can redeliver unacked messages with incremented attempts.
+- `HarnessEventFanoutSink` enforces the outage policy for future adapters: write local audit evidence first, publish to the broker second, and record broker failure as non-fatal evidence unless strict mode is explicitly enabled.
 
 Route mapping for future adapters:
 
@@ -256,6 +257,7 @@ Broker payload and ack contract:
 - JetStream publish ack should mean broker persistence; consumer ack should mean processing completed.
 - Redis `XADD` id should map to `message_id`; `XACK` only applies when consumer groups are used.
 - The memory broker is not durable and should not be used as audit evidence; use it to verify adapter-independent publish/consume/ack behavior before wiring NATS or Redis.
+- Broker fanout must never delete or rewrite local NDJSON evidence. In normal mode broker publish errors are captured in `HarnessEventFanoutReport.broker_error`; strict mode may return an error after the local write has already succeeded.
 
 ## WebSocket control command core
 
