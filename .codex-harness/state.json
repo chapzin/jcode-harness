@@ -6,9 +6,9 @@
   "activeContractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
   "counters": {
     "contracts": 26,
-    "traces": 24,
-    "gates": 23,
-    "verifications": 20,
+    "traces": 25,
+    "gates": 24,
+    "verifications": 21,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -65,20 +65,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-06T22:32:31.224Z",
-      "type": "contract_created",
-      "contractId": "2026-05-06-embedded-skills-scoping-improvement-87c1a0",
-      "summary": "Embedded skills scoping improvement"
-    },
-    {
-      "ts": "2026-05-06T22:37:58.750Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-06-fa63625f",
-      "contractId": "2026-05-06-embedded-skills-scoping-improvement-87c1a0",
-      "status": "pass",
-      "summary": "Validações direcionadas, smoke JSON e selfdev build passaram."
-    },
     {
       "ts": "2026-05-06T22:38:08.746Z",
       "type": "gate_evaluated",
@@ -631,6 +617,21 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
       "gateId": "gate-2026-05-08-5daeb0",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T11:11:38.088Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-4336910f",
+      "contractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
+      "status": "pass",
+      "summary": "session cancel slice committed and pushed"
+    },
+    {
+      "ts": "2026-05-08T11:11:54.581Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
+      "gateId": "gate-2026-05-08-6429da",
       "verdict": "pass"
     }
   ]
