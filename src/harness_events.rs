@@ -2,9 +2,11 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::HashMap;
+use std::hint::black_box;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 use tokio::sync::broadcast;
 
 pub const HARNESS_EVENT_SCHEMA_VERSION: u16 = 1;
@@ -121,6 +123,37 @@ pub struct HarnessEventTimelineItem {
     pub child_count: usize,
     pub failure: bool,
     pub details: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HarnessEventBenchmarkOptions {
+    pub events: usize,
+}
+
+impl Default for HarnessEventBenchmarkOptions {
+    fn default() -> Self {
+        Self { events: 10_000 }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct HarnessEventBenchmarkMetric {
+    pub total_nanos: u128,
+    pub micros_per_event: f64,
+    pub events_per_second: f64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct HarnessEventBenchmarkReport {
+    pub events: usize,
+    pub ndjson_bytes: usize,
+    pub read_diagnostics: usize,
+    pub publish_no_subscribers: HarnessEventBenchmarkMetric,
+    pub ndjson_write_memory: HarnessEventBenchmarkMetric,
+    pub ndjson_write_file: HarnessEventBenchmarkMetric,
+    pub ndjson_read_report_file: HarnessEventBenchmarkMetric,
+    pub timeline_build: HarnessEventBenchmarkMetric,
+    pub notes: Vec<String>,
 }
 
 impl HarnessEvent {
@@ -372,6 +405,103 @@ pub fn append_harness_event_ndjson(
         .append(true)
         .open(path)?;
     write_harness_event_ndjson(&mut file, event)
+}
+
+pub fn run_harness_event_benchmark(
+    options: HarnessEventBenchmarkOptions,
+) -> anyhow::Result<HarnessEventBenchmarkReport> {
+    let event_count = options.events.max(1);
+    let run_id = format!("bench_{}", crate::id::new_id("hevtbench"));
+    let bus = HarnessEventBus::with_capacity(1);
+
+    let publish_start = Instant::now();
+    let mut events = Vec::with_capacity(event_count);
+    for index in 0..event_count {
+        let kind = if index == 0 {
+            HarnessEventKind::RunStarted
+        } else if index + 1 == event_count {
+            HarnessEventKind::RunCompleted
+        } else {
+            HarnessEventKind::ToolFinished
+        };
+        let payload = json!({
+            "status": if matches!(kind, HarnessEventKind::RunStarted) { "started" } else { "ok" },
+            "tool": "synthetic-bench",
+            "duration_ms": 1,
+            "index": index,
+        });
+        let event = bus.publish(HarnessEventDraft::new(&run_id, kind).with_payload(payload));
+        black_box(&event);
+        events.push(event);
+    }
+    let publish_no_subscribers = benchmark_metric(publish_start, event_count);
+
+    let memory_write_start = Instant::now();
+    let mut ndjson = Vec::new();
+    for event in &events {
+        write_harness_event_ndjson(&mut ndjson, event)?;
+    }
+    black_box(ndjson.len());
+    let ndjson_write_memory = benchmark_metric(memory_write_start, event_count);
+
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-events-bench-")
+        .tempdir()?;
+    let path = temp.path().join("bench.ndjson");
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&path)?;
+    let file_write_start = Instant::now();
+    for event in &events {
+        write_harness_event_ndjson(&mut file, event)?;
+    }
+    let ndjson_write_file = benchmark_metric(file_write_start, event_count);
+    drop(file);
+
+    let read_start = Instant::now();
+    let read_report = read_harness_event_ndjson_report(&path)?;
+    black_box(read_report.events.len());
+    let ndjson_read_report_file = benchmark_metric(read_start, event_count);
+
+    let timeline_start = Instant::now();
+    let timeline = build_harness_event_timeline(&read_report.events);
+    black_box(timeline.len());
+    let timeline_build = benchmark_metric(timeline_start, event_count);
+
+    Ok(HarnessEventBenchmarkReport {
+        events: event_count,
+        ndjson_bytes: ndjson.len(),
+        read_diagnostics: read_report.diagnostics.len(),
+        publish_no_subscribers,
+        ndjson_write_memory,
+        ndjson_write_file,
+        ndjson_read_report_file,
+        timeline_build,
+        notes: vec![
+            "Synthetic single-process baseline; compare on the same machine/profile.".to_string(),
+            "No fsync is used; NDJSON writes flush per event like the production sink.".to_string(),
+            "Use larger --events values locally before setting regression thresholds.".to_string(),
+        ],
+    })
+}
+
+fn benchmark_metric(start: Instant, events: usize) -> HarnessEventBenchmarkMetric {
+    let elapsed = start.elapsed();
+    let total_nanos = elapsed.as_nanos();
+    let events = events.max(1) as f64;
+    let elapsed_secs = elapsed.as_secs_f64();
+
+    HarnessEventBenchmarkMetric {
+        total_nanos,
+        micros_per_event: total_nanos as f64 / 1_000.0 / events,
+        events_per_second: if elapsed_secs > 0.0 {
+            events / elapsed_secs
+        } else {
+            f64::INFINITY
+        },
+    }
 }
 
 pub fn read_harness_event_ndjson_report(
@@ -1438,6 +1568,35 @@ mod tests {
 | 1 | 0 | `info` | `tool_finished` | `hevt_tool` |  | 0 | `completed` | status=ok, tool=cargo test |\n\
 \n"
         );
+    }
+
+    #[test]
+    fn benchmark_report_covers_core_event_paths() {
+        let report = run_harness_event_benchmark(HarnessEventBenchmarkOptions { events: 16 })
+            .expect("benchmark should run");
+
+        assert_eq!(report.events, 16);
+        assert!(report.ndjson_bytes > report.events);
+        assert_eq!(report.read_diagnostics, 0);
+        assert_metric_is_finite(&report.publish_no_subscribers);
+        assert_metric_is_finite(&report.ndjson_write_memory);
+        assert_metric_is_finite(&report.ndjson_write_file);
+        assert_metric_is_finite(&report.ndjson_read_report_file);
+        assert_metric_is_finite(&report.timeline_build);
+        assert!(
+            report
+                .notes
+                .iter()
+                .any(|note| note.contains("Synthetic single-process baseline"))
+        );
+    }
+
+    fn assert_metric_is_finite(metric: &HarnessEventBenchmarkMetric) {
+        assert!(metric.total_nanos > 0);
+        assert!(metric.micros_per_event.is_finite());
+        assert!(metric.micros_per_event >= 0.0);
+        assert!(metric.events_per_second.is_finite() || metric.events_per_second.is_infinite());
+        assert!(metric.events_per_second > 0.0);
     }
 
     #[test]

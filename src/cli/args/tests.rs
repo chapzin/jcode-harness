@@ -593,6 +593,16 @@ fn events_path_tail_and_export_parse() {
         }
         other => panic!("unexpected command: {:?}", other),
     }
+
+    let args =
+        Args::try_parse_from(["jcode", "events", "bench", "--events", "2500", "--json"]).unwrap();
+    match args.command {
+        Some(Command::Events(EventCommand::Bench { events, json })) => {
+            assert_eq!(events, 2500);
+            assert!(json);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
 }
 
 #[test]

@@ -144,6 +144,7 @@ jcode events export --run run_123 --output run.ndjson --json
 jcode events export --run run_123 > run.ndjson
 jcode events replay --run run_123 > replay.md
 jcode events replay --run run_123 --json > replay.json
+jcode events bench --events 10000 --json > harness-events-bench.json
 ```
 
 - `path` prints the sanitized default log path for a run id.
@@ -155,6 +156,19 @@ jcode events replay --run run_123 --json > replay.json
 - `replay` reconstructs a local audit timeline as Markdown by default, or JSON with `--json`. Replay output includes phase grouping, elapsed milliseconds, parent event references, child counts, duration hints, and explicit failure points.
 
 Replay and indexing use a tolerant read report for auditability: valid event lines are retained, invalid or truncated lines are surfaced as line-numbered diagnostics, and JSON replay includes a `diagnostics` array alongside `summary`, `timeline`, and `events`. Strict NDJSON consumers such as `tail --ndjson` and `export` still fail on malformed input so automation does not silently consume damaged streams.
+
+### Performance baseline
+
+`jcode events bench` runs a dependency-free synthetic baseline for #25. It measures event publish with no subscribers, NDJSON serialization to memory, NDJSON write/read through a temporary file, and replay timeline construction. The report is intentionally a baseline, not a hard CI threshold yet, because numbers depend on machine, build profile, filesystem, and event payload size.
+
+Recommended use while tuning defaults:
+
+```bash
+cargo run -q -p jcode --bin jcode -- events bench --events 10000 --json \
+  > harness-events-bench.json
+```
+
+Compare reports on the same machine/profile before changing buffer capacities, flush behavior, retention, or sampling. The initial budget guidance is: no-subscriber publish must stay non-blocking, NDJSON writes flush safely without fsync by default, replay parsing must report diagnostics rather than panic, and long-running modes must bound in-memory buffers.
 
 ## Minimal producer usage
 

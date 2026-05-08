@@ -364,6 +364,48 @@ pub fn run_events_export_command(
     Ok(())
 }
 
+pub fn run_events_bench_command(events: usize, emit_json: bool) -> Result<()> {
+    if events == 0 {
+        anyhow::bail!("--events must be greater than zero");
+    }
+
+    let report = crate::harness_events::run_harness_event_benchmark(
+        crate::harness_events::HarnessEventBenchmarkOptions { events },
+    )?;
+
+    if emit_json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+
+    println!(
+        "Harness events synthetic benchmark: {} events",
+        report.events
+    );
+    println!("NDJSON bytes: {}", report.ndjson_bytes);
+    println!("Read diagnostics: {}", report.read_diagnostics);
+    print_benchmark_metric("publish_no_subscribers", &report.publish_no_subscribers);
+    print_benchmark_metric("ndjson_write_memory", &report.ndjson_write_memory);
+    print_benchmark_metric("ndjson_write_file", &report.ndjson_write_file);
+    print_benchmark_metric("ndjson_read_report_file", &report.ndjson_read_report_file);
+    print_benchmark_metric("timeline_build", &report.timeline_build);
+    if !report.notes.is_empty() {
+        println!("Notes:");
+        for note in report.notes {
+            println!("- {}", note);
+        }
+    }
+
+    Ok(())
+}
+
+fn print_benchmark_metric(name: &str, metric: &crate::harness_events::HarnessEventBenchmarkMetric) {
+    println!(
+        "{}: {} ns total, {:.3} us/event, {:.0} events/s",
+        name, metric.total_nanos, metric.micros_per_event, metric.events_per_second
+    );
+}
+
 fn write_output_file(path: &std::path::Path, bytes: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent()
         && !parent.as_os_str().is_empty()

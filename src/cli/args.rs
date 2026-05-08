@@ -471,6 +471,17 @@ pub(crate) enum EventCommand {
         #[arg(long)]
         json: bool,
     },
+
+    /// Run a synthetic harness-events overhead baseline benchmark
+    Bench {
+        /// Number of synthetic events to emit and process
+        #[arg(long, default_value_t = 10_000)]
+        events: usize,
+
+        /// Emit JSON instead of human-readable text
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]

@@ -265,6 +265,9 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             EventCommand::Export { run, output, json } => {
                 commands::run_events_export_command(&run, output, json)?
             }
+            EventCommand::Bench { events, json } => {
+                commands::run_events_bench_command(events, json)?
+            }
         },
         Some(Command::CleanCode(subcmd)) => match subcmd {
             CleanCodeCommand::Check {
