@@ -237,6 +237,7 @@ Current local implementations:
 - `HarnessEventMemoryBroker` is the dependency-free adapter harness for tests and future adapter development: it serializes through the broker envelope, exposes delivery metadata, tracks ack outcomes, and can redeliver unacked messages with incremented attempts.
 - `HarnessEventFanoutSink` enforces the outage policy for future adapters: write local audit evidence first, publish to the broker second, and record broker failure as non-fatal evidence unless strict mode is explicitly enabled.
 - `HarnessEventRedisStreamSink` is available behind `--features harness-events-redis`; it publishes the broker envelope to Redis Streams with `XADD`, using the derived stream key and storing searchable fields such as `event_id`, `run_id`, `dedupe_key`, `schema_version`, `kind`, and `level` beside the JSON payload.
+- `HarnessEventRedisStreamSource` is also feature-gated. It polls configured Redis stream keys with bounded `XRANGE`, parses entries back into `HarnessEventDelivery`, validates searchable metadata against the envelope payload, and exposes `XACK` behavior through `harness_event_redis_stream_ack_command` / `ack_delivery`.
 
 Route mapping for future adapters:
 
@@ -256,7 +257,7 @@ Broker payload and ack contract:
 - `HarnessEventDelivery` carries route, message id, redelivery flag, and attempt count for adapter-specific consumers.
 - `HarnessEventDeliveryAck` records `pending`, `acked`, `nacked`, `redelivered`, or `dropped` outcomes without promising that NATS and Redis have identical ack semantics.
 - JetStream publish ack should mean broker persistence; consumer ack should mean processing completed.
-- Redis `XADD` id should map to `message_id`; `XACK` only applies when consumer groups are used.
+- Redis `XADD` id should map to `message_id`; `XACK` only applies when consumer groups are used. The helper policy is: `acked` and `dropped` outcomes call `XACK`, while `nacked` remains pending for retry or redelivery.
 - The memory broker is not durable and should not be used as audit evidence; use it to verify adapter-independent publish/consume/ack behavior before wiring NATS or Redis.
 - Broker fanout must never delete or rewrite local NDJSON evidence. In normal mode broker publish errors are captured in `HarnessEventFanoutReport.broker_error`; strict mode may return an error after the local write has already succeeded.
 - Redis support remains opt-in. The default build has no Redis dependency, and Redis integration tests should be gated on both the cargo feature and an explicit broker URL environment variable.

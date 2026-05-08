@@ -19,6 +19,7 @@ pub const HARNESS_EVENT_BROKER_PROTOCOL_VERSION: u16 = 1;
 pub const HARNESS_EVENT_BROKER_DELIVERY_SEMANTICS: &str = "at_least_once";
 pub const HARNESS_EVENT_MIN_LEVEL_ENV: &str = "JCODE_HARNESS_EVENTS_MIN_LEVEL";
 pub const HARNESS_EVENT_TOOL_SAMPLE_EVERY_ENV: &str = "JCODE_HARNESS_EVENTS_TOOL_SAMPLE_EVERY";
+pub const DEFAULT_HARNESS_EVENT_REDIS_STREAM_READ_COUNT: usize = 1024;
 const DEFAULT_EVENT_BUS_CAPACITY: usize = 1024;
 const HARNESS_EVENT_LOG_DIR: &str = "harness-events";
 
@@ -381,6 +382,15 @@ impl HarnessEventRedisStreamEntry {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HarnessEventRedisStreamAckCommand {
+    pub stream_key: String,
+    pub group: String,
+    pub message_id: String,
+    pub outcome: HarnessEventAckOutcome,
+    pub should_xack: bool,
+}
+
 #[derive(Clone, Debug)]
 pub struct HarnessEventFanoutSink<L, B> {
     name: String,
@@ -397,11 +407,33 @@ pub struct HarnessEventRedisStreamSink {
 }
 
 #[cfg(feature = "harness-events-redis")]
+pub struct HarnessEventRedisStreamSource {
+    name: String,
+    connection: Mutex<redis::Connection>,
+    stream_keys: Vec<String>,
+    consumer_group: Option<String>,
+    max_read_count: usize,
+}
+
+#[cfg(feature = "harness-events-redis")]
 impl std::fmt::Debug for HarnessEventRedisStreamSink {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HarnessEventRedisStreamSink")
             .field("name", &self.name)
             .field("connection", &"<redis::Connection>")
+            .finish()
+    }
+}
+
+#[cfg(feature = "harness-events-redis")]
+impl std::fmt::Debug for HarnessEventRedisStreamSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HarnessEventRedisStreamSource")
+            .field("name", &self.name)
+            .field("connection", &"<redis::Connection>")
+            .field("stream_keys", &self.stream_keys)
+            .field("consumer_group", &self.consumer_group)
+            .field("max_read_count", &self.max_read_count)
             .finish()
     }
 }
@@ -619,6 +651,120 @@ impl HarnessEventRedisStreamSink {
         let client = redis::Client::open(url)?;
         let connection = client.get_connection()?;
         Ok(Self::new(connection))
+    }
+}
+
+#[cfg(feature = "harness-events-redis")]
+impl HarnessEventRedisStreamSource {
+    pub fn for_run(connection: redis::Connection, run_id: &str) -> Self {
+        Self::with_stream_keys(
+            "redis-streams-source",
+            connection,
+            vec![harness_event_redis_stream_key_for_run(run_id)],
+        )
+    }
+
+    pub fn with_stream_keys(
+        name: impl Into<String>,
+        connection: redis::Connection,
+        stream_keys: Vec<String>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            connection: Mutex::new(connection),
+            stream_keys,
+            consumer_group: None,
+            max_read_count: DEFAULT_HARNESS_EVENT_REDIS_STREAM_READ_COUNT,
+        }
+    }
+
+    pub fn from_url_for_run(url: &str, run_id: &str) -> anyhow::Result<Self> {
+        let client = redis::Client::open(url)?;
+        let connection = client.get_connection()?;
+        Ok(Self::for_run(connection, run_id))
+    }
+
+    pub fn with_consumer_group(mut self, consumer_group: impl Into<String>) -> Self {
+        self.consumer_group = Some(consumer_group.into());
+        self
+    }
+
+    pub fn with_max_read_count(mut self, max_read_count: usize) -> Self {
+        self.max_read_count = max_read_count.max(1);
+        self
+    }
+
+    pub fn stream_keys(&self) -> &[String] {
+        &self.stream_keys
+    }
+
+    pub fn read_deliveries_after(
+        &self,
+        run_id: &str,
+        last_event_id: Option<&str>,
+    ) -> anyhow::Result<Vec<HarnessEventDelivery>> {
+        let mut deliveries = Vec::new();
+        let mut connection = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow::anyhow!("redis stream source connection mutex poisoned"))?;
+
+        for stream_key in &self.stream_keys {
+            let reply: redis::streams::StreamRangeReply = redis::cmd("XRANGE")
+                .arg(stream_key)
+                .arg("-")
+                .arg("+")
+                .arg("COUNT")
+                .arg(self.max_read_count)
+                .query(&mut *connection)?;
+
+            for stream_id in &reply.ids {
+                deliveries.push(harness_event_redis_stream_delivery_from_stream_id(
+                    stream_key, stream_id,
+                )?);
+            }
+        }
+
+        let deliveries = deliveries
+            .into_iter()
+            .filter(|delivery| delivery.envelope.event.run_id == run_id)
+            .collect::<Vec<_>>();
+        let Some(last_event_id) = last_event_id.filter(|value| !value.is_empty()) else {
+            return Ok(deliveries);
+        };
+        Ok(deliveries
+            .iter()
+            .position(|delivery| delivery.envelope.event.event_id == last_event_id)
+            .map(|index| deliveries[index + 1..].to_vec())
+            .unwrap_or(deliveries))
+    }
+
+    pub fn ack_delivery(
+        &self,
+        delivery: &HarnessEventDelivery,
+        outcome: HarnessEventAckOutcome,
+    ) -> anyhow::Result<HarnessEventDeliveryAck> {
+        let command = harness_event_redis_stream_ack_command(
+            delivery,
+            self.consumer_group.as_deref(),
+            outcome,
+        )?;
+        if command.should_xack {
+            let mut connection = self
+                .connection
+                .lock()
+                .map_err(|_| anyhow::anyhow!("redis stream source connection mutex poisoned"))?;
+            let acknowledged: usize = redis::cmd("XACK")
+                .arg(&command.stream_key)
+                .arg(&command.group)
+                .arg(&command.message_id)
+                .query(&mut *connection)?;
+            let detail =
+                (acknowledged == 0).then(|| "redis xack acknowledged 0 messages".to_string());
+            return Ok(harness_event_delivery_ack(delivery, outcome, detail));
+        }
+
+        Ok(harness_event_delivery_ack(delivery, outcome, None))
     }
 }
 
@@ -1404,6 +1550,113 @@ pub fn harness_event_redis_stream_entry(
     })
 }
 
+pub fn harness_event_redis_stream_key_for_run(run_id: &str) -> String {
+    format!(
+        "jcode:harness-events:v1:run:{}:events",
+        encode_harness_event_broker_token(run_id)
+    )
+}
+
+pub fn harness_event_redis_stream_delivery_from_fields(
+    stream_key: &str,
+    message_id: impl Into<String>,
+    fields: &[(String, String)],
+    redelivered: bool,
+    delivery_attempt: u32,
+) -> anyhow::Result<HarnessEventDelivery> {
+    let payload = redis_stream_field(fields, "payload")
+        .ok_or_else(|| anyhow::anyhow!("redis stream entry is missing payload field"))?;
+    let envelope = deserialize_harness_event_broker_payload(payload.as_bytes())?;
+    validate_redis_stream_field(fields, "event_id", &envelope.event.event_id)?;
+    validate_redis_stream_field(fields, "run_id", &envelope.event.run_id)?;
+    validate_redis_stream_field(fields, "dedupe_key", &envelope.dedupe_key)?;
+    validate_redis_stream_field(
+        fields,
+        "schema_version",
+        &envelope.event.schema_version.to_string(),
+    )?;
+
+    let route = harness_event_broker_route(&envelope.event);
+    if route.redis_stream_key != stream_key {
+        anyhow::bail!("redis stream key does not match broker payload route");
+    }
+
+    Ok(HarnessEventDelivery {
+        route,
+        envelope,
+        message_id: Some(message_id.into()),
+        redelivered,
+        delivery_attempt: delivery_attempt.max(1),
+    })
+}
+
+#[cfg(feature = "harness-events-redis")]
+pub fn harness_event_redis_stream_delivery_from_stream_id(
+    stream_key: &str,
+    stream_id: &redis::streams::StreamId,
+) -> anyhow::Result<HarnessEventDelivery> {
+    let mut fields = Vec::with_capacity(stream_id.map.len());
+    for (field, value) in &stream_id.map {
+        let value = redis::from_redis_value::<String>(value.clone()).map_err(|error| {
+            anyhow::anyhow!("redis stream field {field} is not valid UTF-8 text: {error}")
+        })?;
+        fields.push((field.clone(), value));
+    }
+    let delivered_count = stream_id.delivered_count.unwrap_or(1).max(1);
+    harness_event_redis_stream_delivery_from_fields(
+        stream_key,
+        stream_id.id.clone(),
+        &fields,
+        delivered_count > 1,
+        delivered_count as u32,
+    )
+}
+
+pub fn harness_event_redis_stream_ack_command(
+    delivery: &HarnessEventDelivery,
+    consumer_group: Option<&str>,
+    outcome: HarnessEventAckOutcome,
+) -> anyhow::Result<HarnessEventRedisStreamAckCommand> {
+    let message_id = delivery
+        .message_id
+        .as_deref()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("redis stream delivery is missing message id"))?;
+    let group = consumer_group
+        .filter(|value| !value.is_empty())
+        .unwrap_or(&delivery.route.durable_consumer);
+    Ok(HarnessEventRedisStreamAckCommand {
+        stream_key: delivery.route.redis_stream_key.clone(),
+        group: group.to_string(),
+        message_id: message_id.to_string(),
+        outcome,
+        should_xack: matches!(
+            outcome,
+            HarnessEventAckOutcome::Acked | HarnessEventAckOutcome::Dropped
+        ),
+    })
+}
+
+fn redis_stream_field<'a>(fields: &'a [(String, String)], name: &str) -> Option<&'a str> {
+    fields
+        .iter()
+        .find(|(field, _)| field == name)
+        .map(|(_, value)| value.as_str())
+}
+
+fn validate_redis_stream_field(
+    fields: &[(String, String)],
+    name: &str,
+    expected: &str,
+) -> anyhow::Result<()> {
+    if let Some(actual) = redis_stream_field(fields, name) {
+        if actual != expected {
+            anyhow::bail!("redis stream field {name} does not match broker payload");
+        }
+    }
+    Ok(())
+}
+
 impl HarnessEventSource for HarnessEventMemoryBroker {
     fn source_name(&self) -> &str {
         &self.name
@@ -1416,6 +1669,25 @@ impl HarnessEventSource for HarnessEventMemoryBroker {
     ) -> anyhow::Result<Vec<HarnessEvent>> {
         Ok(self
             .read_deliveries_after(run_id, last_event_id)
+            .into_iter()
+            .map(|delivery| delivery.envelope.event)
+            .collect())
+    }
+}
+
+#[cfg(feature = "harness-events-redis")]
+impl HarnessEventSource for HarnessEventRedisStreamSource {
+    fn source_name(&self) -> &str {
+        &self.name
+    }
+
+    fn read_events_after(
+        &self,
+        run_id: &str,
+        last_event_id: Option<&str>,
+    ) -> anyhow::Result<Vec<HarnessEvent>> {
+        Ok(self
+            .read_deliveries_after(run_id, last_event_id)?
             .into_iter()
             .map(|delivery| delivery.envelope.event)
             .collect())
@@ -3547,6 +3819,114 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn redis_stream_delivery_parses_fields_and_ack_command() {
+        let event = HarnessEvent::new(
+            "hevt_redis_delivery",
+            "run redis delivery",
+            DateTime::parse_from_rfc3339("2026-05-08T06:12:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            9,
+            HarnessEventLevel::Info,
+            HarnessEventKind::ToolFinished,
+            json!({"status": "ok", "api_key": "sk-do-not-leak"}),
+        );
+        let entry = harness_event_redis_stream_entry(&event).unwrap();
+
+        let delivery = harness_event_redis_stream_delivery_from_fields(
+            &entry.stream_key,
+            "1715150000000-0",
+            &entry.fields,
+            true,
+            2,
+        )
+        .unwrap();
+        let ack = harness_event_redis_stream_ack_command(
+            &delivery,
+            Some("workers-a"),
+            HarnessEventAckOutcome::Acked,
+        )
+        .unwrap();
+        let nack = harness_event_redis_stream_ack_command(
+            &delivery,
+            Some("workers-a"),
+            HarnessEventAckOutcome::Nacked,
+        )
+        .unwrap();
+
+        assert_eq!(delivery.message_id.as_deref(), Some("1715150000000-0"));
+        assert!(delivery.redelivered);
+        assert_eq!(delivery.delivery_attempt, 2);
+        assert_eq!(delivery.envelope.event.event_id, "hevt_redis_delivery");
+        assert_eq!(
+            delivery.envelope.event.payload["api_key"],
+            HARNESS_EVENT_REDACTED
+        );
+        assert_eq!(delivery.route.redis_stream_key, entry.stream_key);
+        assert_eq!(ack.stream_key, entry.stream_key);
+        assert_eq!(ack.group, "workers-a");
+        assert_eq!(ack.message_id, "1715150000000-0");
+        assert!(ack.should_xack);
+        assert!(!nack.should_xack);
+    }
+
+    #[test]
+    fn redis_stream_delivery_rejects_mismatched_metadata_and_missing_message_id() {
+        let event = HarnessEvent::new(
+            "hevt_redis_mismatch",
+            "run_redis_mismatch",
+            DateTime::parse_from_rfc3339("2026-05-08T06:13:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            10,
+            HarnessEventLevel::Info,
+            HarnessEventKind::RunCompleted,
+            json!({"status": "ok"}),
+        );
+        let entry = harness_event_redis_stream_entry(&event).unwrap();
+        let mut mismatched = entry.fields.clone();
+        mismatched
+            .iter_mut()
+            .find(|(field, _)| field == "event_id")
+            .unwrap()
+            .1 = "hevt_other".to_string();
+
+        let mismatch_err = harness_event_redis_stream_delivery_from_fields(
+            &entry.stream_key,
+            "1715150000001-0",
+            &mismatched,
+            false,
+            1,
+        )
+        .unwrap_err();
+        assert!(
+            mismatch_err
+                .to_string()
+                .contains("redis stream field event_id does not match")
+        );
+
+        let delivery = harness_event_redis_stream_delivery_from_fields(
+            &entry.stream_key,
+            "1715150000001-0",
+            &entry.fields,
+            false,
+            1,
+        )
+        .unwrap();
+        let missing_id = HarnessEventDelivery {
+            message_id: None,
+            ..delivery
+        };
+        let missing_id_err = harness_event_redis_stream_ack_command(
+            &missing_id,
+            None,
+            HarnessEventAckOutcome::Acked,
+        )
+        .unwrap_err();
+        assert!(missing_id_err.to_string().contains("missing message id"));
     }
 
     #[test]
