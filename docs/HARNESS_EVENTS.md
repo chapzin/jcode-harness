@@ -170,6 +170,8 @@ cargo run -q -p jcode --bin jcode -- events bench --events 10000 --json \
 
 Compare reports on the same machine/profile before changing buffer capacities, flush behavior, retention, or sampling. The initial budget guidance is: no-subscriber publish must stay non-blocking, NDJSON writes flush safely without fsync by default, replay parsing must report diagnostics rather than panic, and long-running modes must bound in-memory buffers.
 
+Slow subscribers are intentionally backpressured by Tokio broadcast semantics instead of blocking publishers: each in-process subscriber reads from a bounded ring, lagging receivers observe `Lagged` and may miss old in-memory events. Durable consumers that cannot lose events should attach to the NDJSON sink or a future broker-backed transport rather than relying on the in-memory fan-out ring alone.
+
 ## Minimal producer usage
 
 ```rust

@@ -1682,6 +1682,35 @@ mod tests {
         assert_eq!(second_seen.payload["reason"], "approval required");
     }
 
+    #[tokio::test]
+    async fn slow_subscribers_lag_instead_of_blocking_publish() {
+        let bus = HarnessEventBus::with_capacity(4);
+        let mut slow_rx = bus.subscribe();
+
+        for index in 0..32 {
+            let event = bus.publish(
+                HarnessEventDraft::new("run_slow_subscriber", HarnessEventKind::ToolFinished)
+                    .with_payload(json!({"status": "ok", "index": index})),
+            );
+            assert_eq!(event.sequence, index + 1);
+        }
+
+        let lagged = timeout(Duration::from_secs(1), slow_rx.recv())
+            .await
+            .expect("lagged receiver should respond")
+            .expect_err("slow receiver should report lag instead of blocking publisher");
+        match lagged {
+            tokio::sync::broadcast::error::RecvError::Lagged(skipped) => assert!(skipped > 0),
+            other => panic!("unexpected receive error: {other:?}"),
+        }
+
+        let retained = timeout(Duration::from_secs(1), slow_rx.recv())
+            .await
+            .expect("lagged receiver should recover")
+            .expect("retained tail event should be readable");
+        assert!(retained.sequence > 28);
+    }
+
     #[test]
     fn publishing_without_subscribers_still_returns_event() {
         let bus = HarnessEventBus::with_capacity(8);
