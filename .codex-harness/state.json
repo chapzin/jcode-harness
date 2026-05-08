@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Add provider concurrency backpressure",
+  "focus": "Gate OpenAI persistent WebSocket attempts",
   "status": "done",
-  "activeContractId": "2026-05-08-add-provider-concurrency-backpressure-7109d5",
+  "activeContractId": "2026-05-08-gate-openai-persistent-websocket-attempts-22186b",
   "counters": {
-    "contracts": 49,
-    "traces": 78,
-    "gates": 49,
-    "verifications": 66,
+    "contracts": 50,
+    "traces": 80,
+    "gates": 51,
+    "verifications": 68,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -135,45 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T13:10:51.514Z",
-      "type": "trace_recorded",
-      "traceId": "trace-2026-05-08-18b5e30d",
-      "contractId": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d",
-      "kind": "failure",
-      "summary": "Initial implicit await run scope verification failed due to test assertion type error"
-    },
-    {
-      "ts": "2026-05-08T13:13:15.054Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-e9db54ab",
-      "contractId": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d",
-      "status": "pass",
-      "summary": "Focused implicit await run scope guard verification passed."
-    },
-    {
-      "ts": "2026-05-08T13:13:25.071Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-3d23b9c9",
-      "contractId": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d",
-      "status": "pass",
-      "summary": "Self-dev build and reload passed for implicit await run scope guard."
-    },
-    {
-      "ts": "2026-05-08T13:13:34.805Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d",
-      "gateId": "gate-2026-05-08-fbc74e",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-08T13:13:45.058Z",
-      "type": "state_update",
-      "note": "Initial verification task 8082575cwx exposed a test assertion type error; rerun task 859544br57 passed, selfdev build task 910772w2im and reload passed, and gate gate-2026-05-08-fbc74e passed.",
-      "status": "done",
-      "focus": "Commit and push implicit await run scope guard",
-      "activeContractId": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d"
-    },
     {
       "ts": "2026-05-08T13:16:31.798Z",
       "type": "contract_created",
@@ -723,6 +684,42 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-08-add-provider-concurrency-backpressure-7109d5",
       "gateId": "gate-2026-05-08-5ded27",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T16:23:59.787Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-gate-openai-persistent-websocket-attempts-22186b",
+      "summary": "Gate OpenAI persistent WebSocket attempts"
+    },
+    {
+      "ts": "2026-05-08T16:26:26.853Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-a6d8b198",
+      "contractId": "2026-05-08-gate-openai-persistent-websocket-attempts-22186b",
+      "status": "pass",
+      "summary": "Focused OpenAI persistent WebSocket gate verification passed."
+    },
+    {
+      "ts": "2026-05-08T16:27:55.940Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-6e02d997",
+      "contractId": "2026-05-08-gate-openai-persistent-websocket-attempts-22186b",
+      "status": "pass",
+      "summary": "Selfdev build and reload passed for OpenAI persistent WebSocket gate slice."
+    },
+    {
+      "ts": "2026-05-08T16:28:21.692Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-gate-openai-persistent-websocket-attempts-22186b",
+      "gateId": "gate-2026-05-08-a01e84",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T16:28:33.289Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-gate-openai-persistent-websocket-attempts-22186b",
+      "gateId": "gate-2026-05-08-1d23a9",
       "verdict": "pass"
     }
   ]

@@ -88,48 +88,6 @@ impl Provider for OpenAIProvider {
 
         tokio::spawn(async move {
             let stream_task = async move {
-                // Attempt persistent WebSocket continuation first
-                if use_websocket_transport {
-                    let continuation_result = try_persistent_ws_continuation(
-                        &persistent_ws,
-                        &request,
-                        &input,
-                        input_item_count,
-                        &tx,
-                    )
-                    .await;
-
-                    match continuation_result {
-                        PersistentWsResult::Success => {
-                            record_websocket_success(
-                                &websocket_cooldowns,
-                                &websocket_failure_streaks,
-                                &model_for_transport,
-                            )
-                            .await;
-                            return;
-                        }
-                        PersistentWsResult::NotAvailable => {
-                            crate::logging::info(
-                                "No persistent WS connection available; using fresh connection",
-                            );
-                        }
-                        PersistentWsResult::Failed(err) => {
-                            crate::logging::warn(&format!(
-                                "Persistent WS continuation failed: {}; using fresh connection",
-                                err
-                            ));
-                            let mut guard = persistent_ws.lock().await;
-                            *guard = None;
-                        }
-                    }
-                }
-
-                // Normal path: fresh connection with full input (with retry logic)
-                let mut last_error = None;
-                let mut force_https_for_request = false;
-                let mut skip_backoff_once = false;
-
                 if let Some(delay) = crate::provider::provider_rate_limit_cooldown_remaining_ms(
                     "openai",
                     &model_for_transport,
@@ -182,6 +140,48 @@ impl Provider for OpenAIProvider {
                         permit.limit()
                     ));
                 }
+
+                // Attempt persistent WebSocket continuation first
+                if use_websocket_transport {
+                    let continuation_result = try_persistent_ws_continuation(
+                        &persistent_ws,
+                        &request,
+                        &input,
+                        input_item_count,
+                        &tx,
+                    )
+                    .await;
+
+                    match continuation_result {
+                        PersistentWsResult::Success => {
+                            record_websocket_success(
+                                &websocket_cooldowns,
+                                &websocket_failure_streaks,
+                                &model_for_transport,
+                            )
+                            .await;
+                            return;
+                        }
+                        PersistentWsResult::NotAvailable => {
+                            crate::logging::info(
+                                "No persistent WS connection available; using fresh connection",
+                            );
+                        }
+                        PersistentWsResult::Failed(err) => {
+                            crate::logging::warn(&format!(
+                                "Persistent WS continuation failed: {}; using fresh connection",
+                                err
+                            ));
+                            let mut guard = persistent_ws.lock().await;
+                            *guard = None;
+                        }
+                    }
+                }
+
+                // Normal path: fresh connection with full input (with retry logic)
+                let mut last_error = None;
+                let mut force_https_for_request = false;
+                let mut skip_backoff_once = false;
 
                 for attempt in 0..MAX_RETRIES {
                     if attempt > 0 {

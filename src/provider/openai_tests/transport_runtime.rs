@@ -473,6 +473,29 @@ fn openai_rate_limit_retryable_patterns_are_explicit() {
     assert!(is_retryable_error(&message.to_lowercase()));
 }
 
+#[test]
+fn openai_backpressure_gate_precedes_persistent_ws_continuation() {
+    let source = include_str!("../openai_provider_impl.rs");
+    let cooldown = source
+        .find("provider_rate_limit_cooldown_remaining_ms")
+        .expect("OpenAI provider should check rate-limit cooldown");
+    let backpressure = source
+        .find("acquire_provider_concurrency_permit")
+        .expect("OpenAI provider should acquire provider concurrency permit");
+    let continuation = source
+        .find("let continuation_result = try_persistent_ws_continuation")
+        .expect("OpenAI provider should attempt persistent websocket continuation");
+
+    assert!(
+        cooldown < continuation,
+        "rate-limit cooldown must gate persistent websocket continuation"
+    );
+    assert!(
+        backpressure < continuation,
+        "provider backpressure must gate persistent websocket continuation"
+    );
+}
+
 #[tokio::test]
 async fn test_record_websocket_success_clears_normalized_keys() {
     let cooldowns = Arc::new(RwLock::new(HashMap::new()));
