@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Share Retry-After provider handling",
+  "focus": "Share provider retry backoff jitter",
   "status": "done",
-  "activeContractId": "2026-05-08-share-retry-after-provider-handling-9940a8",
+  "activeContractId": "2026-05-08-share-provider-retry-backoff-jitter-00ac72",
   "counters": {
-    "contracts": 45,
-    "traces": 70,
-    "gates": 44,
-    "verifications": 58,
+    "contracts": 46,
+    "traces": 72,
+    "gates": 45,
+    "verifications": 60,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -135,37 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T12:10:37.476Z",
-      "type": "trace_recorded",
-      "traceId": "trace-2026-05-08-10255150",
-      "contractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede",
-      "kind": "failure",
-      "summary": "Broad stop test filter timed out after focused stop replay test passed"
-    },
-    {
-      "ts": "2026-05-08T12:12:48.711Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-13a0b6be",
-      "contractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede",
-      "status": "pass",
-      "summary": "Focused stop idempotency tests, mutation tests, formatting, cargo check, and diff whitespace verification passed"
-    },
-    {
-      "ts": "2026-05-08T12:12:56.369Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-50ec03b1",
-      "contractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede",
-      "status": "pass",
-      "summary": "Coordinated self-dev build passed for stop idempotency slice"
-    },
-    {
-      "ts": "2026-05-08T12:13:07.353Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede",
-      "gateId": "gate-2026-05-08-8e36d1",
-      "verdict": "pass"
-    },
     {
       "ts": "2026-05-08T12:13:13.823Z",
       "type": "state_update",
@@ -727,6 +696,35 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-08-share-retry-after-provider-handling-9940a8",
       "gateId": "gate-2026-05-08-3d1c21",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T15:51:48.221Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-share-provider-retry-backoff-jitter-00ac72",
+      "summary": "Share provider retry backoff jitter"
+    },
+    {
+      "ts": "2026-05-08T15:55:36.904Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-e4055a2d",
+      "contractId": "2026-05-08-share-provider-retry-backoff-jitter-00ac72",
+      "status": "pass",
+      "summary": "Focused provider retry backoff verification passed: formatter, provider_retry_backoff tests, cargo check, and diff whitespace check."
+    },
+    {
+      "ts": "2026-05-08T15:56:39.292Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-04218962",
+      "contractId": "2026-05-08-share-provider-retry-backoff-jitter-00ac72",
+      "status": "pass",
+      "summary": "Selfdev build and reload passed for provider retry backoff jitter slice."
+    },
+    {
+      "ts": "2026-05-08T15:56:50.468Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-share-provider-retry-backoff-jitter-00ac72",
+      "gateId": "gate-2026-05-08-9b63e1",
       "verdict": "pass"
     }
   ]

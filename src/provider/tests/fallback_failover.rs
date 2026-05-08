@@ -86,6 +86,31 @@ fn provider_retry_after_parser_accepts_seconds_http_dates_and_headers() {
 }
 
 #[test]
+fn provider_retry_backoff_caps_exponential_delay() {
+    assert_eq!(retry_backoff_max_delay_ms(0, 1_000, 10_000), 0);
+    assert_eq!(retry_backoff_max_delay_ms(1, 1_000, 10_000), 1_000);
+    assert_eq!(retry_backoff_max_delay_ms(2, 1_000, 10_000), 2_000);
+    assert_eq!(retry_backoff_max_delay_ms(3, 1_000, 10_000), 4_000);
+    assert_eq!(retry_backoff_max_delay_ms(9, 1_000, 10_000), 10_000);
+    assert_eq!(retry_backoff_max_delay_ms(63, u64::MAX / 2, 10_000), 10_000);
+}
+
+#[test]
+fn provider_retry_backoff_full_jitter_stays_within_cap() {
+    for attempt in 1..=8 {
+        let max_delay = retry_backoff_max_delay_ms(attempt, 1_000, 10_000);
+        for nonce in [0, 1, 2, 7, 42, u64::MAX] {
+            let delay = retry_backoff_delay_ms_for_nonce(attempt, 1_000, 10_000, nonce);
+            assert!(
+                delay <= max_delay,
+                "attempt={attempt} nonce={nonce} delay={delay} max={max_delay}"
+            );
+        }
+    }
+    assert_eq!(retry_backoff_delay_ms_for_nonce(0, 1_000, 10_000, 42), 0);
+}
+
+#[test]
 fn test_parse_provider_hint_supports_known_values() {
     assert_eq!(
         MultiProvider::parse_provider_hint("claude"),

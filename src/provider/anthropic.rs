@@ -1163,8 +1163,11 @@ async fn run_stream_with_retries(
 
     for attempt in 0..MAX_RETRIES {
         if attempt > 0 {
-            // Exponential backoff: 1s, 2s, 4s
-            let delay = RETRY_BASE_DELAY_MS * (1 << (attempt - 1));
+            let delay = crate::provider::retry_backoff_delay_ms(
+                attempt,
+                RETRY_BASE_DELAY_MS,
+                crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
+            );
             let _ = tx
                 .send(Ok(StreamEvent::ConnectionPhase {
                     phase: crate::message::ConnectionPhase::Retrying {
@@ -1175,7 +1178,8 @@ async fn run_stream_with_retries(
                 .await;
             tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
             crate::logging::info(&format!(
-                "Retrying Anthropic API request (attempt {}/{})",
+                "Retrying Anthropic API request after {}ms (attempt {}/{})",
+                delay,
                 attempt + 1,
                 MAX_RETRIES
             ));

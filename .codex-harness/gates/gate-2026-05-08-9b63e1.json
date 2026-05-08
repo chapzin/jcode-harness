@@ -1,0 +1,52 @@
+{
+  "id": "gate-2026-05-08-9b63e1",
+  "ts": "2026-05-08T15:56:50.468Z",
+  "contractId": "2026-05-08-share-provider-retry-backoff-jitter-00ac72",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/provider/routing.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/mod.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openai_provider_impl.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/anthropic.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openrouter_sse_stream.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/tests/fallback_failover.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Shared retry backoff helper added with capped exponential full-jitter behavior.",
+    "OpenAI, Anthropic, and OpenRouter streaming retry loops use the shared jitter helper instead of fixed deterministic sleeps.",
+    "Focused provider_retry_backoff tests passed.",
+    "cargo fmt --check, cargo check -p jcode --lib, and git diff --check passed.",
+    "Selfdev build and reload passed."
+  ],
+  "uncheckedConditions": [
+    "Shared retry backoff helper computes capped exponential backoff and full-jitter delays.",
+    "Anthropic, OpenRouter/OpenAI-compatible, and OpenAI retry loops use the shared jittered helper instead of fixed 1s/2s/4s delays.",
+    "Tests cover deterministic cap/exponential/full-jitter bounds.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/61421325u1.output",
+    "/tmp/jcode-bg-tasks/748339rvi8.output",
+    "trace-2026-05-08-e4055a2d",
+    "trace-2026-05-08-04218962"
+  ],
+  "notes": "Provider retry loops now share a bounded jittered backoff primitive while preserving existing retry attempt bounds and WebSocket fallback skip behavior."
+}

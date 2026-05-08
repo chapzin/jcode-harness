@@ -142,10 +142,15 @@ impl Provider for OpenAIProvider {
                         .await;
                     }
                     if attempt > 0 && !skip_backoff_once {
-                        let delay = RETRY_BASE_DELAY_MS * (1 << (attempt - 1));
+                        let delay = crate::provider::retry_backoff_delay_ms(
+                            attempt,
+                            RETRY_BASE_DELAY_MS,
+                            crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
+                        );
                         tokio::time::sleep(Duration::from_millis(delay)).await;
                         crate::logging::info(&format!(
-                            "Retrying OpenAI API request (attempt {}/{})",
+                            "Retrying OpenAI API request after {}ms (attempt {}/{})",
+                            delay,
                             attempt + 1,
                             MAX_RETRIES
                         ));

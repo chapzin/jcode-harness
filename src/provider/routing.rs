@@ -1,4 +1,10 @@
 use reqwest::header::{HeaderMap, RETRY_AFTER};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+pub(crate) const DEFAULT_RETRY_BACKOFF_CAP_MS: u64 = 10_000;
+
+static RETRY_JITTER_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 pub(crate) fn should_eager_detect_copilot_tier() -> bool {
     std::env::var("JCODE_NON_INTERACTIVE").is_err()
@@ -61,6 +67,55 @@ pub(crate) fn retry_after_suffix(retry_after_secs: Option<u64>) -> String {
     retry_after_secs
         .map(|seconds| format!(" (retry after {}s)", seconds))
         .unwrap_or_default()
+}
+
+pub(crate) fn retry_backoff_delay_ms(attempt: u32, base_delay_ms: u64, cap_delay_ms: u64) -> u64 {
+    retry_backoff_delay_ms_for_nonce(attempt, base_delay_ms, cap_delay_ms, retry_jitter_nonce())
+}
+
+pub(crate) fn retry_backoff_max_delay_ms(
+    attempt: u32,
+    base_delay_ms: u64,
+    cap_delay_ms: u64,
+) -> u64 {
+    if attempt == 0 || base_delay_ms == 0 || cap_delay_ms == 0 {
+        return 0;
+    }
+
+    let shift = attempt.saturating_sub(1).min(63);
+    let exponential = base_delay_ms.checked_shl(shift).unwrap_or(u64::MAX);
+    exponential.min(cap_delay_ms)
+}
+
+pub(crate) fn retry_backoff_delay_ms_for_nonce(
+    attempt: u32,
+    base_delay_ms: u64,
+    cap_delay_ms: u64,
+    nonce: u64,
+) -> u64 {
+    let max_delay_ms = retry_backoff_max_delay_ms(attempt, base_delay_ms, cap_delay_ms);
+    if max_delay_ms == 0 {
+        return 0;
+    }
+
+    splitmix64(nonce) % max_delay_ms.saturating_add(1)
+}
+
+fn retry_jitter_nonce() -> u64 {
+    let counter = RETRY_JITTER_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos() as u64)
+        .unwrap_or_default();
+    counter ^ nanos.rotate_left(17)
+}
+
+fn splitmix64(mut value: u64) -> u64 {
+    value = value.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    let mut z = value;
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
 }
 
 pub(crate) fn is_transient_transport_error(error_str: &str) -> bool {
