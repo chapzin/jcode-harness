@@ -9,6 +9,8 @@ Use skills by task rather than injecting every skill into every prompt.
 - `optimization`: use for performance, compile-time, memory, multi-session scaling, and root-crate fan-out work.
 - `clean-code-guardian`: use when touching production code or preparing release gates, especially with offline `clean-code check` validation.
 - `llmwiki-memory`: use for local LLM wiki, durable project memory, provenance, transcript, context-history, and prior-decision tasks.
+- `init-bootstrap`: use for `/init`, `.context`/`.jcode` scaffolding, swarm init analysis, side panels, skills plans, MCP plans, and first-pass project onboarding.
+- `sequential-thinking`: use for complex planning, debugging, architecture tradeoffs, hypothesis revision, and verification strategy. Summarize conclusions rather than private chain-of-thought.
 
 ## Project-specific notes
 
@@ -16,6 +18,8 @@ Use skills by task rather than injecting every skill into every prompt.
 - Preserve vendored attribution under `third_party/andrej-karpathy-skills/` and `NOTICE.md` when updating `karpathy-guidelines`. Evidence: `AGENTS.md`.
 - Keep `clean-code-guardian` original and do not vendor copyrighted Clean Code text. Evidence: `AGENTS.md`.
 - Treat LLM wiki memory as provenance-backed context, not source-code truth. Verify wiki claims against repository files and never sync secrets or credentials.
+- Keep init bootstrap updates coherent across `.context`, `.jcode/init/*`, `.jcode/SKILLS_PLAN.md`, `.jcode/MCP_PLAN.md`, and side-panel pages.
+- Keep sequential thinking local/offline and review-gated; it is a reasoning aid, not permission for network, credential, destructive, or deployment actions.
 - Release gates require deterministic skill precedence, JSON output, duplicate-skill diagnostics, and e2e harness CLI coverage. Evidence: `docs/JCODE_HARNESS_RELEASE_GATES.md`.
 
 ## Evidence-backed validation candidates
@@ -25,6 +29,8 @@ cargo test -p jcode skill::tests --lib
 cargo test --test e2e harness_cli -- --nocapture
 cargo run -q -p jcode --bin jcode-harness -- skills list --json | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- skills show llmwiki-memory --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- skills show sequential-thinking --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- skills match "use /init and sequential thinking for project analysis" --json | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- clean-code rules >/tmp/jcode-clean-code-rules.yaml
 ```

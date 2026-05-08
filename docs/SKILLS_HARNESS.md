@@ -20,7 +20,9 @@ This fork embeds:
 - `karpathy-guidelines`, vendored from `forrestchang/andrej-karpathy-skills`;
 - `optimization`, from this repository's existing `.jcode/skills/optimization` skill;
 - `clean-code-guardian`, an original Clean Code inspired quality policy for coding, review, refactoring, and debugging;
-- `llmwiki-memory`, an operational skill for using the local LLM wiki as durable project memory with provenance and secret-safety boundaries.
+- `llmwiki-memory`, an operational skill for using the local LLM wiki as durable project memory with provenance and secret-safety boundaries;
+- `init-bootstrap`, an operational skill for `/init`, `.context`/`.jcode` scaffolding, swarm init analysis, side panels, skills plans, MCP plans, and onboarding bootstrap work;
+- `sequential-thinking`, an operational skill for bounded use of the sequential-thinking MCP helper during complex planning, debugging, architecture tradeoffs, hypothesis revision, and verification strategy.
 
 The built-ins are compiled with `include_str!`, so runtime skill loading does not require internet access, Node, Claude Code, Cursor, Codex CLI, or a plugin marketplace.
 
@@ -44,6 +46,7 @@ jcode-harness skills sync
 jcode-harness skills doctor
 jcode-harness skills doctor --json
 jcode-harness skills match "fix this Rust bug" --json
+jcode-harness skills match "use /init and sequential thinking for project analysis" --json
 jcode-harness skills match "review this diff" --skill repo-reviewer --cwd /path/to/repo
 jcode-harness skills llmwiki-bridge
 jcode-harness skills llmwiki-bridge --json
@@ -148,8 +151,10 @@ The router is intentionally simple and deterministic:
 - coding, bug, test, refactor, review, implement, fix, pull request, or diff tasks select `karpathy-guidelines` and `clean-code-guardian`;
 - performance, latency, memory, throughput, CPU, RAM, or efficiency tasks select `optimization`;
 - LLM wiki, project memory, prior decision, provenance, transcript, or context-history tasks select `llmwiki-memory`;
+- `/init`, project bootstrap, `.context`, MCP plan, skills plan, side-panel, or scaffold tasks select `init-bootstrap`;
+- sequential-thinking, pensamento sequencial, multi-step reasoning, complex planning, design decision, or hypothesis revision tasks select `sequential-thinking`;
 - explicit `--skill <name>` always includes that skill;
 - `--skills off` disables automatic routing while preserving explicit `--skill` values;
-- `--skills always` includes built-in coding and optimization skills.
+- `--skills always` includes all built-in harness skills.
 
 The router does not inject every skill by default.

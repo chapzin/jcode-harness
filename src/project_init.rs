@@ -243,7 +243,7 @@ fn init_report_md(analysis: &ProjectAnalysis) -> String {
 }
 
 fn init_questions_md() -> String {
-    "# Jcode Harness Init Questions\n\nAnswer these to customize the harness for this project.\n\n## Project\n\n1. What is the main goal of this project?\n2. What commands must pass before work is considered done?\n3. What files/directories are forbidden to edit?\n4. What data is sensitive and must never enter memory?\n\n## Side panel/status\n\n1. What should always appear in the side panel?\n   - Current goal?\n   - Todo status?\n   - Test commands?\n   - Open risks?\n   - Architecture notes?\n2. Should side panel pages be linked files under `.jcode/side_panel/`?\n3. Which page should be focused by default?\n\n## MCP\n\n1. Which external systems should MCP access?\n2. Which MCP servers require credentials?\n3. Which MCP servers are allowed in CI?\n4. Should network MCP servers be disabled by default?\n\n## Skills\n\n1. Which built-in skills should be active by default?\n2. Which project-specific skills should be added?\n".to_string()
+    "# Jcode Harness Init Questions\n\nAnswer these to customize the harness for this project.\n\n## Project\n\n1. What is the main goal of this project?\n2. What commands must pass before work is considered done?\n3. What files/directories are forbidden to edit?\n4. What data is sensitive and must never enter memory?\n\n## Side panel/status\n\n1. What should always appear in the side panel?\n   - Current goal?\n   - Todo status?\n   - Test commands?\n   - Open risks?\n   - Architecture notes?\n2. Should side panel pages be linked files under `.jcode/side_panel/`?\n3. Which page should be focused by default?\n\n## MCP\n\n1. Which external systems should MCP access?\n2. Which MCP servers require credentials?\n3. Which MCP servers are allowed in CI?\n4. Should network MCP servers be disabled by default?\n5. Should local-only helpers such as sequential thinking be enabled for complex planning?\n\n## Skills\n\n1. Which built-in skills should be active by default?\n2. Should `init-bootstrap` guide project onboarding and `/init` maintenance?\n3. Should `sequential-thinking` be used for complex planning/debugging only?\n4. Which project-specific skills should be added?\n".to_string()
 }
 
 fn swarm_analysis_plan_md(analysis: &ProjectAnalysis) -> String {
@@ -268,14 +268,16 @@ fn skills_plan_md(analysis: &ProjectAnalysis) -> String {
     }
     recommended.push("optimization".into());
     recommended.push("llmwiki-memory".into());
+    recommended.push("init-bootstrap".into());
+    recommended.push("sequential-thinking".into());
     format!(
-        "# Skills Plan\n\n## Recommended initial skills\n\n{}\n\n## Notes\n\n- Built-in skills are available offline.\n- Project-local skills can override built-ins under `.jcode/skills/<name>/SKILL.md`.\n- Do not inject every full skill by default. Route skills by task.\n- Use `llmwiki-memory` for local LLM wiki, durable project memory, provenance, transcript, and prior-decision tasks.\n- Do not sync secrets, credentials, `.env` values, provider tokens, deployment secrets, or database credentials into wiki memory.\n",
+        "# Skills Plan\n\n## Recommended initial skills\n\n{}\n\n## Notes\n\n- Built-in skills are available offline.\n- Project-local skills can override built-ins under `.jcode/skills/<name>/SKILL.md`.\n- Do not inject every full skill by default. Route skills by task.\n- Use `llmwiki-memory` for local LLM wiki, durable project memory, provenance, transcript, and prior-decision tasks.\n- Use `init-bootstrap` for `/init`, `.context`/`.jcode` scaffolding, swarm init analysis, side panels, skills plans, and MCP plans.\n- Use `sequential-thinking` for complex planning, debugging, architecture tradeoffs, or hypothesis revision; summarize conclusions rather than private chain-of-thought.\n- Do not sync secrets, credentials, `.env` values, provider tokens, deployment secrets, or database credentials into wiki memory.\n",
         bullet_list(&recommended)
     )
 }
 
 fn mcp_plan_md(_analysis: &ProjectAnalysis) -> String {
-    "# MCP Plan\n\nMCP setup is intentionally review-first. This init command does not download or install MCP servers automatically.\n\n## Recommended review steps\n\n1. Identify required systems: filesystem, GitHub, browser, database, issue tracker, docs, deployment.\n2. Prefer local/offline MCP servers when possible.\n3. Document credential requirements and never commit secrets.\n4. Add reviewed server definitions to `.jcode/mcp.json`.\n5. Validate with `jcode` after reviewing permissions.\n\n## Candidate server categories\n\n- Filesystem/code search: usually already covered by native jcode tools.\n- Browser/Playwright: useful for UI QA.\n- GitHub/GitLab: useful for issues/PRs, requires tokens.\n- Database: useful for diagnostics, requires strict read/write boundaries.\n- Docs/search: useful, may require network.\n".to_string()
+    "# MCP Plan\n\nMCP setup is intentionally review-first. This init command does not download or install MCP servers automatically.\n\n## Recommended review steps\n\n1. Identify required systems: filesystem, GitHub, browser, database, issue tracker, docs, deployment, local reasoning helpers.\n2. Prefer local/offline MCP servers when possible.\n3. Document credential requirements and never commit secrets.\n4. Add reviewed server definitions to `.jcode/mcp.json`.\n5. Validate with `jcode` after reviewing permissions.\n\n## Candidate server categories\n\n- Sequential thinking: local planning/revision helper for complex tasks; no credentials or network should be required.\n- Filesystem/code search: usually already covered by native jcode tools.\n- Browser/Playwright: useful for UI QA.\n- GitHub/GitLab: useful for issues/PRs, requires tokens.\n- Database: useful for diagnostics, requires strict read/write boundaries.\n- Docs/search: useful, may require network.\n".to_string()
 }
 
 fn mcp_json_stub() -> String {
@@ -333,5 +335,12 @@ mod tests {
         assert!(temp.path().join(".jcode/mcp.json").exists());
         assert!(temp.path().join(".jcode/memory_wiki/schema.md").exists());
         assert!(report.detected_stack.contains(&"Rust".to_string()));
+        let skills_plan = std::fs::read_to_string(temp.path().join(".jcode/SKILLS_PLAN.md"))
+            .expect("skills plan");
+        assert!(skills_plan.contains("init-bootstrap"));
+        assert!(skills_plan.contains("sequential-thinking"));
+        let mcp_plan =
+            std::fs::read_to_string(temp.path().join(".jcode/MCP_PLAN.md")).expect("mcp plan");
+        assert!(mcp_plan.contains("Sequential thinking"));
     }
 }

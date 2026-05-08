@@ -8,9 +8,10 @@ Use this file to continue the embedded-skills harness work with Codex or another
 - Upstream remote should point at `https://github.com/1jehuang/jcode.git`.
 - Product scope: keep work aligned with the Jcode + local LLM wiki + `forrestchang/andrej-karpathy-skills` proposal. Prefer increments that make embedded skills, durable wiki memory, and harness automation cooperate without adding network/runtime marketplace dependencies.
 - Built-in skills live in `src/skill_pack.rs` and are compiled with `include_str!`.
-- Built-ins currently include `karpathy-guidelines`, `optimization`, `clean-code-guardian`, and `llmwiki-memory`.
+- Built-ins currently include `karpathy-guidelines`, `optimization`, `clean-code-guardian`, `llmwiki-memory`, `init-bootstrap`, and `sequential-thinking`.
 - Vendored Karpathy files live under `third_party/andrej-karpathy-skills/`.
 - `llmwiki-memory` lives under `.jcode/skills/llmwiki-memory/SKILL.md` and describes safe use of the local LLM wiki MCP tools for durable project memory, provenance, transcript sync, and secret boundaries.
+- `init-bootstrap` and `sequential-thinking` live under `.jcode/skills/` and describe `/init`/scaffold upkeep plus bounded use of the local sequential-thinking MCP helper.
 
 ## Recommended continuation flow
 

@@ -50,7 +50,7 @@ cargo test --test e2e harness_init_json -- --nocapture
 
 **Acceptance criteria:**
 
-- Built-ins include `karpathy-guidelines`, `optimization`, `clean-code-guardian`, and `llmwiki-memory`.
+- Built-ins include `karpathy-guidelines`, `optimization`, `clean-code-guardian`, `llmwiki-memory`, `init-bootstrap`, and `sequential-thinking`.
 - Source precedence remains: built-in < `.claude/skills` < `~/.jcode/skills` < project `.jcode/skills`.
 - Duplicate skill names are discoverable via `skills doctor`.
 - JSON output for skills commands remains machine-readable.
@@ -65,6 +65,7 @@ cargo run -q -p jcode --bin jcode-harness -- acp fixture --json | python3 -m jso
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize"}' '{"jsonrpc":"2.0","id":2,"method":"shutdown"}' | cargo run -q -p jcode --bin jcode-harness -- acp serve --stdio | python3 -c 'import json,sys; [json.loads(line) for line in sys.stdin if line.strip()]'
 cargo run -q -p jcode --bin jcode-harness -- skills list --json | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- skills match "use /init and sequential thinking for project analysis" --json | python3 -m json.tool >/dev/null
 ```
 
 ## Gate 3: Harness run contract

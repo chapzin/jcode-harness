@@ -39,7 +39,7 @@ The engineering is built as a closed local loop, similar in spirit to the Codex 
 1. **Request enters Jcode** through the interactive TUI, `jcode run`, `jcode-harness run`, or `/init`. The request is not treated as enough context by itself. It is paired with cwd, provider choice, skill mode, safety policy, and project-local artifacts.
 2. **Project bootstrap creates durable structure** under `.jcode/`: init reports, questions, MCP plan, skills plan, side-panel status, and swarm analysis files. This prevents the first agent turn from being a pure chat transcript with no durable output.
 3. **The swarm analysis separates concerns**. Architecture, QA, documentation/onboarding, and tooling/security are discovered independently, then synthesis waits on a barrier before writing recommendations.
-4. **The skill router narrows behavior**. Coding work gets `karpathy-guidelines` plus `clean-code-guardian`; performance work gets `optimization`; project-memory or prior-decision work gets `llmwiki-memory`. Explicit skills always win, and automatic routing stays conservative.
+4. **The skill router narrows behavior**. Coding work gets `karpathy-guidelines` plus `clean-code-guardian`; performance work gets `optimization`; project-memory or prior-decision work gets `llmwiki-memory`; init/bootstrap work gets `init-bootstrap`; complex planning can get `sequential-thinking`. Explicit skills always win, and automatic routing stays conservative.
 5. **The LLM wiki is the memory plane**. It is used for prior decisions, transcripts, provenance, and handoff context. It is deliberately not treated as source-code truth, so code claims still need repository/test evidence.
 6. **Verification gates close the loop**. `cargo fmt`, focused tests, e2e harness tests, JSON schema checks, clean-code checks, and self-dev builds are the evidence that a change is real.
 7. **Artifacts make the work resumable**. Future agents can read README, `docs/CODEX_BOOTSTRAP.md`, `.jcode/init/SWARM_ANALYSIS_REPORT.md`, `.jcode/SKILLS_PLAN.md`, and side-panel status instead of reconstructing intent from chat history.
@@ -74,6 +74,8 @@ Built-in skills are compiled into the binary with `include_str!`. They do not re
 | `optimization` | Performance, memory, latency, throughput, CPU/RAM, and compile-time improvement work. |
 | `clean-code-guardian` | Offline quality policy and rule pack for readable, focused, well-tested code without silent errors. |
 | `llmwiki-memory` | Safe use of the local LLM wiki as durable project memory with provenance, transcript sync, prior-decision lookup, and secret boundaries. |
+| `init-bootstrap` | `/init`, `.context`/`.jcode` scaffolding, swarm init analysis, side panels, skills plans, MCP plans, and onboarding bootstrap work. |
+| `sequential-thinking` | Bounded use of the sequential-thinking MCP helper for complex planning, debugging, architecture tradeoffs, hypothesis revision, and verification strategy. |
 
 Skill source priority is deterministic:
 
@@ -93,6 +95,8 @@ The router is intentionally conservative:
 - coding, bug, test, refactor, review, implement, fix, pull request, or diff tasks select `karpathy-guidelines` and `clean-code-guardian`;
 - performance, latency, memory, throughput, CPU, RAM, or efficiency tasks select `optimization`;
 - LLM wiki, project memory, prior decision, provenance, transcript, or context-history tasks select `llmwiki-memory`;
+- `/init`, project bootstrap, `.context`, MCP plan, skills plan, side-panel, or scaffold tasks select `init-bootstrap`;
+- sequential-thinking, pensamento sequencial, multi-step reasoning, complex planning, design decision, or hypothesis revision tasks select `sequential-thinking`;
 - explicit `--skill <name>` always includes that skill;
 - `--skills off` disables automatic routing while preserving explicit skills;
 - `--skills always` includes all built-in harness skills.

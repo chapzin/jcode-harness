@@ -715,6 +715,8 @@ fn harness_run_dry_run_always_includes_all_builtin_harness_skills() -> Result<()
         "clean-code-guardian",
         "optimization",
         "llmwiki-memory",
+        "init-bootstrap",
+        "sequential-thinking",
     ] {
         assert!(
             stdout.contains(&format!("## Skill: {skill}")),
@@ -2468,6 +2470,8 @@ fn skills_list_and_sync_expose_builtin_harness_skills() -> Result<()> {
         "clean-code-guardian",
         "optimization",
         "llmwiki-memory",
+        "init-bootstrap",
+        "sequential-thinking",
     ] {
         assert!(
             list_stdout.contains(&format!("{skill}\tbuilt-in")),
@@ -2489,6 +2493,8 @@ fn skills_list_and_sync_expose_builtin_harness_skills() -> Result<()> {
         "clean-code-guardian",
         "optimization",
         "llmwiki-memory",
+        "init-bootstrap",
+        "sequential-thinking",
     ] {
         let synced = home.join("skills").join(skill).join("SKILL.md");
         assert!(synced.exists(), "missing synced file: {}", synced.display());
@@ -2584,6 +2590,18 @@ fn skills_json_commands_are_machine_readable() -> Result<()> {
     assert!(
         skills
             .iter()
+            .any(|skill| skill["name"] == "init-bootstrap" && skill["origin"] == "built-in"),
+        "stdout: {list_stdout}"
+    );
+    assert!(
+        skills
+            .iter()
+            .any(|skill| skill["name"] == "sequential-thinking" && skill["origin"] == "built-in"),
+        "stdout: {list_stdout}"
+    );
+    assert!(
+        skills
+            .iter()
             .any(|skill| skill["name"] == "json-shared" && skill["origin"] == "global"),
         "global skill should win over claude compat. stdout: {list_stdout}"
     );
@@ -2625,6 +2643,14 @@ fn skills_json_commands_are_machine_readable() -> Result<()> {
             .expect("builtins array")
             .iter()
             .any(|builtin| builtin["name"] == "llmwiki-memory" && builtin["status"] == "ok"),
+        "stdout: {doctor_stdout}"
+    );
+    assert!(
+        doctor_json["builtins"]
+            .as_array()
+            .expect("builtins array")
+            .iter()
+            .any(|builtin| builtin["name"] == "sequential-thinking" && builtin["status"] == "ok"),
         "stdout: {doctor_stdout}"
     );
     assert!(
@@ -2682,6 +2708,37 @@ fn skills_match_json_reports_task_and_repo_scoped_selection() -> Result<()> {
                 && skill["description"] == "Project-specific clean code policy"),
         "stdout: {stdout}"
     );
+
+    Ok(())
+}
+
+#[test]
+fn skills_match_json_routes_init_and_sequential_thinking() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-cli-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .args([
+            "skills",
+            "match",
+            "use /init and sequential thinking for project analysis",
+            "--json",
+        ])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    let selected = report["selected"].as_array().expect("selected array");
+    assert_eq!(selected[0]["name"], "init-bootstrap");
+    assert_eq!(selected[0]["origin"], "built-in");
+    assert_eq!(selected[1]["name"], "sequential-thinking");
+    assert_eq!(selected[1]["origin"], "built-in");
 
     Ok(())
 }

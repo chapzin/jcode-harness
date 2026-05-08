@@ -693,6 +693,8 @@ mod tests {
             "optimization",
             "clean-code-guardian",
             "llmwiki-memory",
+            "init-bootstrap",
+            "sequential-thinking",
         ] {
             let skill = registry
                 .get(name)

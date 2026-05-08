@@ -1,0 +1,67 @@
+{
+  "id": "gate-2026-05-08-fcf70b",
+  "ts": "2026-05-08T20:10:33.140Z",
+  "contractId": "2026-05-08-add-init-and-sequential-thinking-skills-157e82",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": ".jcode/skills/init-bootstrap/SKILL.md",
+      "exists": true
+    },
+    {
+      "path": ".jcode/skills/sequential-thinking/SKILL.md",
+      "exists": true
+    },
+    {
+      "path": "src/skill_pack.rs",
+      "exists": true
+    },
+    {
+      "path": "src/skill_router.rs",
+      "exists": true
+    },
+    {
+      "path": "src/project_init.rs",
+      "exists": true
+    },
+    {
+      "path": "docs/SKILLS_HARNESS.md",
+      "exists": true
+    },
+    {
+      "path": "docs/SKILLS_HARNESS_STATUS.md",
+      "exists": true
+    },
+    {
+      "path": "docs/JCODE_HARNESS_RELEASE_GATES.md",
+      "exists": true
+    },
+    {
+      "path": ".jcode/SKILLS_PLAN.md",
+      "exists": true
+    },
+    {
+      "path": ".jcode/MCP_PLAN.md",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Built-in skills include init-bootstrap and sequential-thinking with valid SKILL.md frontmatter/content.",
+    "Skill router selects init-bootstrap for init/bootstrap goals and sequential-thinking for complex planning/analysis goals without affecting --skills off.",
+    "Project init generated SKILLS_PLAN/MCP_PLAN mention both surfaces and docs/release/status stay in sync.",
+    "Focused Rust tests, JSON smoke checks, git diff --check, and selfdev build/reload passed."
+  ],
+  "uncheckedConditions": [
+    "Focused Rust tests and JSON smoke checks pass."
+  ],
+  "evidence": [
+    "skill_router tests: 10 passed",
+    "skill::tests: 21 passed",
+    "project_init test: 1 passed",
+    "e2e skills_ tests: 15 passed",
+    "target/debug/jcode-harness skills list/show/match JSON validated with python3 -m json.tool",
+    "cargo fmt --check and git diff --check passed",
+    "selfdev build/reload passed"
+  ],
+  "notes": "First combined validation wrapper timed out after tests had completed; remaining JSON checks were rerun separately with exit 0."
+}
