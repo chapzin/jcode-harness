@@ -1,7 +1,7 @@
 use super::{
     ensure_spawn_coordinator_swarm, prepare_visible_spawn_session, register_visible_spawned_member,
     require_coordinator_swarm, resolve_spawn_working_dir, resolve_stop_target_session,
-    swarm_stop_allowed_by_owner,
+    spawn_mutation_key, swarm_stop_allowed_by_owner,
 };
 use crate::agent::Agent;
 use crate::message::{Message, ToolDefinition};
@@ -126,6 +126,54 @@ async fn resolve_spawn_working_dir_falls_back_to_member_dir() {
             .as_deref(),
         Some("/tmp/member-dir")
     );
+}
+
+#[test]
+fn spawn_mutation_key_uses_nonce_as_idempotency_key_despite_payload_drift() {
+    let operation_key = spawn_mutation_key(
+        "coord",
+        "swarm-1",
+        &Some("/repo-a".to_string()),
+        &Some("first prompt".to_string()),
+        &Some(" op:issue-13-spawn-1 ".to_string()),
+        &Some("run-1".to_string()),
+    );
+    let retry_with_drifted_payload = spawn_mutation_key(
+        "coord",
+        "swarm-1",
+        &Some("/repo-b".to_string()),
+        &Some("retry prompt drift".to_string()),
+        &Some("op:issue-13-spawn-1".to_string()),
+        &Some("run-1".to_string()),
+    );
+    let different_run = spawn_mutation_key(
+        "coord",
+        "swarm-1",
+        &Some("/repo-b".to_string()),
+        &Some("retry prompt drift".to_string()),
+        &Some("op:issue-13-spawn-1".to_string()),
+        &Some("run-2".to_string()),
+    );
+    let no_nonce = spawn_mutation_key(
+        "coord",
+        "swarm-1",
+        &Some("/repo-a".to_string()),
+        &Some("first prompt".to_string()),
+        &None,
+        &Some("run-1".to_string()),
+    );
+    let no_nonce_payload_drift = spawn_mutation_key(
+        "coord",
+        "swarm-1",
+        &Some("/repo-b".to_string()),
+        &Some("retry prompt drift".to_string()),
+        &None,
+        &Some("run-1".to_string()),
+    );
+
+    assert_eq!(operation_key, retry_with_drifted_payload);
+    assert_ne!(operation_key, different_run);
+    assert_ne!(no_nonce, no_nonce_payload_drift);
 }
 
 #[test]

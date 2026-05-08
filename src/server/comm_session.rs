@@ -81,6 +81,35 @@ async fn resolve_spawn_working_dir(
         .filter(|dir| !dir.trim().is_empty())
 }
 
+fn spawn_mutation_key(
+    req_session_id: &str,
+    swarm_id: &str,
+    working_dir: &Option<String>,
+    initial_message: &Option<String>,
+    request_nonce: &Option<String>,
+    run_id: &Option<String>,
+) -> String {
+    let request_nonce = request_nonce
+        .as_deref()
+        .map(str::trim)
+        .filter(|nonce| !nonce.is_empty());
+    let components = if let Some(request_nonce) = request_nonce {
+        vec![
+            swarm_id.to_string(),
+            format!("nonce:{request_nonce}"),
+            format!("run:{}", run_id.as_deref().unwrap_or_default()),
+        ]
+    } else {
+        vec![
+            swarm_id.to_string(),
+            working_dir.clone().unwrap_or_default(),
+            initial_message.clone().unwrap_or_default(),
+            run_id.clone().unwrap_or_default(),
+        ]
+    };
+    request_key(req_session_id, "spawn", &components)
+}
+
 fn spawn_visible_session_window(
     session_id: &str,
     cwd: &std::path::Path,
@@ -499,16 +528,13 @@ pub(super) async fn handle_comm_spawn(
         None => return,
     };
 
-    let mutation_key = request_key(
+    let mutation_key = spawn_mutation_key(
         &req_session_id,
-        "spawn",
-        &[
-            swarm_id.clone(),
-            working_dir.clone().unwrap_or_default(),
-            initial_message.clone().unwrap_or_default(),
-            request_nonce.clone().unwrap_or_default(),
-            run_id.clone().unwrap_or_default(),
-        ],
+        &swarm_id,
+        &working_dir,
+        &initial_message,
+        &request_nonce,
+        &run_id,
     );
     let Some(mutation_state) = begin_or_replay(
         swarm_mutation_runtime,
