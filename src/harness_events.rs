@@ -17,6 +17,10 @@ pub const HARNESS_EVENT_SSE_CONTENT_TYPE: &str = "text/event-stream";
 pub const DEFAULT_HARNESS_EVENT_SSE_RETRY_MS: u64 = 2_000;
 pub const HARNESS_EVENT_BROKER_PROTOCOL_VERSION: u16 = 1;
 pub const HARNESS_EVENT_BROKER_DELIVERY_SEMANTICS: &str = "at_least_once";
+pub const HARNESS_GRPC_CONTROL_PROTOCOL_VERSION: u16 = 1;
+pub const HARNESS_GRPC_CONTROL_PACKAGE: &str = "jcode.harness_events.v1";
+pub const HARNESS_GRPC_CONTROL_PROTO: &str =
+    include_str!("../proto/jcode/harness_events/v1/control.proto");
 pub const HARNESS_EVENT_MIN_LEVEL_ENV: &str = "JCODE_HARNESS_EVENTS_MIN_LEVEL";
 pub const HARNESS_EVENT_TOOL_SAMPLE_EVERY_ENV: &str = "JCODE_HARNESS_EVENTS_TOOL_SAMPLE_EVERY";
 pub const HARNESS_EVENT_REDIS_URL_ENV: &str = "JCODE_HARNESS_EVENTS_REDIS_URL";
@@ -390,6 +394,49 @@ pub struct HarnessEventRedisStreamAckCommand {
     pub message_id: String,
     pub outcome: HarnessEventAckOutcome,
     pub should_xack: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct HarnessGrpcArtifactRef {
+    pub uri: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub media_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct HarnessGrpcEventFrame {
+    pub protocol_version: u16,
+    pub harness_event_schema_version: u16,
+    pub run_id: String,
+    pub event_id: String,
+    pub sequence: u64,
+    pub harness_event_json: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub artifacts: Vec<HarnessGrpcArtifactRef>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct HarnessGrpcControlCommandFrame {
+    pub protocol_version: u16,
+    pub run_id: String,
+    pub command_name: String,
+    pub command_json: String,
+    pub requires_write_authorization: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_command_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct HarnessGrpcAgentIdentity {
+    pub protocol_version: u16,
+    pub agent_id: String,
+    pub run_id: String,
+    pub role: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub capabilities: Vec<String>,
+    pub harness_event_schema_version: u16,
 }
 
 #[derive(Clone, Debug)]
@@ -1124,6 +1171,149 @@ impl HarnessControlCommand {
     pub fn requires_write_authorization(&self) -> bool {
         !matches!(self, Self::SubscribeEvents { .. })
     }
+}
+
+impl HarnessGrpcArtifactRef {
+    pub fn new(uri: impl Into<String>) -> Self {
+        Self {
+            uri: uri.into(),
+            media_type: None,
+            sha256: None,
+        }
+    }
+
+    pub fn with_media_type(mut self, media_type: impl Into<String>) -> Self {
+        self.media_type = Some(media_type.into());
+        self
+    }
+
+    pub fn with_sha256(mut self, sha256: impl Into<String>) -> Self {
+        self.sha256 = Some(sha256.into());
+        self
+    }
+}
+
+impl HarnessGrpcAgentIdentity {
+    pub fn new(
+        agent_id: impl Into<String>,
+        run_id: impl Into<String>,
+        role: impl Into<String>,
+    ) -> Self {
+        Self {
+            protocol_version: HARNESS_GRPC_CONTROL_PROTOCOL_VERSION,
+            agent_id: agent_id.into(),
+            run_id: run_id.into(),
+            role: role.into(),
+            capabilities: Vec::new(),
+            harness_event_schema_version: HARNESS_EVENT_SCHEMA_VERSION,
+        }
+    }
+
+    pub fn with_capability(mut self, capability: impl Into<String>) -> Self {
+        self.capabilities.push(capability.into());
+        self
+    }
+
+    pub fn validate(&self) -> anyhow::Result<()> {
+        validate_harness_grpc_protocol_version(self.protocol_version)?;
+        if self.harness_event_schema_version != HARNESS_EVENT_SCHEMA_VERSION {
+            anyhow::bail!(
+                "unsupported harness event schema version {}",
+                self.harness_event_schema_version
+            );
+        }
+        require_control_field("agent_id", &self.agent_id)?;
+        require_control_field("run_id", &self.run_id)?;
+        require_control_field("role", &self.role)?;
+        for capability in &self.capabilities {
+            require_control_field("capability", capability)?;
+        }
+        Ok(())
+    }
+}
+
+pub fn harness_grpc_event_frame(event: &HarnessEvent) -> anyhow::Result<HarnessGrpcEventFrame> {
+    harness_grpc_event_frame_with_artifacts(event, Vec::new())
+}
+
+pub fn harness_grpc_event_frame_with_artifacts(
+    event: &HarnessEvent,
+    artifacts: Vec<HarnessGrpcArtifactRef>,
+) -> anyhow::Result<HarnessGrpcEventFrame> {
+    Ok(HarnessGrpcEventFrame {
+        protocol_version: HARNESS_GRPC_CONTROL_PROTOCOL_VERSION,
+        harness_event_schema_version: event.schema_version,
+        run_id: event.run_id.clone(),
+        event_id: event.event_id.clone(),
+        sequence: event.sequence,
+        harness_event_json: serde_json::to_string(event)?,
+        artifacts,
+    })
+}
+
+pub fn harness_event_from_grpc_event_frame(
+    frame: &HarnessGrpcEventFrame,
+) -> anyhow::Result<HarnessEvent> {
+    validate_harness_grpc_protocol_version(frame.protocol_version)?;
+    if frame.harness_event_schema_version != HARNESS_EVENT_SCHEMA_VERSION {
+        anyhow::bail!(
+            "unsupported harness event schema version {}",
+            frame.harness_event_schema_version
+        );
+    }
+    let event = serde_json::from_str::<HarnessEvent>(&frame.harness_event_json)?;
+    if event.schema_version != frame.harness_event_schema_version {
+        anyhow::bail!("gRPC event frame schema version does not match payload");
+    }
+    if event.run_id != frame.run_id {
+        anyhow::bail!("gRPC event frame run_id does not match payload");
+    }
+    if event.event_id != frame.event_id {
+        anyhow::bail!("gRPC event frame event_id does not match payload");
+    }
+    if event.sequence != frame.sequence {
+        anyhow::bail!("gRPC event frame sequence does not match payload");
+    }
+    Ok(event)
+}
+
+pub fn harness_grpc_control_command_frame(
+    command: &HarnessControlCommand,
+) -> anyhow::Result<HarnessGrpcControlCommandFrame> {
+    Ok(HarnessGrpcControlCommandFrame {
+        protocol_version: HARNESS_GRPC_CONTROL_PROTOCOL_VERSION,
+        run_id: command.run_id().to_string(),
+        command_name: command.command_name().to_string(),
+        command_json: serde_json::to_string(command)?,
+        requires_write_authorization: command.requires_write_authorization(),
+        client_command_id: command.client_command_id().map(str::to_string),
+    })
+}
+
+pub fn harness_control_command_from_grpc_frame(
+    frame: &HarnessGrpcControlCommandFrame,
+) -> anyhow::Result<HarnessControlCommand> {
+    validate_harness_grpc_protocol_version(frame.protocol_version)?;
+    let command = HarnessControlCommand::parse_json(&frame.command_json)?;
+    if command.run_id() != frame.run_id {
+        anyhow::bail!("gRPC control frame run_id does not match command payload");
+    }
+    if command.command_name() != frame.command_name {
+        anyhow::bail!("gRPC control frame command_name does not match command payload");
+    }
+    if command.requires_write_authorization() != frame.requires_write_authorization {
+        anyhow::bail!(
+            "gRPC control frame authorization requirement does not match command payload"
+        );
+    }
+    Ok(command)
+}
+
+fn validate_harness_grpc_protocol_version(protocol_version: u16) -> anyhow::Result<()> {
+    if protocol_version != HARNESS_GRPC_CONTROL_PROTOCOL_VERSION {
+        anyhow::bail!("unsupported harness gRPC protocol version {protocol_version}");
+    }
+    Ok(())
 }
 
 pub fn harness_control_command_event_draft(
@@ -3623,6 +3813,136 @@ mod tests {
         assert_eq!(event.payload["args"]["panel"], "timeline");
         assert_eq!(event.payload["args"]["api_key"], HARNESS_EVENT_REDACTED);
         assert!(!serialized.contains("sk-should-not-leak"));
+    }
+
+    #[test]
+    fn grpc_control_proto_snapshot_covers_core_contract() {
+        assert!(HARNESS_GRPC_CONTROL_PROTO.contains("syntax = \"proto3\";"));
+        assert!(HARNESS_GRPC_CONTROL_PROTO.contains("package jcode.harness_events.v1;"));
+        assert!(HARNESS_GRPC_CONTROL_PROTO.contains("service HarnessAgentControl"));
+        for rpc in [
+            "RegisterAgent",
+            "Heartbeat",
+            "AssignTask",
+            "StreamEvents",
+            "CancelTask",
+            "GetHealth",
+        ] {
+            assert!(
+                HARNESS_GRPC_CONTROL_PROTO.contains(&format!("rpc {rpc}")),
+                "missing rpc {rpc}"
+            );
+        }
+        for message in [
+            "AgentIdentity",
+            "TaskAssignment",
+            "ArtifactRef",
+            "HarnessEventFrame",
+            "ControlCommandFrame",
+        ] {
+            assert!(
+                HARNESS_GRPC_CONTROL_PROTO.contains(&format!("message {message}")),
+                "missing message {message}"
+            );
+        }
+        assert!(HARNESS_GRPC_CONTROL_PROTO.contains("string harness_event_json = 6;"));
+        assert!(HARNESS_GRPC_CONTROL_PROTO.contains("string command_json = 4;"));
+    }
+
+    #[test]
+    fn grpc_event_frame_round_trips_redacted_harness_event_without_schema_fork() {
+        let event = HarnessEvent::new(
+            "hevt_grpc_frame",
+            "run_grpc",
+            DateTime::parse_from_rfc3339("2026-05-08T06:28:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            12,
+            HarnessEventLevel::Info,
+            HarnessEventKind::ToolFinished,
+            json!({"status": "ok", "api_key": "sk-grpc-should-redact"}),
+        );
+        let frame = harness_grpc_event_frame_with_artifacts(
+            &event,
+            vec![
+                HarnessGrpcArtifactRef::new("file://artifact.log")
+                    .with_media_type("text/plain")
+                    .with_sha256("a".repeat(64)),
+            ],
+        )
+        .unwrap();
+        let decoded = harness_event_from_grpc_event_frame(&frame).unwrap();
+
+        assert_eq!(
+            frame.protocol_version,
+            HARNESS_GRPC_CONTROL_PROTOCOL_VERSION
+        );
+        assert_eq!(
+            frame.harness_event_schema_version,
+            HARNESS_EVENT_SCHEMA_VERSION
+        );
+        assert_eq!(frame.run_id, event.run_id);
+        assert_eq!(frame.event_id, event.event_id);
+        assert_eq!(frame.artifacts[0].uri, "file://artifact.log");
+        assert!(!frame.harness_event_json.contains("sk-grpc-should-redact"));
+        assert_eq!(decoded.payload["api_key"], HARNESS_EVENT_REDACTED);
+        assert_eq!(decoded.event_id, "hevt_grpc_frame");
+    }
+
+    #[test]
+    fn grpc_control_command_frame_round_trips_and_rejects_mismatches() {
+        let command = HarnessControlCommand::ResolveHumanApproval {
+            run_id: "run_grpc_control".to_string(),
+            approval_id: "approval_deploy".to_string(),
+            decision: HarnessApprovalDecision::Approved,
+            actor: Some("grpc-worker".to_string()),
+            reason: Some("approved by test".to_string()),
+            client_command_id: Some("cmd_grpc_1".to_string()),
+        };
+        let frame = harness_grpc_control_command_frame(&command).unwrap();
+        let decoded = harness_control_command_from_grpc_frame(&frame).unwrap();
+
+        assert_eq!(
+            frame.protocol_version,
+            HARNESS_GRPC_CONTROL_PROTOCOL_VERSION
+        );
+        assert_eq!(frame.command_name, "resolve_human_approval");
+        assert!(frame.requires_write_authorization);
+        assert_eq!(frame.client_command_id.as_deref(), Some("cmd_grpc_1"));
+        assert_eq!(decoded, command);
+
+        let mut mismatched = frame.clone();
+        mismatched.run_id = "other_run".to_string();
+        let err = harness_control_command_from_grpc_frame(&mismatched).unwrap_err();
+        assert!(err.to_string().contains("run_id does not match"));
+    }
+
+    #[test]
+    fn grpc_agent_identity_validation_enforces_versions_and_required_fields() {
+        let identity = HarnessGrpcAgentIdentity::new("agent-1", "run_grpc", "worker")
+            .with_capability("events")
+            .with_capability("tools");
+        identity.validate().unwrap();
+
+        let mut bad_version = identity.clone();
+        bad_version.protocol_version = HARNESS_GRPC_CONTROL_PROTOCOL_VERSION + 1;
+        assert!(
+            bad_version
+                .validate()
+                .unwrap_err()
+                .to_string()
+                .contains("unsupported")
+        );
+
+        let mut missing_role = identity;
+        missing_role.role.clear();
+        assert!(
+            missing_role
+                .validate()
+                .unwrap_err()
+                .to_string()
+                .contains("role must not be empty")
+        );
     }
 
     #[test]

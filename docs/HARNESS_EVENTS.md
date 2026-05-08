@@ -253,6 +253,18 @@ Auditing behavior:
 - command `args` still pass through the normal redaction rules before publication.
 - unsupported command names and ordinary protocol messages are not intercepted and continue through the existing bridge unchanged.
 
+## gRPC control-plane contract
+
+#23 starts with a transport contract rather than a mandatory runtime dependency. The proto snapshot lives at `proto/jcode/harness_events/v1/control.proto` with package `jcode.harness_events.v1` and service `HarnessAgentControl`.
+
+The first Rust bridge keeps the core event schema canonical:
+
+- `HarnessGrpcEventFrame` embeds already-redacted `HarnessEvent` JSON and validates protocol/schema/run/event/sequence metadata on decode.
+- `HarnessGrpcControlCommandFrame` embeds the existing `HarnessControlCommand` JSON and validates command name, run id, and write authorization metadata.
+- `HarnessGrpcAgentIdentity` validates agent registration identity, capabilities, protocol version, and event schema version.
+
+Future tonic servers should bind to loopback by default, require explicit opt-in for remote exposure, and preserve the existing read/write authorization split before accepting distributed commands.
+
 ### CLI helpers
 
 `jcode events` exposes the local sink without mixing human text into NDJSON streams:

@@ -305,6 +305,26 @@ Supported MVP commands:
 
 Unauthorized write commands must be rejected by the gateway and audited as `control_command_rejected` at `warn` level. Approval reasons are intentionally summarized as `reason_present` instead of copied verbatim, and all command metadata still passes through the normal payload redaction path.
 
+## gRPC distributed control-plane contract
+
+The #23 foundation lives at `proto/jcode/harness_events/v1/control.proto`. It is an optional future transport contract, not a dependency of local CLI/TUI usage.
+
+Current contract slice:
+
+- package: `jcode.harness_events.v1`
+- service: `HarnessAgentControl`
+- RPCs: `RegisterAgent`, `Heartbeat`, `AssignTask`, bidirectional `StreamEvents`, `CancelTask`, and `GetHealth`.
+- messages cover agent identity/capabilities, task assignment, cancellation, artifact references, event upload, command download, and health/status.
+
+The Rust bridge intentionally avoids a schema fork:
+
+- `HarnessGrpcEventFrame` carries `harness_event_json`, which is the already-redacted `HarnessEvent` JSON envelope.
+- `HarnessGrpcControlCommandFrame` carries `command_json`, which is the same `HarnessControlCommand` JSON used by the WebSocket control channel.
+- Decode helpers validate `protocol_version`, `schema_version`, `run_id`, `event_id`, `sequence`, `command_name`, and write-authorization metadata against the embedded JSON payload.
+- `HarnessGrpcAgentIdentity::validate` enforces protocol/schema versions and required identity fields before a future tonic server accepts registration.
+
+Auth policy before any non-local exposure: the prototype must bind to loopback by default, require explicit opt-in for remote listeners, and reuse the existing read/write control authorization distinction before forwarding commands to workers.
+
 ## CI recipe
 
 A GitHub Actions-style workflow can collect event evidence as artifacts:

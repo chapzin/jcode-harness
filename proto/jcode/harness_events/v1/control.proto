@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package jcode.harness_events.v1;
+
+// HarnessAgentControl is the optional distributed control-plane contract for
+// local-first jcode-harness agents. It is not required for single-machine CLI
+// or TUI usage. Implementations must keep HarnessEvent JSON as the canonical
+// event payload to avoid schema forks.
+service HarnessAgentControl {
+  rpc RegisterAgent(RegisterAgentRequest) returns (RegisterAgentResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HealthStatus);
+  rpc AssignTask(TaskAssignmentRequest) returns (TaskAssignment);
+  rpc StreamEvents(stream HarnessEventFrame) returns (stream ControlCommandFrame);
+  rpc CancelTask(CancelTaskRequest) returns (ControlAck);
+  rpc GetHealth(HealthRequest) returns (HealthStatus);
+}
+
+message AgentIdentity {
+  uint32 protocol_version = 1;
+  string agent_id = 2;
+  string run_id = 3;
+  string role = 4;
+  repeated string capabilities = 5;
+  uint32 harness_event_schema_version = 6;
+}
+
+message RegisterAgentRequest {
+  AgentIdentity identity = 1;
+  map<string, string> metadata = 2;
+}
+
+message RegisterAgentResponse {
+  uint32 protocol_version = 1;
+  string agent_id = 2;
+  bool accepted = 3;
+  string reason = 4;
+}
+
+message HeartbeatRequest {
+  AgentIdentity identity = 1;
+  string status = 2;
+  uint64 unix_time_ms = 3;
+}
+
+message HealthRequest {
+  string run_id = 1;
+}
+
+message HealthStatus {
+  uint32 protocol_version = 1;
+  string run_id = 2;
+  string status = 3;
+  repeated string warnings = 4;
+}
+
+message TaskAssignmentRequest {
+  AgentIdentity identity = 1;
+  repeated string accepted_capabilities = 2;
+}
+
+message TaskAssignment {
+  uint32 protocol_version = 1;
+  string task_id = 2;
+  string run_id = 3;
+  string prompt = 4;
+  string priority = 5;
+  repeated string required_capabilities = 6;
+  repeated ArtifactRef artifacts = 7;
+}
+
+message CancelTaskRequest {
+  uint32 protocol_version = 1;
+  string run_id = 2;
+  string task_id = 3;
+  string reason = 4;
+}
+
+message ControlAck {
+  uint32 protocol_version = 1;
+  string run_id = 2;
+  string command_id = 3;
+  bool accepted = 4;
+  string reason = 5;
+}
+
+message ArtifactRef {
+  string uri = 1;
+  string media_type = 2;
+  string sha256 = 3;
+}
+
+message HarnessEventFrame {
+  uint32 protocol_version = 1;
+  uint32 harness_event_schema_version = 2;
+  string run_id = 3;
+  string event_id = 4;
+  uint64 sequence = 5;
+  string harness_event_json = 6;
+  repeated ArtifactRef artifacts = 7;
+}
+
+message ControlCommandFrame {
+  uint32 protocol_version = 1;
+  string run_id = 2;
+  string command_name = 3;
+  string command_json = 4;
+  bool requires_write_authorization = 5;
+  string client_command_id = 6;
+}
