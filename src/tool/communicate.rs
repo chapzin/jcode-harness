@@ -21,6 +21,7 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 const REQUEST_ID: u64 = 1;
+const SPAWN_COORDINATOR_DENIAL: &str = "Only the coordinator can spawn new agents";
 
 mod transport;
 use transport::{send_request, send_request_with_timeout};
@@ -55,6 +56,60 @@ fn ensure_success(response: &ServerEvent) -> Result<()> {
     } else {
         Ok(())
     }
+}
+
+fn spawn_requires_coordinator(response: &ServerEvent) -> bool {
+    check_error(response).is_some_and(|message| message.contains(SPAWN_COORDINATOR_DENIAL))
+}
+
+fn spawn_self_promote_failure_message(error: impl std::fmt::Display) -> String {
+    format!(
+        "Spawn requires coordinator role, and automatic self-promotion failed: {error}. Try `swarm assign_role target_session=current role=coordinator`, then retry spawn."
+    )
+}
+
+async fn ensure_spawn_coordinator(ctx: &ToolContext) -> Result<()> {
+    let request = Request::CommAssignRole {
+        id: REQUEST_ID,
+        session_id: ctx.session_id.clone(),
+        target_session: ctx.session_id.clone(),
+        role: "coordinator".to_string(),
+    };
+
+    match send_request(request).await {
+        Ok(response) => ensure_success(&response)
+            .map_err(|error| anyhow::anyhow!(spawn_self_promote_failure_message(error))),
+        Err(error) => Err(anyhow::anyhow!(spawn_self_promote_failure_message(error))),
+    }
+}
+
+async fn send_spawn_request_with_coordinator_retry(
+    ctx: &ToolContext,
+    request: Request,
+    operation: &str,
+) -> Result<ServerEvent> {
+    let first_response = send_request(request.clone())
+        .await
+        .map_err(|error| anyhow::anyhow!("Failed to {operation}: {error}"))?;
+
+    if !spawn_requires_coordinator(&first_response) {
+        return Ok(first_response);
+    }
+
+    ensure_spawn_coordinator(ctx).await?;
+
+    let retry_response = send_request(request)
+        .await
+        .map_err(|error| anyhow::anyhow!("Failed to {operation} after self-promoting: {error}"))?;
+    if spawn_requires_coordinator(&retry_response)
+        && let Some(message) = check_error(&retry_response)
+    {
+        return Err(anyhow::anyhow!(
+            "Spawn still requires coordinator role after automatic self-promotion: {message}. Try `swarm assign_role target_session=current role=coordinator`, then retry spawn."
+        ));
+    }
+
+    Ok(retry_response)
 }
 
 async fn fetch_plan_status(session_id: &str) -> Result<PlanGraphStatus> {
@@ -382,7 +437,13 @@ async fn spawn_assignment_session(
         run_id,
     };
 
-    match send_request(spawn_request).await {
+    match send_spawn_request_with_coordinator_retry(
+        ctx,
+        spawn_request,
+        "spawn agent for task assignment",
+    )
+    .await
+    {
         Ok(ServerEvent::CommSpawnResponse { new_session_id, .. }) if !new_session_id.is_empty() => {
             Ok(new_session_id)
         }
@@ -392,10 +453,7 @@ async fn spawn_assignment_session(
                 "Spawn succeeded but new session ID was not returned."
             ))
         }
-        Err(e) => Err(anyhow::anyhow!(
-            "Failed to spawn agent for task assignment: {}",
-            e
-        )),
+        Err(e) => Err(e),
     }
 }
 
@@ -1281,7 +1339,8 @@ impl Tool for CommunicateTool {
                         .or_else(|| Some(fresh_swarm_run_id(&ctx))),
                 };
 
-                match send_request(request).await {
+                match send_spawn_request_with_coordinator_retry(&ctx, request, "spawn agent").await
+                {
                     Ok(ServerEvent::CommSpawnResponse { new_session_id, .. })
                         if !new_session_id.is_empty() =>
                     {

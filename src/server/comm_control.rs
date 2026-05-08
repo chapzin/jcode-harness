@@ -680,7 +680,7 @@ pub(super) async fn handle_comm_assign_role(
     event_history: &Arc<RwLock<std::collections::VecDeque<SwarmEvent>>>,
     event_counter: &Arc<std::sync::atomic::AtomicU64>,
     swarm_event_tx: &broadcast::Sender<SwarmEvent>,
-    swarm_mutation_runtime: &SwarmMutationRuntime,
+    _swarm_mutation_runtime: &SwarmMutationRuntime,
 ) {
     let (swarm_id, is_coordinator) = {
         let members = swarm_members.read().await;
@@ -745,38 +745,16 @@ pub(super) async fn handle_comm_assign_role(
         }
     };
 
-    let mutation_key = swarm_mutation_request_key(
-        &req_session_id,
-        "assign_role",
-        &[swarm_id.clone(), target_session.clone(), role.clone()],
-    );
-    let Some(mutation_state) = begin_swarm_mutation_or_replay(
-        swarm_mutation_runtime,
-        &mutation_key,
-        "assign_role",
-        &req_session_id,
-        id,
-        client_event_tx,
-    )
-    .await
-    else {
-        return;
-    };
-
     {
         let mut members = swarm_members.write().await;
         if let Some(member) = members.get_mut(&target_session) {
             member.role = role.clone();
         } else {
-            finish_swarm_mutation_request(
-                swarm_mutation_runtime,
-                &mutation_state,
-                PersistedSwarmMutationResponse::Error {
-                    message: format!("Unknown session '{}'", target_session),
-                    retry_after_secs: None,
-                },
-            )
-            .await;
+            let _ = client_event_tx.send(ServerEvent::Error {
+                id,
+                message: format!("Unknown session '{}'", target_session),
+                retry_after_secs: None,
+            });
             return;
         }
     }
@@ -787,10 +765,13 @@ pub(super) async fn handle_comm_assign_role(
             coordinators.insert(swarm_id.clone(), target_session.clone());
         }
         let mut members = swarm_members.write().await;
-        if let Some(member) = members.get_mut(&req_session_id)
-            && member.session_id != target_session
-        {
-            member.role = "agent".to_string();
+        for member in members.values_mut() {
+            if member.swarm_id.as_deref() == Some(swarm_id.as_str())
+                && member.session_id != target_session
+                && member.role == "coordinator"
+            {
+                member.role = "agent".to_string();
+            }
         }
     }
 
@@ -816,12 +797,7 @@ pub(super) async fn handle_comm_assign_role(
         },
     )
     .await;
-    finish_swarm_mutation_request(
-        swarm_mutation_runtime,
-        &mutation_state,
-        PersistedSwarmMutationResponse::Done,
-    )
-    .await;
+    let _ = client_event_tx.send(ServerEvent::Done { id });
 }
 
 #[expect(
