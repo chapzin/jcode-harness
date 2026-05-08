@@ -7,6 +7,7 @@ use super::{
     format_swarm_health_for_run, format_swarm_reconcile, implicit_await_run_scope,
     latest_assistant_report, operation_scoped_run_id, resolve_optional_target_session,
     run_plan_request_nonce, spawn_requires_coordinator, spawn_self_promote_failure_message,
+    spawned_worker_run_id,
 };
 use crate::message::{Message, StreamEvent, ToolDefinition};
 use crate::protocol::{
@@ -558,10 +559,14 @@ async fn wait_for_server_socket(
 }
 
 fn test_ctx(session_id: &str, working_dir: &Path) -> ToolContext {
+    test_ctx_with_call_id(session_id, working_dir, "call-1")
+}
+
+fn test_ctx_with_call_id(session_id: &str, working_dir: &Path, tool_call_id: &str) -> ToolContext {
     ToolContext {
         session_id: session_id.to_string(),
         message_id: "msg-1".to_string(),
-        tool_call_id: "call-1".to_string(),
+        tool_call_id: tool_call_id.to_string(),
         working_dir: Some(working_dir.to_path_buf()),
         stdin_request_tx: None,
         graceful_shutdown_signal: None,

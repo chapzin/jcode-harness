@@ -49,6 +49,17 @@ fn operation_scoped_run_id(operation_id: Option<&str>) -> Option<String> {
     explicit_operation_request_nonce(operation_id).map(|nonce| format!("run:{nonce}"))
 }
 
+fn spawned_worker_run_id(
+    ctx: &ToolContext,
+    explicit_run_id: Option<&str>,
+    operation_id: Option<&str>,
+) -> String {
+    explicit_run_id
+        .map(ToString::to_string)
+        .or_else(|| operation_scoped_run_id(operation_id))
+        .unwrap_or_else(|| fresh_swarm_run_id(ctx))
+}
+
 fn fill_slots_request_nonce(operation_id: Option<&str>, slot_index: usize) -> Option<String> {
     explicit_operation_request_nonce(operation_id).map(|nonce| format!("{nonce}:slot:{slot_index}"))
 }
@@ -1890,10 +1901,11 @@ impl Tool for CommunicateTool {
                     working_dir: params.working_dir.clone(),
                     initial_message: params.spawn_initial_message(),
                     request_nonce: Some(spawn_request_nonce(&ctx, params.operation_id.as_deref())),
-                    run_id: params
-                        .run_id
-                        .clone()
-                        .or_else(|| Some(fresh_swarm_run_id(&ctx))),
+                    run_id: Some(spawned_worker_run_id(
+                        &ctx,
+                        params.run_id.as_deref(),
+                        params.operation_id.as_deref(),
+                    )),
                 };
 
                 match send_spawn_request_with_coordinator_retry(&ctx, request, "spawn agent").await
@@ -2102,10 +2114,11 @@ impl Tool for CommunicateTool {
                     let spawned_session = spawn_assignment_session(
                         &ctx,
                         &params,
-                        params
-                            .run_id
-                            .clone()
-                            .or_else(|| Some(fresh_swarm_run_id(&ctx))),
+                        Some(spawned_worker_run_id(
+                            &ctx,
+                            params.run_id.as_deref(),
+                            params.operation_id.as_deref(),
+                        )),
                     )
                     .await?;
                     return assign_task_to_session(
@@ -2147,10 +2160,11 @@ impl Tool for CommunicateTool {
                         let spawned_session = spawn_assignment_session(
                             &ctx,
                             &params,
-                            params
-                                .run_id
-                                .clone()
-                                .or_else(|| Some(fresh_swarm_run_id(&ctx))),
+                            Some(spawned_worker_run_id(
+                                &ctx,
+                                params.run_id.as_deref(),
+                                params.operation_id.as_deref(),
+                            )),
                         )
                         .await?;
                         assign_task_to_session(
@@ -2191,7 +2205,7 @@ impl Tool for CommunicateTool {
                     run_id: params.run_id.clone().or_else(|| {
                         (params.prefer_spawn.unwrap_or(false)
                             || params.spawn_if_needed.unwrap_or(false))
-                        .then(|| fresh_swarm_run_id(&ctx))
+                        .then(|| spawned_worker_run_id(&ctx, None, params.operation_id.as_deref()))
                     }),
                 };
 

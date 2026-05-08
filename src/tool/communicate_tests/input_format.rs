@@ -217,6 +217,49 @@ fn run_plan_operation_id_derives_stable_run_and_versioned_slot_nonces() {
     assert_eq!(run_plan_request_nonce(None, 7, 0), None);
 }
 
+#[test]
+fn spawned_worker_run_id_uses_operation_scope_for_retryable_spawns() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "spawn",
+        "operation_id": " issue-13-spawn-run-1 "
+    }))
+    .expect("spawn operation_id should deserialize");
+    let first_ctx = test_ctx_with_call_id("coord", std::path::Path::new("."), "call-a");
+    let retry_ctx = test_ctx_with_call_id("coord", std::path::Path::new("."), "call-b");
+
+    assert_eq!(
+        spawned_worker_run_id(&first_ctx, None, parsed.operation_id.as_deref()),
+        "run:op:issue-13-spawn-run-1"
+    );
+    assert_eq!(
+        spawned_worker_run_id(&retry_ctx, None, parsed.operation_id.as_deref()),
+        "run:op:issue-13-spawn-run-1"
+    );
+}
+
+#[test]
+fn spawned_worker_run_id_preserves_explicit_run_id_over_operation_scope() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+
+    assert_eq!(
+        spawned_worker_run_id(&ctx, Some("run-explicit"), Some(" issue-13-spawn-run-1 ")),
+        "run-explicit"
+    );
+}
+
+#[test]
+fn spawned_worker_run_id_stays_fresh_without_operation_id() {
+    let first_ctx = test_ctx_with_call_id("coord", std::path::Path::new("."), "call-a");
+    let second_ctx = test_ctx_with_call_id("coord", std::path::Path::new("."), "call-b");
+
+    let first = spawned_worker_run_id(&first_ctx, None, None);
+    let second = spawned_worker_run_id(&second_ctx, None, None);
+
+    assert!(first.starts_with("run-coord-call-a-"));
+    assert!(second.starts_with("run-coord-call-b-"));
+    assert_ne!(first, second);
+}
+
 fn await_scope_member(
     session_id: &str,
     owner: Option<&str>,

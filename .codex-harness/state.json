@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Commit and push run_plan operation_id scope stability slice",
+  "focus": "Stable spawned worker run ids for operation_id retries",
   "status": "done",
-  "activeContractId": "2026-05-08-make-run-plan-operation-id-scope-stable-843df5",
+  "activeContractId": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
   "counters": {
-    "contracts": 40,
-    "traces": 57,
-    "gates": 39,
-    "verifications": 46,
+    "contracts": 41,
+    "traces": 61,
+    "gates": 40,
+    "verifications": 49,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -135,49 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T11:09:36.661Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
-      "gateId": "gate-2026-05-08-5daeb0",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-08T11:11:38.088Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-4336910f",
-      "contractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
-      "status": "pass",
-      "summary": "session cancel slice committed and pushed"
-    },
-    {
-      "ts": "2026-05-08T11:11:54.581Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
-      "gateId": "gate-2026-05-08-6429da",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-08T11:17:07.695Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-expose-swarm-cleanup-working-dir-preview-24922a",
-      "summary": "Expose swarm cleanup working_dir preview"
-    },
-    {
-      "ts": "2026-05-08T11:24:37.741Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-a5e1e3d8",
-      "contractId": "2026-05-08-expose-swarm-cleanup-working-dir-preview-24922a",
-      "status": "pass",
-      "summary": "Working_dir metadata slice focused tests, cargo check, and selfdev build passed."
-    },
-    {
-      "ts": "2026-05-08T11:24:43.837Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-expose-swarm-cleanup-working-dir-preview-24922a",
-      "gateId": "gate-2026-05-08-6a13f3",
-      "verdict": "pass"
-    },
     {
       "ts": "2026-05-08T11:25:03.238Z",
       "type": "state_update",
@@ -729,6 +686,51 @@
       "status": "done",
       "focus": "Commit and push run_plan operation_id scope stability slice",
       "activeContractId": "2026-05-08-make-run-plan-operation-id-scope-stable-843df5"
+    },
+    {
+      "ts": "2026-05-08T14:17:14.598Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
+      "summary": "Stable spawned worker run ids for operation_id retries"
+    },
+    {
+      "ts": "2026-05-08T14:20:07.592Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-3cc06798",
+      "contractId": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
+      "status": "pass",
+      "summary": "Focused spawned_worker_run_id verification passed"
+    },
+    {
+      "ts": "2026-05-08T14:20:38.469Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-7b1da30c",
+      "contractId": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
+      "status": "pass",
+      "summary": "Selfdev build passed for stable spawned worker run id slice"
+    },
+    {
+      "ts": "2026-05-08T14:21:44.750Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-ef89daf5",
+      "contractId": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
+      "status": "pass",
+      "summary": "Selfdev rebuild and reload metadata refresh passed"
+    },
+    {
+      "ts": "2026-05-08T14:21:54.592Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
+      "gateId": "gate-2026-05-08-c33109",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T14:22:07.071Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-8a2c9c08",
+      "contractId": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
+      "kind": "decision",
+      "summary": "Chose operation-scoped run_id for retryable spawned workers"
     }
   ]
 }
