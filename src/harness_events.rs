@@ -15,6 +15,8 @@ pub const HARNESS_EVENT_TRUNCATED: &str = "...[truncated]";
 pub const DEFAULT_MAX_PAYLOAD_STRING_CHARS: usize = 4096;
 pub const HARNESS_EVENT_SSE_CONTENT_TYPE: &str = "text/event-stream";
 pub const DEFAULT_HARNESS_EVENT_SSE_RETRY_MS: u64 = 2_000;
+pub const HARNESS_EVENT_MIN_LEVEL_ENV: &str = "JCODE_HARNESS_EVENTS_MIN_LEVEL";
+pub const HARNESS_EVENT_TOOL_SAMPLE_EVERY_ENV: &str = "JCODE_HARNESS_EVENTS_TOOL_SAMPLE_EVERY";
 const DEFAULT_EVENT_BUS_CAPACITY: usize = 1024;
 const HARNESS_EVENT_LOG_DIR: &str = "harness-events";
 
@@ -28,7 +30,34 @@ pub enum HarnessEventLevel {
     Error,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+impl HarnessEventLevel {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "trace" => Some(Self::Trace),
+            "debug" => Some(Self::Debug),
+            "info" => Some(Self::Info),
+            "warn" | "warning" => Some(Self::Warn),
+            "error" => Some(Self::Error),
+            _ => None,
+        }
+    }
+
+    fn rank(self) -> u8 {
+        match self {
+            Self::Trace => 0,
+            Self::Debug => 1,
+            Self::Info => 2,
+            Self::Warn => 3,
+            Self::Error => 4,
+        }
+    }
+
+    pub fn is_at_least(self, minimum: Self) -> bool {
+        self.rank() >= minimum.rank()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HarnessEventKind {
     RunStarted,
@@ -188,6 +217,27 @@ pub struct HarnessEventRetentionReport {
     pub candidates: Vec<HarnessEventRetentionEntry>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HarnessEventSamplingPolicy {
+    pub min_level: HarnessEventLevel,
+    pub tool_event_sample_every: Option<u64>,
+}
+
+impl Default for HarnessEventSamplingPolicy {
+    fn default() -> Self {
+        Self {
+            min_level: HarnessEventLevel::Trace,
+            tool_event_sample_every: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HarnessEventSamplingDecision {
+    pub record: bool,
+    pub reason: Option<String>,
+}
+
 #[derive(Clone, Debug)]
 struct HarnessEventRetentionLogEntry {
     run_id: String,
@@ -298,6 +348,85 @@ impl HarnessEventDraft {
         self.payload_class = payload_class;
         self
     }
+
+    pub fn level(&self) -> HarnessEventLevel {
+        self.level
+    }
+
+    pub fn kind(&self) -> HarnessEventKind {
+        self.kind
+    }
+}
+
+impl HarnessEventSamplingPolicy {
+    pub fn from_env() -> anyhow::Result<Self> {
+        let mut policy = Self::default();
+
+        if let Ok(value) = std::env::var(HARNESS_EVENT_MIN_LEVEL_ENV) {
+            policy.min_level = HarnessEventLevel::parse(&value).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "invalid {HARNESS_EVENT_MIN_LEVEL_ENV}: expected trace, debug, info, warn, or error"
+                )
+            })?;
+        }
+
+        if let Ok(value) = std::env::var(HARNESS_EVENT_TOOL_SAMPLE_EVERY_ENV) {
+            let sample_every = value.trim().parse::<u64>().map_err(|_| {
+                anyhow::anyhow!("invalid {HARNESS_EVENT_TOOL_SAMPLE_EVERY_ENV}: expected integer")
+            })?;
+            if sample_every == 0 {
+                anyhow::bail!(
+                    "invalid {HARNESS_EVENT_TOOL_SAMPLE_EVERY_ENV}: expected value greater than zero"
+                );
+            }
+            policy.tool_event_sample_every = (sample_every > 1).then_some(sample_every);
+        }
+
+        Ok(policy)
+    }
+
+    pub fn should_record(
+        &self,
+        draft: &HarnessEventDraft,
+        same_kind_ordinal: u64,
+    ) -> HarnessEventSamplingDecision {
+        if !draft.level().is_at_least(self.min_level) {
+            return HarnessEventSamplingDecision {
+                record: false,
+                reason: Some("below_min_level".to_string()),
+            };
+        }
+
+        if draft.level().is_at_least(HarnessEventLevel::Warn) {
+            return HarnessEventSamplingDecision {
+                record: true,
+                reason: None,
+            };
+        }
+
+        if is_tool_sampling_kind(draft.kind()) {
+            if let Some(sample_every) = self.tool_event_sample_every {
+                if same_kind_ordinal.saturating_sub(1) % sample_every != 0 {
+                    return HarnessEventSamplingDecision {
+                        record: false,
+                        reason: Some("tool_sample_every".to_string()),
+                    };
+                }
+            }
+        }
+
+        HarnessEventSamplingDecision {
+            record: true,
+            reason: None,
+        }
+    }
+}
+
+fn is_tool_sampling_kind(kind: HarnessEventKind) -> bool {
+    matches!(
+        kind,
+        HarnessEventKind::ToolStarted | HarnessEventKind::ToolFinished
+    )
 }
 
 pub fn redact_harness_event_payload(
@@ -1263,11 +1392,26 @@ mod tests {
     }
 
     impl EnvVarRestore {
+        fn set(key: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
+            let previous = std::env::var_os(key);
+            crate::env::set_var(key, value);
+            Self {
+                key,
+                value: previous,
+            }
+        }
+
+        fn remove(key: &'static str) -> Self {
+            let previous = std::env::var_os(key);
+            crate::env::remove_var(key);
+            Self {
+                key,
+                value: previous,
+            }
+        }
+
         fn set_runtime_dir(path: &Path) -> Self {
-            let key = "JCODE_RUNTIME_DIR";
-            let value = std::env::var_os(key);
-            crate::env::set_var(key, path);
-            Self { key, value }
+            Self::set("JCODE_RUNTIME_DIR", path)
         }
     }
 
@@ -1440,6 +1584,71 @@ mod tests {
         assert!(!serialized.contains("ghp_should_not_escape"));
         assert_eq!(event.payload["token"], HARNESS_EVENT_REDACTED);
         assert_eq!(event.payload["status"], "ok");
+    }
+
+    #[test]
+    fn sampling_policy_drops_below_min_level_and_keeps_warnings() {
+        let policy = HarnessEventSamplingPolicy {
+            min_level: HarnessEventLevel::Warn,
+            tool_event_sample_every: None,
+        };
+        let info = HarnessEventDraft::new("run_sampling", HarnessEventKind::ToolStarted);
+        let warn = HarnessEventDraft::new("run_sampling", HarnessEventKind::GateFailed)
+            .with_level(HarnessEventLevel::Warn);
+
+        let info_decision = policy.should_record(&info, 1);
+        let warn_decision = policy.should_record(&warn, 1);
+
+        assert!(!info_decision.record);
+        assert_eq!(info_decision.reason.as_deref(), Some("below_min_level"));
+        assert!(warn_decision.record);
+    }
+
+    #[test]
+    fn sampling_policy_samples_tool_events_deterministically() {
+        let policy = HarnessEventSamplingPolicy {
+            min_level: HarnessEventLevel::Trace,
+            tool_event_sample_every: Some(3),
+        };
+        let tool = HarnessEventDraft::new("run_sampling", HarnessEventKind::ToolStarted);
+        let run = HarnessEventDraft::run_started("run_sampling");
+
+        assert!(policy.should_record(&tool, 1).record);
+        assert!(!policy.should_record(&tool, 2).record);
+        assert!(!policy.should_record(&tool, 3).record);
+        assert!(policy.should_record(&tool, 4).record);
+        assert!(policy.should_record(&run, 2).record);
+    }
+
+    #[test]
+    fn sampling_policy_from_env_parses_knobs_and_rejects_zero() {
+        let _lock = crate::storage::lock_test_env();
+        let min_level = EnvVarRestore::set(HARNESS_EVENT_MIN_LEVEL_ENV, "warn");
+        let sample_every = EnvVarRestore::set(HARNESS_EVENT_TOOL_SAMPLE_EVERY_ENV, "5");
+
+        let policy = HarnessEventSamplingPolicy::from_env().unwrap();
+
+        assert_eq!(policy.min_level, HarnessEventLevel::Warn);
+        assert_eq!(policy.tool_event_sample_every, Some(5));
+
+        drop(sample_every);
+        let _sample_zero = EnvVarRestore::set(HARNESS_EVENT_TOOL_SAMPLE_EVERY_ENV, "0");
+        let err = HarnessEventSamplingPolicy::from_env()
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains(HARNESS_EVENT_TOOL_SAMPLE_EVERY_ENV));
+        drop(min_level);
+    }
+
+    #[test]
+    fn sampling_policy_from_env_defaults_when_unset() {
+        let _lock = crate::storage::lock_test_env();
+        let _min_level = EnvVarRestore::remove(HARNESS_EVENT_MIN_LEVEL_ENV);
+        let _sample_every = EnvVarRestore::remove(HARNESS_EVENT_TOOL_SAMPLE_EVERY_ENV);
+
+        let policy = HarnessEventSamplingPolicy::from_env().unwrap();
+
+        assert_eq!(policy, HarnessEventSamplingPolicy::default());
     }
 
     #[test]

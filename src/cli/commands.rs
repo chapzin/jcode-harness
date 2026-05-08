@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use serde::Serialize;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::{Read, Write};
 use std::net::ToSocketAddrs;
 use std::path::PathBuf;
@@ -1157,11 +1157,18 @@ struct HarnessRunEventLogger<'a> {
     bus: &'a crate::harness_events::HarnessEventBus,
     run_id: String,
     path: PathBuf,
+    sampling_policy: crate::harness_events::HarnessEventSamplingPolicy,
+    sampling_counters: std::sync::Mutex<HashMap<crate::harness_events::HarnessEventKind, u64>>,
 }
 
 impl HarnessRunEventLogger<'static> {
-    fn global(run_id: impl Into<String>) -> Self {
-        Self::new(run_id, crate::harness_events::HarnessEventBus::global())
+    fn global(run_id: impl Into<String>) -> Result<Self> {
+        Ok(
+            Self::new(run_id, crate::harness_events::HarnessEventBus::global())
+                .with_sampling_policy(
+                    crate::harness_events::HarnessEventSamplingPolicy::from_env()?
+                ),
+        )
     }
 }
 
@@ -1169,7 +1176,21 @@ impl<'a> HarnessRunEventLogger<'a> {
     fn new(run_id: impl Into<String>, bus: &'a crate::harness_events::HarnessEventBus) -> Self {
         let run_id = run_id.into();
         let path = crate::harness_events::harness_event_log_path(&run_id);
-        Self { bus, run_id, path }
+        Self {
+            bus,
+            run_id,
+            path,
+            sampling_policy: crate::harness_events::HarnessEventSamplingPolicy::default(),
+            sampling_counters: std::sync::Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn with_sampling_policy(
+        mut self,
+        sampling_policy: crate::harness_events::HarnessEventSamplingPolicy,
+    ) -> Self {
+        self.sampling_policy = sampling_policy;
+        self
     }
 
     fn path(&self) -> &PathBuf {
@@ -1179,10 +1200,26 @@ impl<'a> HarnessRunEventLogger<'a> {
     fn append(
         &self,
         draft: crate::harness_events::HarnessEventDraft,
-    ) -> Result<crate::harness_events::HarnessEvent> {
+    ) -> Result<Option<crate::harness_events::HarnessEvent>> {
+        let sampling_ordinal = self.next_sampling_ordinal(draft.kind());
+        let sampling_decision = self.sampling_policy.should_record(&draft, sampling_ordinal);
+        if !sampling_decision.record {
+            return Ok(None);
+        }
+
         let event = self.bus.publish(draft);
         crate::harness_events::append_harness_event_ndjson(&self.path, &event)?;
-        Ok(event)
+        Ok(Some(event))
+    }
+
+    fn next_sampling_ordinal(&self, kind: crate::harness_events::HarnessEventKind) -> u64 {
+        let mut counters = self
+            .sampling_counters
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let counter = counters.entry(kind).or_insert(0);
+        *counter += 1;
+        *counter
     }
 
     fn run_started(&self, provider: &str, model: &str, session_id: &str) -> Result<()> {
@@ -2188,7 +2225,7 @@ async fn run_single_message_command_ndjson(
     let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
     let session_id = agent.session_id().to_string();
     let run_id = session_id.clone();
-    let harness_log = HarnessRunEventLogger::global(run_id.clone());
+    let harness_log = HarnessRunEventLogger::global(run_id.clone())?;
     let run_started_at = Instant::now();
     harness_log.run_started(provider.name(), &provider.model(), &session_id)?;
     let mut stdout = std::io::stdout().lock();

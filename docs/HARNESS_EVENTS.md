@@ -111,7 +111,20 @@ Retention policy semantics:
 - `--max-total-bytes B` keeps newest logs until adding the next log would exceed `B` bytes;
 - `--apply` is required for deletion, otherwise the command is a dry-run report.
 
-Sampling is still producer-side guidance until high-volume runtime producers are broader. Until then:
+Runtime producers also expose conservative sampling knobs for high-volume streams:
+
+```bash
+JCODE_HARNESS_EVENTS_MIN_LEVEL=warn jcode run --ndjson "..."
+JCODE_HARNESS_EVENTS_TOOL_SAMPLE_EVERY=10 jcode run --ndjson "..."
+```
+
+Sampling policy semantics:
+
+- `JCODE_HARNESS_EVENTS_MIN_LEVEL` accepts `trace`, `debug`, `info`, `warn`, or `error` and drops events below that severity before writing the durable log.
+- `JCODE_HARNESS_EVENTS_TOOL_SAMPLE_EVERY=N` keeps the first tool event of each sampled kind and then one of every `N` info-level tool events. `1` or an unset value records all tool events.
+- `warn` and `error` events are always retained after the minimum-level check so failures are not hidden by tool-event sampling.
+
+Producer guidance until high-volume runtime coverage is broader:
 
 - do not store raw event payloads outside the bus;
 - prefer artifact references over inline content;
