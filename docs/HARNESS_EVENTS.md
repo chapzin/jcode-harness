@@ -127,7 +127,7 @@ Sink guarantees:
 - file names are derived from sanitized `run_id` values;
 - payloads have already passed through the core redaction path.
 
-The default log directory is under `JCODE_RUNTIME_DIR` when set, otherwise the platform runtime directory, in a `harness-events/` subdirectory. Runtime producer wiring for automatic per-run logs remains follow-up work for #18.
+The default log directory is under `JCODE_RUNTIME_DIR` when set, otherwise the platform runtime directory, in a `harness-events/` subdirectory. Runtime producer coverage is currently incremental: `jcode run --ndjson` writes typed run/tool summary events and exposes `harness_run_id` plus `harness_event_log` in its `start`, `done`, and `error` records.
 
 ### CLI helpers
 

@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Read, Write};
 use std::net::ToSocketAddrs;
 use std::path::PathBuf;
+use std::time::Instant;
 
 use crate::{browser, gateway, memory, session, storage, tui};
 
@@ -892,6 +893,129 @@ struct NdjsonRunState {
     connection_phase: Option<String>,
     status_detail: Option<String>,
     usage: crate::agent::TokenUsage,
+}
+
+struct HarnessRunEventLogger<'a> {
+    bus: &'a crate::harness_events::HarnessEventBus,
+    run_id: String,
+    path: PathBuf,
+}
+
+impl HarnessRunEventLogger<'static> {
+    fn global(run_id: impl Into<String>) -> Self {
+        Self::new(run_id, crate::harness_events::HarnessEventBus::global())
+    }
+}
+
+impl<'a> HarnessRunEventLogger<'a> {
+    fn new(run_id: impl Into<String>, bus: &'a crate::harness_events::HarnessEventBus) -> Self {
+        let run_id = run_id.into();
+        let path = crate::harness_events::harness_event_log_path(&run_id);
+        Self { bus, run_id, path }
+    }
+
+    fn path(&self) -> &PathBuf {
+        &self.path
+    }
+
+    fn append(
+        &self,
+        draft: crate::harness_events::HarnessEventDraft,
+    ) -> Result<crate::harness_events::HarnessEvent> {
+        let event = self.bus.publish(draft);
+        crate::harness_events::append_harness_event_ndjson(&self.path, &event)?;
+        Ok(event)
+    }
+
+    fn run_started(&self, provider: &str, model: &str, session_id: &str) -> Result<()> {
+        self.append(
+            crate::harness_events::HarnessEventDraft::run_started(&self.run_id)
+                .with_session_id(session_id)
+                .with_payload(serde_json::json!({
+                    "provider": provider,
+                    "model": model,
+                    "source": "jcode_run_ndjson",
+                })),
+        )?;
+        Ok(())
+    }
+
+    fn protocol_event(&self, event: &crate::protocol::ServerEvent) -> Result<()> {
+        use crate::harness_events::{HarnessEventDraft, HarnessEventKind, HarnessEventLevel};
+        use crate::protocol::ServerEvent;
+
+        let Some(draft) = (match event {
+            ServerEvent::ToolStart { id, name } | ServerEvent::ToolExec { id, name } => Some(
+                HarnessEventDraft::new(&self.run_id, HarnessEventKind::ToolStarted).with_payload(
+                    serde_json::json!({
+                        "tool_call_id": id,
+                        "tool": name,
+                    }),
+                ),
+            ),
+            ServerEvent::ToolDone {
+                id, name, error, ..
+            } => Some(
+                HarnessEventDraft::new(&self.run_id, HarnessEventKind::ToolFinished)
+                    .with_level(if error.is_some() {
+                        HarnessEventLevel::Error
+                    } else {
+                        HarnessEventLevel::Info
+                    })
+                    .with_payload(serde_json::json!({
+                        "tool_call_id": id,
+                        "tool": name,
+                        "status": if error.is_some() { "failed" } else { "ok" },
+                        "has_error": error.is_some(),
+                    })),
+            ),
+            _ => None,
+        }) else {
+            return Ok(());
+        };
+
+        self.append(draft)?;
+        Ok(())
+    }
+
+    fn run_completed(
+        &self,
+        provider: &str,
+        model: &str,
+        state: &NdjsonRunState,
+        duration_ms: u128,
+    ) -> Result<()> {
+        self.append(
+            crate::harness_events::HarnessEventDraft::run_completed(&self.run_id).with_payload(
+                serde_json::json!({
+                    "provider": provider,
+                    "model": model,
+                    "status": "ok",
+                    "duration_ms": duration_ms,
+                    "text_chars": state.text.chars().count(),
+                    "input_tokens": state.usage.input_tokens,
+                    "output_tokens": state.usage.output_tokens,
+                    "cache_read_input_tokens": state.usage.cache_read_input_tokens,
+                    "cache_creation_input_tokens": state.usage.cache_creation_input_tokens,
+                }),
+            ),
+        )?;
+        Ok(())
+    }
+
+    fn run_failed(&self, provider: &str, model: &str, duration_ms: u128) -> Result<()> {
+        self.append(
+            crate::harness_events::HarnessEventDraft::run_failed(&self.run_id).with_payload(
+                serde_json::json!({
+                    "provider": provider,
+                    "model": model,
+                    "status": "failed",
+                    "duration_ms": duration_ms,
+                }),
+            ),
+        )?;
+        Ok(())
+    }
 }
 
 pub fn run_auth_status_command(emit_json: bool) -> Result<()> {
@@ -1805,6 +1929,10 @@ async fn run_single_message_command_ndjson(
 ) -> Result<()> {
     let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
     let session_id = agent.session_id().to_string();
+    let run_id = session_id.clone();
+    let harness_log = HarnessRunEventLogger::global(run_id.clone());
+    let run_started_at = Instant::now();
+    harness_log.run_started(provider.name(), &provider.model(), &session_id)?;
     let mut stdout = std::io::stdout().lock();
     let mut state = NdjsonRunState {
         session_id: Some(session_id.clone()),
@@ -1815,6 +1943,8 @@ async fn run_single_message_command_ndjson(
         &serde_json::json!({
             "type": "start",
             "session_id": session_id,
+            "harness_run_id": run_id,
+            "harness_event_log": harness_log.path().display().to_string(),
             "provider": provider.name(),
             "model": provider.model(),
         }),
@@ -1840,13 +1970,17 @@ async fn run_single_message_command_ndjson(
                     }
                     event = event_rx.recv() => {
                         match event {
-                            Some(event) => emit_ndjson_event(&mut stdout, &mut state, event)?,
+                            Some(event) => {
+                                harness_log.protocol_event(&event)?;
+                                emit_ndjson_event(&mut stdout, &mut state, event)?;
+                            }
                             None => break,
                         }
                     }
                 }
                 if run_result.is_some() {
                     while let Ok(event) = event_rx.try_recv() {
+                        harness_log.protocol_event(&event)?;
                         emit_ndjson_event(&mut stdout, &mut state, event)?;
                     }
                     break;
@@ -1895,11 +2029,19 @@ async fn run_single_message_command_ndjson(
 
     match result {
         Ok(()) => {
+            harness_log.run_completed(
+                provider.name(),
+                &provider.model(),
+                &state,
+                run_started_at.elapsed().as_millis(),
+            )?;
             write_json_line(
                 &mut stdout,
                 &serde_json::json!({
                     "type": "done",
                     "session_id": session_id,
+                    "harness_run_id": run_id,
+                    "harness_event_log": harness_log.path().display().to_string(),
                     "provider": provider.name(),
                     "model": provider.model(),
                     "text": state.text,
@@ -1913,11 +2055,18 @@ async fn run_single_message_command_ndjson(
             Ok(())
         }
         Err(err) => {
+            harness_log.run_failed(
+                provider.name(),
+                &provider.model(),
+                run_started_at.elapsed().as_millis(),
+            )?;
             write_json_line(
                 &mut stdout,
                 &serde_json::json!({
                     "type": "error",
                     "session_id": session_id,
+                    "harness_run_id": run_id,
+                    "harness_event_log": harness_log.path().display().to_string(),
                     "provider": provider.name(),
                     "model": provider.model(),
                     "message": format!("{err:#}"),

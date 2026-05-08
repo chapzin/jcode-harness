@@ -224,6 +224,10 @@ fn is_sensitive_payload_key(key: &str) -> bool {
         .collect::<String>()
         .to_ascii_lowercase();
 
+    if is_safe_token_metric_key(&normalized) {
+        return false;
+    }
+
     matches!(
         normalized.as_str(),
         "apikey"
@@ -250,6 +254,21 @@ fn is_sensitive_payload_key(key: &str) -> bool {
         || normalized.contains("privatekey")
         || normalized.contains("secret")
         || normalized.contains("token")
+}
+
+fn is_safe_token_metric_key(normalized_key: &str) -> bool {
+    matches!(
+        normalized_key,
+        "cachecreationinputtokens"
+            | "cachereadinputtokens"
+            | "completiontokens"
+            | "inputtokens"
+            | "outputtokens"
+            | "prompttokens"
+            | "tokencount"
+            | "tokensused"
+            | "totaltokens"
+    )
 }
 
 fn looks_like_secret_value(value: &str) -> bool {
@@ -502,6 +521,26 @@ mod tests {
             event.payload["items"][0]["password"],
             HARNESS_EVENT_REDACTED
         );
+    }
+
+    #[tokio::test]
+    async fn token_usage_metrics_are_not_redacted_but_auth_tokens_are() {
+        let bus = HarnessEventBus::with_capacity(8);
+
+        let event = bus.publish(
+            HarnessEventDraft::new("run_token_metrics", HarnessEventKind::RunCompleted)
+                .with_payload(json!({
+                    "input_tokens": 10,
+                    "output_tokens": 4,
+                    "cache_read_input_tokens": 2,
+                    "auth_token": "ghp_should_still_be_redacted",
+                })),
+        );
+
+        assert_eq!(event.payload["input_tokens"], 10);
+        assert_eq!(event.payload["output_tokens"], 4);
+        assert_eq!(event.payload["cache_read_input_tokens"], 2);
+        assert_eq!(event.payload["auth_token"], HARNESS_EVENT_REDACTED);
     }
 
     #[tokio::test]
