@@ -1,0 +1,62 @@
+{
+  "id": "gate-2026-05-08-ebff44",
+  "ts": "2026-05-08T12:02:48.201Z",
+  "contractId": "2026-05-08-make-swarm-messages-idempotent-9554bf",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "crates/jcode-protocol/src/lib.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate_tests/input_format.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/client_comm_message.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/client_comm_tests.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/client_lifecycle.rs",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/state.json",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/traces/2026-05-08.jsonl",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "`swarm message`/`broadcast`, `swarm dm`, and `swarm channel` send optional `operation_id` through `Request::CommMessage`.",
+    "When `operation_id` is present, repeated sender/action operation replays the prior Done response via swarm mutation state and does not duplicate target delivery or swarm notification events.",
+    "When `operation_id` is absent, existing message behavior remains unchanged, covered by existing comm_message tests still passing.",
+    "Focused tests, cargo fmt/check, git diff --check, selfdev build, and reload passed."
+  ],
+  "uncheckedConditions": [
+    "`swarm message`/`broadcast`, `swarm dm`, and `swarm channel` send an optional operation_id through the protocol to the server.",
+    "When operation_id is present, repeating the same sender/action operation after completion returns the prior Done response without sending duplicate notifications, soft interrupts, or swarm notification events.",
+    "When operation_id is absent, existing message delivery behavior is unchanged.",
+    "Focused protocol/server/tool tests, cargo fmt/check, and selfdev build pass."
+  ],
+  "evidence": [
+    "src/tool/communicate.rs forwards operation_id for message/broadcast, dm, and channel actions.",
+    "crates/jcode-protocol/src/lib.rs includes optional Request::CommMessage.operation_id.",
+    "src/server/client_comm_message.rs uses swarm mutation begin_or_replay/finish_request keyed by sender, message action, swarm id, and operation id.",
+    "src/server/client_comm_tests.rs adds comm_message_operation_id_replays_done_without_duplicate_fanout.",
+    "src/tool/communicate_tests/input_format.rs adds communicate_input_accepts_operation_id_for_messages.",
+    "Focused verification task 6363556drm passed.",
+    "Self-dev build task 691630t879 passed and reload succeeded."
+  ],
+  "notes": "The first verification run 520574nhof failed due to a test import path only. The import was fixed and final verification passed."
+}

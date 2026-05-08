@@ -379,6 +379,8 @@ pub enum Request {
         delivery: Option<CommDeliveryMode>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         wake: Option<bool>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        operation_id: Option<String>,
     },
 
     /// List agents and their activity

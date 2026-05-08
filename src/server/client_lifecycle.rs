@@ -194,6 +194,7 @@ async fn handle_lightweight_control_request(
             channel,
             delivery,
             wake,
+            operation_id,
         } => {
             handle_comm_message(
                 id,
@@ -203,6 +204,7 @@ async fn handle_lightweight_control_request(
                 channel,
                 delivery,
                 wake,
+                operation_id,
                 &client_event_tx,
                 sessions,
                 soft_interrupt_queues,
@@ -213,6 +215,7 @@ async fn handle_lightweight_control_request(
                 event_counter,
                 swarm_event_tx,
                 client_connections,
+                swarm_mutation_runtime,
             )
             .await;
         }
@@ -2006,6 +2009,7 @@ pub(super) async fn handle_client(
                 channel,
                 delivery,
                 wake,
+                operation_id,
             } => {
                 handle_comm_message(
                     id,
@@ -2015,6 +2019,7 @@ pub(super) async fn handle_client(
                     channel,
                     delivery,
                     wake,
+                    operation_id,
                     &client_event_tx,
                     &sessions,
                     &soft_interrupt_queues,
@@ -2025,6 +2030,7 @@ pub(super) async fn handle_client(
                     &event_counter,
                     &swarm_event_tx,
                     &client_connections,
+                    &swarm_mutation_runtime,
                 )
                 .await;
             }

@@ -1405,7 +1405,7 @@ impl Tool for CommunicateTool {
                 },
                 "operation_id": {
                     "type": "string",
-                    "description": "Optional idempotency key for operations that can spawn workers. Reusing it for the same spawn/run_id replays the prior spawn instead of creating a duplicate."
+                    "description": "Optional idempotency key for operations that can spawn workers or send swarm messages. Reusing it for the same spawn/run_id or message action replays the prior result instead of creating duplicate agents or duplicate fanout."
                 },
                 "wake": {
                     "type": "boolean",
@@ -1498,6 +1498,7 @@ impl Tool for CommunicateTool {
                     channel: None,
                     wake: params.wake,
                     delivery: None,
+                    operation_id: params.operation_id.clone(),
                 };
 
                 match send_request(request).await {
@@ -1528,6 +1529,7 @@ impl Tool for CommunicateTool {
                     channel: None,
                     delivery: params.delivery,
                     wake: params.wake,
+                    operation_id: params.operation_id.clone(),
                 };
 
                 match send_request(request).await {
@@ -1558,6 +1560,7 @@ impl Tool for CommunicateTool {
                     channel: Some(channel.clone()),
                     delivery: params.delivery,
                     wake: params.wake,
+                    operation_id: params.operation_id.clone(),
                 };
 
                 match send_request(request).await {

@@ -106,6 +106,19 @@ fn communicate_input_accepts_operation_id_for_idempotent_spawns() {
 }
 
 #[test]
+fn communicate_input_accepts_operation_id_for_messages() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "dm",
+        "message": "ping",
+        "to_session": "bear",
+        "operation_id": " issue-13-message-1 "
+    }))
+    .expect("message operation_id should deserialize");
+
+    assert_eq!(parsed.operation_id.as_deref(), Some(" issue-13-message-1 "));
+}
+
+#[test]
 fn cleanup_candidates_default_to_owned_terminal_workers() {
     let members = vec![
         AgentInfo {

@@ -1,3 +1,8 @@
+use super::swarm_mutation_state::{
+    PersistedSwarmMutationResponse, SwarmMutationRuntime,
+    begin_or_replay as begin_swarm_mutation_or_replay,
+    finish_request as finish_swarm_mutation_request, request_key as swarm_mutation_request_key,
+};
 use super::{
     ClientConnectionInfo, SessionInterruptQueues, SwarmEvent, SwarmEventType, SwarmMember,
     fanout_session_event, queue_soft_interrupt_for_session, record_swarm_event_for_session,
@@ -162,6 +167,7 @@ pub(super) async fn handle_comm_message(
     channel: Option<String>,
     delivery: Option<CommDeliveryMode>,
     wake: Option<bool>,
+    operation_id: Option<String>,
     client_event_tx: &mpsc::UnboundedSender<ServerEvent>,
     sessions: &SessionAgents,
     soft_interrupt_queues: &SessionInterruptQueues,
@@ -172,10 +178,38 @@ pub(super) async fn handle_comm_message(
     event_counter: &Arc<std::sync::atomic::AtomicU64>,
     swarm_event_tx: &broadcast::Sender<SwarmEvent>,
     _client_connections: &Arc<RwLock<HashMap<String, ClientConnectionInfo>>>,
+    swarm_mutation_runtime: &SwarmMutationRuntime,
 ) {
     let swarm_id = swarm_id_for_session(&from_session, swarm_members).await;
 
     if let Some(swarm_id) = swarm_id {
+        let mutation_state = if let Some(operation_id) = operation_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|operation_id| !operation_id.is_empty())
+        {
+            let mutation_key = swarm_mutation_request_key(
+                &from_session,
+                "message",
+                &[swarm_id.clone(), format!("op:{operation_id}")],
+            );
+            match begin_swarm_mutation_or_replay(
+                swarm_mutation_runtime,
+                &mutation_key,
+                "message",
+                &from_session,
+                id,
+                client_event_tx,
+            )
+            .await
+            {
+                Some(state) => Some(state),
+                None => return,
+            }
+        } else {
+            None
+        };
+
         let friendly_name = friendly_name_for_session(&from_session, swarm_members).await;
 
         let swarm_session_ids: Vec<String> = {
@@ -189,12 +223,25 @@ pub(super) async fn handle_comm_message(
         let resolved_to_session = if let Some(ref target) = to_session {
             match resolve_dm_target_session(target, &swarm_session_ids, swarm_members).await {
                 Ok(session_id) => Some(session_id),
-                Err(message) => {
-                    let _ = client_event_tx.send(ServerEvent::Error {
-                        id,
-                        message: message.to_string(),
-                        retry_after_secs: None,
-                    });
+                Err(error) => {
+                    let message = error.to_string();
+                    if let Some(state) = &mutation_state {
+                        finish_swarm_mutation_request(
+                            swarm_mutation_runtime,
+                            state,
+                            PersistedSwarmMutationResponse::Error {
+                                message,
+                                retry_after_secs: None,
+                            },
+                        )
+                        .await;
+                    } else {
+                        let _ = client_event_tx.send(ServerEvent::Error {
+                            id,
+                            message,
+                            retry_after_secs: None,
+                        });
+                    }
                     return;
                 }
             }
@@ -205,11 +252,24 @@ pub(super) async fn handle_comm_message(
         if let Some(ref target) = resolved_to_session
             && !swarm_session_ids.contains(target)
         {
-            let _ = client_event_tx.send(ServerEvent::Error {
-                id,
-                message: format!("DM failed: session '{}' not in swarm", target),
-                retry_after_secs: None,
-            });
+            let message = format!("DM failed: session '{}' not in swarm", target);
+            if let Some(state) = &mutation_state {
+                finish_swarm_mutation_request(
+                    swarm_mutation_runtime,
+                    state,
+                    PersistedSwarmMutationResponse::Error {
+                        message,
+                        retry_after_secs: None,
+                    },
+                )
+                .await;
+            } else {
+                let _ = client_event_tx.send(ServerEvent::Error {
+                    id,
+                    message,
+                    retry_after_secs: None,
+                });
+            }
             return;
         }
 
@@ -361,7 +421,16 @@ pub(super) async fn handle_comm_message(
         )
         .await;
 
-        let _ = client_event_tx.send(ServerEvent::Done { id });
+        if let Some(state) = &mutation_state {
+            finish_swarm_mutation_request(
+                swarm_mutation_runtime,
+                state,
+                PersistedSwarmMutationResponse::Done,
+            )
+            .await;
+        } else {
+            let _ = client_event_tx.send(ServerEvent::Done { id });
+        }
     } else {
         let _ = client_event_tx.send(ServerEvent::Error {
             id,
