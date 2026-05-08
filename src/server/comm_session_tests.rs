@@ -1,13 +1,15 @@
 use super::{
-    ensure_spawn_coordinator_swarm, prepare_visible_spawn_session, register_visible_spawned_member,
-    require_coordinator_swarm, resolve_spawn_working_dir, resolve_stop_target_session,
-    spawn_mutation_key, swarm_stop_allowed_by_owner,
+    ensure_spawn_coordinator_swarm, handle_comm_stop, prepare_visible_spawn_session,
+    register_visible_spawned_member, require_coordinator_swarm, resolve_spawn_working_dir,
+    resolve_stop_target_session, spawn_mutation_key, swarm_stop_allowed_by_owner,
 };
 use crate::agent::Agent;
 use crate::message::{Message, ToolDefinition};
 use crate::protocol::{NotificationType, ServerEvent};
 use crate::provider::{EventStream, Provider};
-use crate::server::{SwarmEventType, SwarmMember, VersionedPlan};
+use crate::server::{
+    SessionInterruptQueues, SwarmEventType, SwarmMember, SwarmMutationRuntime, VersionedPlan,
+};
 use crate::tool::Registry;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -231,6 +233,108 @@ async fn stop_target_rejects_ambiguous_friendly_name() {
         .await
         .expect_err("ambiguous friendly names should be rejected");
     assert!(err.contains("Ambiguous swarm session 'bear'"));
+}
+
+#[tokio::test]
+async fn stop_replay_does_not_send_duplicate_close_request() {
+    let _guard = crate::storage::lock_test_env();
+    let temp_home = tempfile::TempDir::new().expect("temp home");
+    crate::env::set_var("JCODE_HOME", temp_home.path());
+
+    let sessions = Arc::new(RwLock::new(HashMap::new()));
+    let soft_interrupt_queues: SessionInterruptQueues = Arc::new(RwLock::new(HashMap::new()));
+    let swarm_members = Arc::new(RwLock::new(HashMap::new()));
+    let swarms_by_id = Arc::new(RwLock::new(HashMap::from([(
+        "swarm-1".to_string(),
+        HashSet::from(["coord".to_string(), "worker-1".to_string()]),
+    )])));
+    let swarm_coordinators = Arc::new(RwLock::new(HashMap::from([(
+        "swarm-1".to_string(),
+        "coord".to_string(),
+    )])));
+    let swarm_plans = Arc::new(RwLock::new(HashMap::<String, VersionedPlan>::new()));
+    let channel_subscriptions = Arc::new(RwLock::new(HashMap::new()));
+    let channel_subscriptions_by_session = Arc::new(RwLock::new(HashMap::new()));
+    let event_history = Arc::new(RwLock::new(VecDeque::new()));
+    let event_counter = Arc::new(AtomicU64::new(0));
+    let (swarm_event_tx, _swarm_event_rx) = broadcast::channel(8);
+    let swarm_mutation_runtime = SwarmMutationRuntime::default();
+    let (client_event_tx, mut client_event_rx) = mpsc::unbounded_channel();
+
+    let (coord, _coord_rx) = member("coord", Some("swarm-1"), "coordinator");
+    let (mut worker, mut worker_rx) = member("worker-1", Some("swarm-1"), "agent");
+    worker.report_back_to_session_id = Some("coord".to_string());
+    swarm_members.write().await.extend([
+        ("coord".to_string(), coord),
+        ("worker-1".to_string(), worker),
+    ]);
+
+    handle_comm_stop(
+        1,
+        "coord".to_string(),
+        "worker-1".to_string(),
+        false,
+        &client_event_tx,
+        &sessions,
+        &swarm_members,
+        &swarms_by_id,
+        &swarm_coordinators,
+        &swarm_plans,
+        &channel_subscriptions,
+        &channel_subscriptions_by_session,
+        &event_history,
+        &event_counter,
+        &swarm_event_tx,
+        &soft_interrupt_queues,
+        &swarm_mutation_runtime,
+    )
+    .await;
+
+    assert!(matches!(
+        worker_rx.recv().await,
+        Some(ServerEvent::SessionCloseRequested { reason })
+            if reason == "Stopped by coordinator coord"
+    ));
+    assert!(matches!(
+        client_event_rx.recv().await,
+        Some(ServerEvent::Done { id: 1 })
+    ));
+    assert!(
+        !swarm_members.read().await.contains_key("worker-1"),
+        "first stop should remove worker membership"
+    );
+
+    handle_comm_stop(
+        2,
+        "coord".to_string(),
+        "worker-1".to_string(),
+        false,
+        &client_event_tx,
+        &sessions,
+        &swarm_members,
+        &swarms_by_id,
+        &swarm_coordinators,
+        &swarm_plans,
+        &channel_subscriptions,
+        &channel_subscriptions_by_session,
+        &event_history,
+        &event_counter,
+        &swarm_event_tx,
+        &soft_interrupt_queues,
+        &swarm_mutation_runtime,
+    )
+    .await;
+
+    assert!(matches!(
+        client_event_rx.recv().await,
+        Some(ServerEvent::Done { id: 2 })
+    ));
+    assert!(
+        worker_rx.try_recv().is_err(),
+        "replayed stop must not send a duplicate close request"
+    );
+
+    crate::env::remove_var("JCODE_HOME");
 }
 
 #[tokio::test]

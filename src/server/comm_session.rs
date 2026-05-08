@@ -1,7 +1,7 @@
 use super::client_lifecycle::process_message_streaming_mpsc;
 use super::swarm_mutation_state::{
     PersistedSwarmMutationResponse, SwarmMutationRuntime, begin_or_replay, finish_request,
-    request_key,
+    load_state as load_swarm_mutation_state, request_key,
 };
 use super::{
     SessionInterruptQueues, SwarmEvent, SwarmEventType, SwarmMember, SwarmState, VersionedPlan,
@@ -616,6 +616,15 @@ pub(super) async fn handle_comm_stop(
         return;
     };
 
+    let target_key = target_session.trim().to_string();
+    let mutation_key = request_key(&req_session_id, "stop", &[swarm_id.clone(), target_key]);
+    if let Some(final_response) =
+        load_swarm_mutation_state(&mutation_key).and_then(|state| state.final_response)
+    {
+        let _ = client_event_tx.send(final_response.into_server_event(id, &req_session_id));
+        return;
+    }
+
     let target_session =
         match resolve_stop_target_session(&swarm_id, &target_session, swarm_members).await {
             Ok(target_session) => target_session,
@@ -647,16 +656,6 @@ pub(super) async fn handle_comm_stop(
         return;
     }
 
-    let _ = fanout_session_event(
-        swarm_members,
-        &target_session,
-        ServerEvent::SessionCloseRequested {
-            reason: format!("Stopped by coordinator {req_session_id}"),
-        },
-    )
-    .await;
-
-    let mutation_key = request_key(&req_session_id, "stop", &[swarm_id, target_session.clone()]);
     let Some(mutation_state) = begin_or_replay(
         swarm_mutation_runtime,
         &mutation_key,
@@ -669,6 +668,15 @@ pub(super) async fn handle_comm_stop(
     else {
         return;
     };
+
+    let _ = fanout_session_event(
+        swarm_members,
+        &target_session,
+        ServerEvent::SessionCloseRequested {
+            reason: format!("Stopped by coordinator {req_session_id}"),
+        },
+    )
+    .await;
 
     let mut sessions_guard = sessions.write().await;
     let removed_agent = sessions_guard.remove(&target_session);

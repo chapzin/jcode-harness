@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "commit and push idempotent swarm message operation_id slice",
+  "focus": "commit and push stop side-effect idempotency slice",
   "status": "done",
-  "activeContractId": "2026-05-08-make-swarm-messages-idempotent-9554bf",
+  "activeContractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede",
   "counters": {
-    "contracts": 30,
-    "traces": 31,
-    "gates": 29,
-    "verifications": 26,
+    "contracts": 31,
+    "traces": 34,
+    "gates": 30,
+    "verifications": 28,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -82,57 +82,14 @@
       "id": "decision-2026-05-08-1b295d",
       "ts": "2026-05-08T12:02:53.529Z",
       "text": "Completed issue #13 idempotency slice: explicit operation_id now deduplicates swarm message/dm/channel fanout by replaying prior Done/Error through swarm mutation state without changing default messages."
+    },
+    {
+      "id": "decision-2026-05-08-651880",
+      "ts": "2026-05-08T12:13:13.823Z",
+      "text": "Completed issue #13 stop idempotency slice: stop now replays persisted final responses before target lookup and begins mutation before emitting close/removal side effects, preventing duplicate close requests on retry."
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-07T19:59:16.994Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-add-opt-in-live-provider-smoke-f66078",
-      "summary": "Add opt-in live provider smoke"
-    },
-    {
-      "ts": "2026-05-07T20:05:51.846Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-07-e7484226",
-      "contractId": "2026-05-07-add-opt-in-live-provider-smoke-f66078",
-      "status": "pass",
-      "summary": "Offline/default validation passed; live-provider smoke skipped by default and made no provider call."
-    },
-    {
-      "ts": "2026-05-07T20:05:59.243Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-07-add-opt-in-live-provider-smoke-f66078",
-      "gateId": "gate-2026-05-07-5620a8",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-07T20:08:36.821Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-add-ci-friendly-harness-smoke-e2e-9a00d9",
-      "summary": "Add CI-friendly harness smoke e2e"
-    },
-    {
-      "ts": "2026-05-07T20:11:31.940Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-07-b6a02d03",
-      "contractId": "2026-05-07-add-ci-friendly-harness-smoke-e2e-9a00d9",
-      "status": "pass",
-      "summary": "Selfdev build passed for smoke e2e dirty fingerprint 2160ca4c05ee."
-    },
-    {
-      "ts": "2026-05-07T20:11:48.728Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-07-add-ci-friendly-harness-smoke-e2e-9a00d9",
-      "gateId": "gate-2026-05-07-81526d",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-07T20:14:29.343Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-document-init-and-clean-code-json-schemas-8680dc",
-      "summary": "Document init and clean-code JSON schemas"
-    },
     {
       "ts": "2026-05-07T20:18:17.344Z",
       "type": "verification_recorded",
@@ -660,6 +617,59 @@
       "status": "done",
       "focus": "commit and push idempotent swarm message operation_id slice",
       "activeContractId": "2026-05-08-make-swarm-messages-idempotent-9554bf"
+    },
+    {
+      "ts": "2026-05-08T12:05:54.766Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede",
+      "summary": "Deduplicate swarm stop side effects"
+    },
+    {
+      "ts": "2026-05-08T12:10:37.476Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-10255150",
+      "contractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede",
+      "kind": "failure",
+      "summary": "Broad stop test filter timed out after focused stop replay test passed"
+    },
+    {
+      "ts": "2026-05-08T12:12:48.711Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-13a0b6be",
+      "contractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede",
+      "status": "pass",
+      "summary": "Focused stop idempotency tests, mutation tests, formatting, cargo check, and diff whitespace verification passed"
+    },
+    {
+      "ts": "2026-05-08T12:12:56.369Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-50ec03b1",
+      "contractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede",
+      "status": "pass",
+      "summary": "Coordinated self-dev build passed for stop idempotency slice"
+    },
+    {
+      "ts": "2026-05-08T12:13:07.353Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede",
+      "gateId": "gate-2026-05-08-8e36d1",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T12:13:13.823Z",
+      "type": "state_update",
+      "note": "Focused verification task 24633590gw, selfdev build task 2928649o70, reload, and gate gate-2026-05-08-8e36d1 passed. Broad filter task 089226mvm0 timed out only because it selected unrelated long-running tests after the new focused test passed.",
+      "status": "verifying",
+      "focus": "commit and push stop side-effect idempotency slice",
+      "activeContractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede"
+    },
+    {
+      "ts": "2026-05-08T12:13:30.405Z",
+      "type": "state_update",
+      "note": "Governance audit passed with gate gate-2026-05-08-8e36d1. Ready to commit and push.",
+      "status": "done",
+      "focus": "commit and push stop side-effect idempotency slice",
+      "activeContractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede"
     }
   ]
 }
