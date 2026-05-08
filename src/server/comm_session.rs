@@ -95,11 +95,7 @@ fn spawn_mutation_key(
         .map(str::trim)
         .filter(|nonce| !nonce.is_empty());
     let components = if let Some(request_nonce) = request_nonce {
-        vec![
-            swarm_id.to_string(),
-            format!("nonce:{request_nonce}"),
-            format!("run:{}", run_id.as_deref().unwrap_or_default()),
-        ]
+        vec![swarm_id.to_string(), format!("nonce:{request_nonce}")]
     } else {
         vec![
             swarm_id.to_string(),

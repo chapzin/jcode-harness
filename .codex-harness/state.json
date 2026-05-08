@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Finalize resolved stop mutation identity slice",
+  "focus": "Commit and push spawn operation_id run-drift slice",
   "status": "done",
-  "activeContractId": "2026-05-08-use-resolved-stop-mutation-identity-6fcfb0",
+  "activeContractId": "2026-05-08-make-spawn-operation-id-ignore-run-drift-e5c780",
   "counters": {
-    "contracts": 32,
-    "traces": 36,
-    "gates": 31,
-    "verifications": 30,
+    "contracts": 33,
+    "traces": 38,
+    "gates": 32,
+    "verifications": 32,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -92,46 +92,14 @@
       "id": "decision-2026-05-08-da8746",
       "ts": "2026-05-08T12:20:07.164Z",
       "text": "Completed issue #13 resolved stop identity slice: live stop mutations now use resolved target session IDs, preserving exact-ID replay while preventing reused aliases from replaying stale stop results."
+    },
+    {
+      "id": "decision-2026-05-08-6c4197",
+      "ts": "2026-05-08T13:05:48.284Z",
+      "text": "Completed issue #13 spawn idempotency follow-up: explicit operation_id/request_nonce spawn keys now ignore generated run_id drift, preserving default non-operation-id spawn key specificity."
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-07T20:29:37.822Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-refresh-init-context-scaffolds-19bd29",
-      "summary": "Refresh init context scaffolds"
-    },
-    {
-      "ts": "2026-05-07T20:32:51.942Z",
-      "type": "trace_recorded",
-      "traceId": "trace-2026-05-07-d467d773",
-      "contractId": "2026-05-07-refresh-init-context-scaffolds-19bd29",
-      "kind": "success",
-      "summary": "Refreshed stale init/context scaffolds"
-    },
-    {
-      "ts": "2026-05-07T20:33:01.248Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-07-refresh-init-context-scaffolds-19bd29",
-      "gateId": "gate-2026-05-07-8dc8a3",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-07T20:33:17.517Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-07-24074dcb",
-      "contractId": "2026-05-07-refresh-init-context-scaffolds-19bd29",
-      "status": "pass",
-      "summary": "Context refresh validation passed"
-    },
-    {
-      "ts": "2026-05-07T20:33:22.024Z",
-      "type": "state_update",
-      "note": "Validation passed; committing and pushing next.",
-      "status": "verifying",
-      "focus": "Refresh init context scaffolds",
-      "activeContractId": "2026-05-07-refresh-init-context-scaffolds-19bd29"
-    },
     {
       "ts": "2026-05-07T20:34:01.449Z",
       "type": "state_update",
@@ -676,6 +644,43 @@
       "status": "done",
       "focus": "Finalize resolved stop mutation identity slice",
       "activeContractId": "2026-05-08-use-resolved-stop-mutation-identity-6fcfb0"
+    },
+    {
+      "ts": "2026-05-08T13:03:10.434Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-make-spawn-operation-id-ignore-run-drift-e5c780",
+      "summary": "Make spawn operation_id ignore run drift"
+    },
+    {
+      "ts": "2026-05-08T13:05:18.173Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-53ec7366",
+      "contractId": "2026-05-08-make-spawn-operation-id-ignore-run-drift-e5c780",
+      "status": "pass",
+      "summary": "Focused spawn operation_id run-drift verification passed."
+    },
+    {
+      "ts": "2026-05-08T13:05:27.076Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-8c5c6e0f",
+      "contractId": "2026-05-08-make-spawn-operation-id-ignore-run-drift-e5c780",
+      "status": "pass",
+      "summary": "Self-dev build and reload passed for spawn operation_id run-drift slice."
+    },
+    {
+      "ts": "2026-05-08T13:05:39.518Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-make-spawn-operation-id-ignore-run-drift-e5c780",
+      "gateId": "gate-2026-05-08-3cd0e4",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T13:05:48.284Z",
+      "type": "state_update",
+      "note": "Focused verification task 4185264dnc, selfdev build task 468339uarv, reload, and gate gate-2026-05-08-3cd0e4 passed.",
+      "status": "done",
+      "focus": "Commit and push spawn operation_id run-drift slice",
+      "activeContractId": "2026-05-08-make-spawn-operation-id-ignore-run-drift-e5c780"
     }
   ]
 }

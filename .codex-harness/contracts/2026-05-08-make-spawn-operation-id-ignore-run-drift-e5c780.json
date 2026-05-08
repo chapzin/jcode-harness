@@ -1,0 +1,47 @@
+{
+  "id": "2026-05-08-make-spawn-operation-id-ignore-run-drift-e5c780",
+  "title": "Make spawn operation_id ignore run drift",
+  "goal": "Fix issue #13 spawn idempotency gap so an explicit operation_id deduplicates repeated swarm spawn retries even when the tool generated a fresh run_id on each attempt.",
+  "createdAt": "2026-05-08T13:03:10.430Z",
+  "status": "active",
+  "requiredInputs": [
+    "chapzin/jcode-harness issue #13 robust swarm orchestration",
+    "Existing operation_id/request_nonce spawn idempotency support",
+    "Observed key currently includes generated run_id when nonce is present"
+  ],
+  "budget": {
+    "maxSteps": 7,
+    "maxMinutes": 30,
+    "maxToolCalls": 25
+  },
+  "permissions": [
+    "Modify spawn mutation key and focused tests",
+    "Run cargo fmt/check/test and selfdev build",
+    "Commit and push"
+  ],
+  "completionConditions": [
+    "When request_nonce/operation_id is present, spawn_mutation_key ignores payload drift including generated run_id drift.",
+    "Without request_nonce, spawn_mutation_key remains payload/run scoped to avoid merging independent default spawns.",
+    "Focused comm_session spawn mutation key regression test, cargo fmt/check, git diff --check, and selfdev build pass.",
+    "Governance gate passes and the exact slice is committed and pushed."
+  ],
+  "outputPaths": [
+    "src/server/comm_session.rs",
+    "src/server/comm_session_tests.rs",
+    ".codex-harness/state.json",
+    ".codex-harness/traces/2026-05-08.jsonl"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode comm_session::comm_session_tests::spawn_mutation_key_uses_nonce --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check"
+  ],
+  "failureTaxonomy": [
+    "Breaking default spawn behavior without operation_id",
+    "Reusing non-operation-id spawn keys too broadly",
+    "Changing swarm member run_id storage for successful first spawn",
+    "Over-expanding into assign_next or SwarmRun persistence"
+  ],
+  "notes": "Keep this slice limited to spawn mutation key semantics and focused tests. Follow-up can address server-side assign_next/retry operation IDs separately."
+}

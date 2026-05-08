@@ -131,7 +131,7 @@ async fn resolve_spawn_working_dir_falls_back_to_member_dir() {
 }
 
 #[test]
-fn spawn_mutation_key_uses_nonce_as_idempotency_key_despite_payload_drift() {
+fn spawn_mutation_key_uses_nonce_as_idempotency_key_despite_run_and_payload_drift() {
     let operation_key = spawn_mutation_key(
         "coord",
         "swarm-1",
@@ -174,7 +174,7 @@ fn spawn_mutation_key_uses_nonce_as_idempotency_key_despite_payload_drift() {
     );
 
     assert_eq!(operation_key, retry_with_drifted_payload);
-    assert_ne!(operation_key, different_run);
+    assert_eq!(operation_key, different_run);
     assert_ne!(no_nonce, no_nonce_payload_drift);
 }
 
