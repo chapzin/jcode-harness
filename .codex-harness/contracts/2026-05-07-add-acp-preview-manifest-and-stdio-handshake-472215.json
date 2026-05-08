@@ -1,0 +1,52 @@
+{
+  "id": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
+  "title": "Add ACP preview manifest and stdio handshake",
+  "goal": "Implement the first issue #3 ACP slice: an offline ACP manifest plus a minimal JSON-RPC-over-stdio initialize/shutdown server for capability negotiation.",
+  "createdAt": "2026-05-07T22:30:40.092Z",
+  "status": "active",
+  "requiredInputs": [
+    "GitHub issue #3 ACP server and registry path",
+    "Existing issue #4 headless session envelopes as advertised capabilities"
+  ],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 40
+  },
+  "permissions": [
+    "Modify source, tests, docs, governance",
+    "Run cargo fmt/check/test and selfdev build",
+    "Commit and push"
+  ],
+  "completionConditions": [
+    "`jcode-harness acp manifest --json` emits a stable offline preview manifest",
+    "`jcode-harness acp serve --stdio` handles JSON-RPC initialize and shutdown over newline-delimited stdio",
+    "Unsupported methods return JSON-RPC method-not-found errors without panicking",
+    "Focused e2e, fmt/check, selfdev build, commit and push pass"
+  ],
+  "outputPaths": [
+    "src/bin/harness.rs",
+    "tests/e2e/harness_cli.rs",
+    "docs/JCODE_HARNESS_JSON_SCHEMAS.md",
+    "README.md",
+    "docs/JCODE_HARNESS_INNOVATION_ROADMAP.md",
+    "docs/JCODE_HARNESS_RELEASE_GATES.md",
+    "docs/SKILLS_HARNESS_STATUS.md",
+    ".codex-harness/state.json",
+    ".codex-harness/traces/2026-05-08.jsonl",
+    ".codex-harness/gates/gate-2026-05-08-5daeb0.json",
+    ".codex-harness/gates/gate-2026-05-08-5daeb0.md"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode --test e2e harness_acp_stdio_initialize_shutdown -- --nocapture",
+    "cargo check -p jcode",
+    "target/debug/jcode-harness acp manifest --json | python3 -m json.tool >/dev/null"
+  ],
+  "failureTaxonomy": [
+    "Blocking forever in tests due to stdio protocol loop",
+    "Claiming full ACP registry compliance before implemented",
+    "Starting providers/TUI/tools during handshake"
+  ],
+  "notes": "Keep this as a preview handshake slice. Do not claim registry-ready/full ACP until session/tool/cancel semantics are implemented and reviewed."
+}

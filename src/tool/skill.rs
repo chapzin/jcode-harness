@@ -25,7 +25,7 @@ struct SkillInput {
     #[serde(default = "default_action")]
     action: String,
     /// Skill name (required for load, reload, read)
-    #[serde(default)]
+    #[serde(default, alias = "skill")]
     name: Option<String>,
 }
 
@@ -305,6 +305,21 @@ mod tests {
         let result = tool.execute(input, ctx).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("name"));
+    }
+
+    #[tokio::test]
+    async fn test_load_accepts_anthropic_skill_alias() {
+        let tool = create_test_tool();
+        let ctx = create_test_context();
+        let input = json!({"skill": "nonexistent", "args": "ignored by loader"});
+
+        let result = tool.execute(input, ctx).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("Skill 'nonexistent' not found"),
+            "expected alias to be used as skill name, got: {err}"
+        );
     }
 
     #[tokio::test]

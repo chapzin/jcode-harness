@@ -97,7 +97,7 @@ pub(crate) fn configure_provider_profile(
 
     let api_base = normalize_api_base(&options.base_url).ok_or_else(|| {
         anyhow::anyhow!(
-            "Invalid --base-url '{}'. Use https://... or http://localhost/127.0.0.1/private-LAN for local servers.",
+            "Invalid --base-url '{}'. Use https://... or an HTTP local endpoint such as localhost, RFC1918 LAN, Tailscale/CGNAT 100.64.0.0/10, link-local, or .local mDNS.",
             options.base_url
         )
     })?;

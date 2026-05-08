@@ -29,10 +29,18 @@ Make jcode-harness the fastest local-first agent runtime for serious engineering
 
 ### Phase 1: Programmatic runtime
 
-- `jcode session list/spawn/attach/resume --json`.
+- `jcode-harness session list --json`: first read-only headless runtime inventory for local/imported sessions without starting the TUI.
+- `jcode-harness session spawn <goal> --dry-run --json`: safe new-session/run envelope without starting provider/TUI flow.
+- `jcode-harness session attach <id> --dry-run --json`: safe local attach envelope without starting the TUI/provider flow.
+- `jcode-harness session spawn|attach|resume|cancel --dry-run --ndjson`: deterministic JSONL events for dashboards and external orchestrators.
+- `jcode-harness session show <id> --json`: read-only local jcode session metadata with opt-in bounded preview.
+- `jcode-harness session resume <id> --dry-run --json`: safe local resume envelope without starting the TUI/provider flow.
+- `jcode-harness session cancel <id> --dry-run --json`: offline cancellation intent envelope without contacting live sessions/providers.
+- `jcode session list/spawn/attach/resume/cancel --json` follow-up slices.
 - JSONL event stream for text/tool/usage/cache/compaction/memory events.
 - Local WebSocket gateway for external dashboards.
-- Initial `jcode acp` server with text/tool/done mapping.
+- `jcode-harness acp manifest --json`, `jcode-harness acp fixture --json`, and `jcode-harness acp serve --stdio`: preview ACP manifest, versioned offline conformance fixture, and JSON-RPC initialize/shutdown plus offline `jcode/session.*` request handlers.
+- Initial `jcode acp` live server with text/tool/done mapping.
 
 ### Phase 2: Plan-first swarm
 
@@ -71,6 +79,14 @@ Make jcode-harness the fastest local-first agent runtime for serious engineering
 
 ## Completed initial implementation slices
 
+- `jcode-harness acp manifest --json`, `jcode-harness acp fixture --json`, and `jcode-harness acp serve --stdio`: offline ACP preview manifest, versioned conformance fixture, JSON-RPC initialize/shutdown, read-only/dry-run `jcode/session.list|show|spawn|attach|resume` handlers, and offline-control `jcode/session.cancel` plus `$/cancelRequest` notification handling without starting providers/TUI/tools.
+- `jcode-harness session cancel <id> --dry-run --json`: safe offline cancellation intent envelope for known or unknown local jcode sessions without contacting live providers/processes.
+- `jcode-harness session show <id> --json`: read-only local session metadata and optional bounded preview without starting the TUI.
+- `jcode-harness session spawn <goal> --dry-run --json`: safe `jcode run` argv/cwd envelope for new headless runs without executing provider/TUI flows.
+- `jcode-harness session attach <id> --dry-run --json`: safe local attach argv/cwd envelope for external orchestrators without executing the TUI/provider flow.
+- `jcode-harness session spawn|attach|resume|cancel --dry-run --ndjson`: deterministic `start`/`envelope`/`done` JSONL events over the existing safe dry-run envelopes.
+- `jcode-harness session resume <id> --dry-run --json`: safe resume argv/cwd envelope for local jcode sessions without executing the TUI/provider flow.
+- `jcode-harness session list --json`: read-only offline metadata inventory for local/imported sessions as the first programmatic runtime slice.
 - `jcode-harness safe-eval`: isolated first-run trust boundary.
 - `jcode-harness doctor`: offline onboarding diagnostics for safe-eval, privacy, skills, and MCP configs.
 - `jcode-harness skills scope`: repo-local Skill OS policy for visible, discoverable, and blocked skill states.

@@ -403,6 +403,118 @@ fn collect_cli_model_names_falls_back_when_no_routes_are_available() {
 }
 
 #[test]
+fn harness_run_event_logger_writes_typed_redacted_run_log() {
+    let _env_guard = crate::storage::lock_test_env();
+    let _saved = SavedEnv::capture(&["JCODE_RUNTIME_DIR"]);
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-run-event-logger-")
+        .tempdir()
+        .unwrap();
+    crate::env::set_var("JCODE_RUNTIME_DIR", temp.path());
+    let bus = crate::harness_events::HarnessEventBus::with_capacity(8);
+    let logger = HarnessRunEventLogger::new("run_logger", &bus);
+
+    logger
+        .run_started("test-provider", "test-model", "session_logger")
+        .unwrap();
+    logger
+        .protocol_event(&crate::protocol::ServerEvent::ToolStart {
+            id: "tool_1".to_string(),
+            name: "bash".to_string(),
+        })
+        .unwrap();
+    logger
+        .protocol_event(&crate::protocol::ServerEvent::ToolDone {
+            id: "tool_1".to_string(),
+            name: "bash".to_string(),
+            output: "secret stdout should not be logged".to_string(),
+            error: Some("private stderr should not be logged".to_string()),
+        })
+        .unwrap();
+    let state = NdjsonRunState {
+        text: "assistant answer".to_string(),
+        usage: crate::agent::TokenUsage {
+            input_tokens: 10,
+            output_tokens: 4,
+            cache_read_input_tokens: Some(2),
+            cache_creation_input_tokens: None,
+        },
+        ..NdjsonRunState::default()
+    };
+    logger
+        .run_completed("test-provider", "test-model", &state, 123)
+        .unwrap();
+
+    let text = std::fs::read_to_string(logger.path()).unwrap();
+    assert!(!text.contains("secret stdout"));
+    assert!(!text.contains("private stderr"));
+    assert!(!text.contains("assistant answer"));
+    let events = crate::harness_events::read_harness_event_ndjson(logger.path()).unwrap();
+    let kinds = events.iter().map(|event| event.kind).collect::<Vec<_>>();
+    assert_eq!(
+        kinds,
+        vec![
+            crate::harness_events::HarnessEventKind::RunStarted,
+            crate::harness_events::HarnessEventKind::ToolStarted,
+            crate::harness_events::HarnessEventKind::ToolFinished,
+            crate::harness_events::HarnessEventKind::RunCompleted,
+        ]
+    );
+    assert_eq!(events[0].session_id.as_deref(), Some("session_logger"));
+    assert_eq!(events[2].payload["has_error"], true);
+    assert_eq!(events[2].payload["status"], "failed");
+    assert_eq!(events[3].payload["duration_ms"], 123);
+    assert_eq!(events[3].payload["text_chars"], 16);
+    assert_eq!(events[3].payload["input_tokens"], 10);
+}
+
+#[test]
+fn harness_run_event_logger_samples_tool_events_without_dropping_errors() {
+    let _env_guard = crate::storage::lock_test_env();
+    let _saved = SavedEnv::capture(&["JCODE_RUNTIME_DIR"]);
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-run-event-logger-sampling-")
+        .tempdir()
+        .unwrap();
+    crate::env::set_var("JCODE_RUNTIME_DIR", temp.path());
+    let bus = crate::harness_events::HarnessEventBus::with_capacity(8);
+    let logger = HarnessRunEventLogger::new("run_sampling_logger", &bus).with_sampling_policy(
+        crate::harness_events::HarnessEventSamplingPolicy {
+            min_level: crate::harness_events::HarnessEventLevel::Trace,
+            tool_event_sample_every: Some(2),
+        },
+    );
+
+    for id in ["tool_1", "tool_2", "tool_3"] {
+        logger
+            .protocol_event(&crate::protocol::ServerEvent::ToolStart {
+                id: id.to_string(),
+                name: "bash".to_string(),
+            })
+            .unwrap();
+    }
+    logger
+        .protocol_event(&crate::protocol::ServerEvent::ToolDone {
+            id: "tool_error".to_string(),
+            name: "bash".to_string(),
+            output: String::new(),
+            error: Some("failed".to_string()),
+        })
+        .unwrap();
+
+    let events = crate::harness_events::read_harness_event_ndjson(logger.path()).unwrap();
+    let tool_ids = events
+        .iter()
+        .map(|event| event.payload["tool_call_id"].as_str().unwrap().to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(tool_ids, vec!["tool_1", "tool_3", "tool_error"]);
+    assert_eq!(
+        events.last().unwrap().level,
+        crate::harness_events::HarnessEventLevel::Error
+    );
+}
+
+#[test]
 fn list_cli_providers_includes_auto_and_openai() {
     let providers = super::report_info::list_cli_providers();
     assert!(providers.iter().any(|provider| provider.id == "auto"));

@@ -20,7 +20,9 @@ This fork embeds:
 - `karpathy-guidelines`, vendored from `forrestchang/andrej-karpathy-skills`;
 - `optimization`, from this repository's existing `.jcode/skills/optimization` skill;
 - `clean-code-guardian`, an original Clean Code inspired quality policy for coding, review, refactoring, and debugging;
-- `llmwiki-memory`, an operational skill for using the local LLM wiki as durable project memory with provenance and secret-safety boundaries.
+- `llmwiki-memory`, an operational skill for using the local LLM wiki as durable project memory with provenance and secret-safety boundaries;
+- `init-bootstrap`, an operational skill for `/init`, `.context`/`.jcode` scaffolding, swarm init analysis, side panels, skills plans, MCP plans, and onboarding bootstrap work;
+- `sequential-thinking`, an operational skill for bounded use of the sequential-thinking MCP helper during complex planning, debugging, architecture tradeoffs, hypothesis revision, and verification strategy.
 
 The built-ins are compiled with `include_str!`, so runtime skill loading does not require internet access, Node, Claude Code, Cursor, Codex CLI, or a plugin marketplace.
 
@@ -44,6 +46,7 @@ jcode-harness skills sync
 jcode-harness skills doctor
 jcode-harness skills doctor --json
 jcode-harness skills match "fix this Rust bug" --json
+jcode-harness skills match "use /init and sequential thinking for project analysis" --json
 jcode-harness skills match "review this diff" --skill repo-reviewer --cwd /path/to/repo
 jcode-harness skills llmwiki-bridge
 jcode-harness skills llmwiki-bridge --json
@@ -73,6 +76,9 @@ jcode-harness clean-code check --json
 ```bash
 jcode-harness
 jcode-harness smoke
+jcode-harness demo --json
+jcode-harness demo run mock-provider-run-json --json
+jcode-harness demo run all --sandbox --json
 jcode-harness run "fix this Rust bug" --provider openai-compatible --model gpt-4.1
 jcode-harness run "optimize memory usage" --skills always --dry-run
 jcode-harness run "review this diff" --skill karpathy-guidelines --max-turns 3 --json
@@ -86,6 +92,58 @@ jcode-harness run "review this diff" --ndjson --mock-response "deterministic res
 
 `--mock-response <text>` uses a deterministic local provider named `harness-mock`. It exercises the real `Agent` runtime, JSON/NDJSON output, session creation, usage reporting, and skill preface path without network access or provider credentials. This is intended for CI and contract smoke tests, not for production model calls.
 
+## Reproducible demo harness
+
+`jcode-harness demo --json` prints a deterministic manifest of offline demos that back product and README claims. The current manifest covers safe-eval, mock-provider, local memory bridge, plan/init scaffolding, swarm init scaffolding, browser-adjacent doctor diagnostics, skill routing, and release-gate smoke paths.
+
+Use the runner when you want real evidence instead of a static command list:
+
+```bash
+jcode-harness demo run mock-provider-run-json --json
+jcode-harness demo run all --json
+jcode-harness demo run all --sandbox --json
+```
+
+Safety boundaries:
+
+- The manifest command does not execute demos.
+- The runner only executes commands from the deterministic local manifest.
+- Demos that declare `project_writes: true` are blocked by default.
+- `demo run all --json` executes non-writing demos and reports writing demos as blocked with `status: "warn"`.
+- `demo run all --sandbox --json` executes all demos in a temporary workspace, reports `execution_root`/`executed_root`, and removes the sandbox by default.
+- `--keep-sandbox` keeps generated files for manual inspection; `--allow-writes` should only be used in disposable or safe-eval workspaces.
+
+### Opt-in live-provider smoke
+
+Live-provider validation is intentionally excluded from default tests because it can use network, credentials, and paid provider quota. Run it only when you explicitly want to verify a real provider through `jcode-harness run`:
+
+```bash
+JCODE_HARNESS_LIVE_PROVIDER_SMOKE=1 \
+JCODE_HARNESS_LIVE_PROVIDER=openai-api \
+JCODE_HARNESS_LIVE_MODEL=gpt-4.1-mini \
+cargo test --test e2e harness_live_provider -- --nocapture
+```
+
+Provider-profile based smoke is also supported when the profile is made available inside the isolated test environment:
+
+```bash
+JCODE_HARNESS_LIVE_PROVIDER_SMOKE=1 \
+JCODE_HARNESS_LIVE_PROVIDER_PROFILE=my-reviewed-profile \
+JCODE_HARNESS_LIVE_PROVIDER_CONFIG=/path/to/reviewed-config.toml \
+JCODE_HARNESS_LIVE_MODEL=my-model \
+cargo test --test e2e harness_live_provider -- --nocapture
+```
+
+Safety boundaries:
+
+- The test skips unless `JCODE_HARNESS_LIVE_PROVIDER_SMOKE=1` is set.
+- The subprocess receives an isolated temporary `JCODE_HOME`, `JCODE_RUNTIME_DIR`, and cwd.
+- `JCODE_HARNESS_LIVE_PROVIDER_PROFILE` requires `JCODE_HARNESS_LIVE_PROVIDER_CONFIG`, which is copied to `config.toml` inside the isolated `JCODE_HOME`.
+- Do not paste tokens into docs, prompts, command history, side panels, wiki pages, or committed fixtures.
+- Prefer provider profiles that use `api_key_env`; avoid inline `api_key` values in copied configs.
+- Prefer short, low-cost models and temporary environment-scoped credentials.
+- The default CI/e2e path remains offline and credential-free.
+
 ## Skill router
 
 The router is intentionally simple and deterministic:
@@ -93,8 +151,10 @@ The router is intentionally simple and deterministic:
 - coding, bug, test, refactor, review, implement, fix, pull request, or diff tasks select `karpathy-guidelines` and `clean-code-guardian`;
 - performance, latency, memory, throughput, CPU, RAM, or efficiency tasks select `optimization`;
 - LLM wiki, project memory, prior decision, provenance, transcript, or context-history tasks select `llmwiki-memory`;
+- `/init`, project bootstrap, `.context`, MCP plan, skills plan, side-panel, or scaffold tasks select `init-bootstrap`;
+- sequential-thinking, pensamento sequencial, multi-step reasoning, complex planning, design decision, or hypothesis revision tasks select `sequential-thinking`;
 - explicit `--skill <name>` always includes that skill;
 - `--skills off` disables automatic routing while preserving explicit `--skill` values;
-- `--skills always` includes built-in coding and optimization skills.
+- `--skills always` includes all built-in harness skills.
 
 The router does not inject every skill by default.

@@ -1,0 +1,49 @@
+{
+  "id": "2026-05-07-add-offline-session-spawn-dry-run-json-3962c1",
+  "title": "Add offline session spawn dry-run JSON",
+  "goal": "Add the next issue #4 headless runtime slice: `jcode-harness session spawn <goal> --dry-run --json`, a safe envelope for creating a new jcode run/session without executing providers.",
+  "createdAt": "2026-05-07T22:14:11.237Z",
+  "status": "active",
+  "requiredInputs": [
+    "GitHub issue #4 headless orchestration API",
+    "Existing jcode-harness run and jcode run CLI envelopes"
+  ],
+  "budget": {
+    "maxSteps": 7,
+    "maxMinutes": 45,
+    "maxToolCalls": 35
+  },
+  "permissions": [
+    "Modify source, tests, docs, governance",
+    "Run cargo fmt/check/test and selfdev build",
+    "Commit and push"
+  ],
+  "completionConditions": [
+    "`jcode-harness session spawn <goal> --dry-run --json` exists",
+    "Command emits a stable, read-only, not-executed argv/cwd envelope for creating a new jcode run/session",
+    "Omitting `--dry-run` fails safely without starting provider/TUI",
+    "Focused e2e, fmt/check, selfdev build, commit and push pass"
+  ],
+  "outputPaths": [
+    "src/bin/harness.rs",
+    "tests/e2e/harness_cli.rs",
+    "docs/JCODE_HARNESS_JSON_SCHEMAS.md",
+    "README.md",
+    "docs/JCODE_HARNESS_INNOVATION_ROADMAP.md",
+    "docs/JCODE_HARNESS_RELEASE_GATES.md",
+    "docs/SKILLS_HARNESS_STATUS.md",
+    ".codex-harness/**"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode --test e2e harness_session_spawn_dry_run_json -- --nocapture",
+    "cargo check -p jcode",
+    "target/debug/jcode-harness session spawn \"fixture goal\" --dry-run --json | python3 -m json.tool >/dev/null"
+  ],
+  "failureTaxonomy": [
+    "Accidentally starting provider/TUI during spawn dry-run",
+    "Ambiguous relationship between harness run and jcode run argv",
+    "Leaking task prompt content in unsafe places beyond explicit requested goal"
+  ],
+  "notes": "Keep actual spawn execution unsupported in this slice. This command only returns a stable plan/envelope for external orchestrators."
+}

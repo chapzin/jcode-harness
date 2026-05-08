@@ -1,0 +1,40 @@
+{
+  "id": "gate-2026-05-08-c33109",
+  "ts": "2026-05-08T14:21:54.592Z",
+  "contractId": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/tool/communicate.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate_tests.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate_tests/input_format.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "spawned_worker_run_id derives run:op:<trimmed operation_id> when operation_id is provided and run_id is omitted, making retry-created workers stay in one reactive run scope.",
+    "spawned_worker_run_id preserves an explicit run_id over operation-derived scope.",
+    "spawned_worker_run_id keeps fresh per-tool-call run ids when operation_id is absent, preserving default non-idempotent spawn behavior.",
+    "spawn action, assign_task prefer_spawn/spawn_if_needed paths, and assign_next spawned-worker paths now use spawned_worker_run_id for run_id selection.",
+    "Focused verification task 951240hled passed fmt, 3 focused tests, cargo check, and diff check; selfdev build tasks 0103623kgi and reload metadata rebuild 058248wi9p passed."
+  ],
+  "uncheckedConditions": [
+    "operation_id-spawned worker run_id helper is implemented and covered by tests",
+    "spawn, assign_task spawned workers, and assign_next spawned workers derive a stable operation-scoped run_id unless an explicit run_id is supplied",
+    "focused tests, cargo fmt --check, cargo check --lib, selfdev build pass",
+    "changes are committed and pushed to feature/embedded-skills-harness"
+  ],
+  "evidence": [
+    "src/tool/communicate.rs adds spawned_worker_run_id(ctx, explicit_run_id, operation_id) and uses it in spawn, assign_task spawned workers, and assign_next spawned-worker run_id selection.",
+    "src/tool/communicate_tests/input_format.rs adds spawned_worker_run_id tests for operation-scoped, explicit override, and fresh fallback cases.",
+    "Verification task 951240hled: cargo fmt --check, cargo test -p jcode spawned_worker_run_id --lib, cargo check -p jcode --lib, git diff --check all passed.",
+    "Selfdev build task 0103623kgi passed; rebuild task 058248wi9p passed and reload succeeded."
+  ],
+  "notes": "Additive tool-side run_id scoping. Explicit run_id remains highest priority. Without operation_id, fresh run ids still vary by tool_call_id/time as before."
+}

@@ -1,0 +1,45 @@
+{
+  "id": "2026-05-07-sync-release-gates-and-product-plan-2d0524",
+  "title": "Sync release gates and product plan",
+  "goal": "Synchronize product plan and release gates with completed live-provider, smoke, and JSON schema validation slices without changing runtime behavior.",
+  "createdAt": "2026-05-07T20:21:05.849Z",
+  "status": "active",
+  "requiredInputs": [
+    "Branch feature/embedded-skills-harness",
+    "Completed commits 30456878, b8f81d27, and cd4ec520",
+    "Current product plan and release gates docs"
+  ],
+  "budget": {
+    "maxSteps": 5,
+    "maxMinutes": 30,
+    "maxToolCalls": 20
+  },
+  "permissions": [
+    "Edit docs/governance files in repo",
+    "Run offline docs/static validation",
+    "Do not introduce network/provider calls"
+  ],
+  "completionConditions": [
+    "docs/JCODE_HARNESS_PRODUCT_PLAN.md no longer lists completed live-provider smoke/schema work as future milestones",
+    "docs/JCODE_HARNESS_RELEASE_GATES.md includes the focused init JSON, clean-code JSON, smoke, and opt-in live-provider validation commands",
+    "docs/SKILLS_HARNESS_STATUS.md remains consistent with the revised product/release docs",
+    "Static validation passes without code/runtime changes"
+  ],
+  "outputPaths": [
+    "docs/JCODE_HARNESS_PRODUCT_PLAN.md",
+    "docs/JCODE_HARNESS_RELEASE_GATES.md",
+    "docs/SKILLS_HARNESS_STATUS.md"
+  ],
+  "verificationCommands": [
+    "git diff --check",
+    "cargo fmt --check",
+    "grep checks for obsolete future-live-provider/schema wording"
+  ],
+  "failureTaxonomy": [
+    "Docs still describe completed work as future work",
+    "Release gates omit required focused validation commands",
+    "Docs-only change accidentally touches runtime files",
+    "Insufficient static validation"
+  ],
+  "notes": "Docs-only follow-up after commits cd4ec520, b8f81d27, and 30456878. No code/runtime changes intended."
+}

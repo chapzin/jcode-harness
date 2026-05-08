@@ -1,0 +1,50 @@
+{
+  "id": "2026-05-08-expose-swarm-cleanup-working-dir-preview-24922a",
+  "title": "Expose swarm cleanup working_dir preview",
+  "goal": "Implement the next issue #13 safety slice: expose swarm member working_dir metadata so list and cleanup dry-run previews show which worktree/path a scoped cleanup would affect.",
+  "createdAt": "2026-05-08T11:17:07.694Z",
+  "status": "active",
+  "requiredInputs": [
+    "GitHub issue #13 robust swarm orchestration",
+    "Recent cleanup dry-run preview implementation"
+  ],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 40
+  },
+  "permissions": [
+    "Modify source, tests, docs/governance",
+    "Run cargo fmt/check/test and selfdev build",
+    "Commit and push"
+  ],
+  "completionConditions": [
+    "`AgentInfo` carries optional `working_dir` from swarm member state",
+    "`swarm list` metadata and `swarm cleanup dry_run=true` output include working_dir when known",
+    "Existing swarm formatting/tests are updated and focused tests pass",
+    "No live cleanup/stop behavior is changed"
+  ],
+  "outputPaths": [
+    "crates/jcode-protocol/src/lib.rs",
+    "src/server/client_comm_context.rs",
+    "src/server/client_comm_channels.rs",
+    "src/tool/communicate.rs",
+    "src/tool/communicate_tests/input_format.rs",
+    "src/protocol_tests/comm_responses.rs",
+    "crates/jcode-protocol/src/protocol_tests/comm_responses.rs",
+    ".codex-harness/state.json",
+    ".codex-harness/traces/2026-05-08.jsonl"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode cleanup_dry_run --lib -- --nocapture",
+    "cargo test -p jcode format_comm_members --lib -- --nocapture",
+    "cargo check -p jcode --lib"
+  ],
+  "failureTaxonomy": [
+    "Breaking protocol serde compatibility for old clients",
+    "Changing cleanup candidate selection semantics",
+    "Adding noisy output when working_dir is absent"
+  ],
+  "notes": "Keep this additive and read-only. Do not change candidate selection or perform any cleanup. Preserve existing behavior when working_dir is missing."
+}

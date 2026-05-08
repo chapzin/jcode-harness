@@ -1,0 +1,30 @@
+{
+  "id": "gate-2026-05-08-7b82fd",
+  "ts": "2026-05-08T16:36:40.606Z",
+  "contractId": "2026-05-08-document-provider-backpressure-configuration-b88554",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "README.md",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "A user-facing README section mentions JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL.",
+    "The README documents the default as 2 concurrent requests per provider/model, explains per provider/model scope, and shows disabling the semaphore with 0.",
+    "Documentation verification, git diff --check, selfdev build, and reload passed.",
+    "Governance audit will be run before commit/push."
+  ],
+  "uncheckedConditions": [
+    "A user-facing configuration document mentions JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL.",
+    "The documentation explains default behavior, how to disable the semaphore with 0, and the scope as per provider/model.",
+    "The change is verified with formatting/markdown-safe checks and git diff checks.",
+    "Governance passes before commit/push."
+  ],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/10224003zl.output",
+    "/tmp/jcode-bg-tasks/148728ox7a.output",
+    "README.md"
+  ],
+  "notes": "README now includes a Provider runtime backpressure subsection near provider authentication. It explains cooldown plus semaphore behavior for OpenAI, Anthropic, and OpenRouter, the default concurrency cap, the tuning variable, and the disable-with-0 debugging path."
+}

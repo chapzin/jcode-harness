@@ -9,6 +9,8 @@ async fn await_members_reuses_persisted_deadline_after_reload_retry() {
         swarm_id,
         &[],
         &["completed".to_string()],
+        false,
+        None,
         None,
     );
     let now_ms = SystemTime::now()
@@ -22,7 +24,9 @@ async fn await_members_reuses_persisted_deadline_after_reload_retry() {
             swarm_id: swarm_id.to_string(),
             target_status: vec!["completed".to_string()],
             requested_ids: vec![],
+            owned_only: false,
             mode: None,
+            run_id: None,
             created_at_unix_ms: now_ms,
             deadline_unix_ms: now_ms + 150,
             final_response: None,
@@ -46,6 +50,8 @@ async fn await_members_reuses_persisted_deadline_after_reload_retry() {
         requester.to_string(),
         vec!["completed".to_string()],
         vec![],
+        false,
+        None,
         None,
         Some(60),
         CommAwaitMembersContext {

@@ -1,0 +1,44 @@
+{
+  "id": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
+  "title": "Stable spawned worker run ids for operation_id retries",
+  "goal": "Make swarm operation_id retries keep spawned workers in a stable operation-scoped run_id for reactive list/await follow-up commands.",
+  "createdAt": "2026-05-08T14:17:14.598Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 30
+  },
+  "permissions": [
+    "modify source",
+    "run focused cargo tests",
+    "run selfdev build",
+    "commit and push"
+  ],
+  "completionConditions": [
+    "operation_id-spawned worker run_id helper is implemented and covered by tests",
+    "spawn, assign_task spawned workers, and assign_next spawned workers derive a stable operation-scoped run_id unless an explicit run_id is supplied",
+    "focused tests, cargo fmt --check, cargo check --lib, selfdev build pass",
+    "changes are committed and pushed to feature/embedded-skills-harness"
+  ],
+  "outputPaths": [
+    "src/tool/communicate.rs",
+    "src/tool/communicate_tests.rs",
+    "src/tool/communicate_tests/input_format.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode spawned_worker_run_id --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build --target tui"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "idempotency_regression",
+    "unintended_protocol_change"
+  ],
+  "notes": "Continuation of issue #13 operation_id/idempotency work. Keep behavior unchanged when operation_id is absent, except using a helper for readability."
+}

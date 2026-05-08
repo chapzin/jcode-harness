@@ -1,13 +1,15 @@
 use super::{
-    ensure_spawn_coordinator_swarm, prepare_visible_spawn_session, register_visible_spawned_member,
-    require_coordinator_swarm, resolve_spawn_working_dir, resolve_stop_target_session,
-    swarm_stop_allowed_by_owner,
+    ensure_spawn_coordinator_swarm, handle_comm_stop, prepare_visible_spawn_session,
+    register_visible_spawned_member, require_coordinator_swarm, resolve_spawn_working_dir,
+    resolve_stop_target_session, spawn_mutation_key, swarm_stop_allowed_by_owner,
 };
 use crate::agent::Agent;
 use crate::message::{Message, ToolDefinition};
 use crate::protocol::{NotificationType, ServerEvent};
 use crate::provider::{EventStream, Provider};
-use crate::server::{SwarmEventType, SwarmMember, VersionedPlan};
+use crate::server::{
+    SessionInterruptQueues, SwarmEventType, SwarmMember, SwarmMutationRuntime, VersionedPlan,
+};
 use crate::tool::Registry;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -58,6 +60,7 @@ fn member(
             detail: None,
             friendly_name: Some(session_id.to_string()),
             report_back_to_session_id: None,
+            run_id: None,
             latest_completion_report: None,
             role: role.to_string(),
             joined_at: Instant::now(),
@@ -73,10 +76,11 @@ async fn test_agent_with_working_dir(session_id: &str, working_dir: &str) -> Arc
     let registry = Registry::new(provider.clone()).await;
     let mut session = crate::session::Session::create_with_id(session_id.to_string(), None, None);
     session.model = Some("mock".to_string());
-    session.working_dir = Some(working_dir.to_string());
-    Arc::new(Mutex::new(Agent::new_with_session(
+    let agent = Arc::new(Mutex::new(Agent::new_with_session(
         provider, registry, session, None,
-    )))
+    )));
+    agent.lock().await.set_working_dir(working_dir);
+    agent
 }
 
 #[tokio::test]
@@ -124,6 +128,54 @@ async fn resolve_spawn_working_dir_falls_back_to_member_dir() {
             .as_deref(),
         Some("/tmp/member-dir")
     );
+}
+
+#[test]
+fn spawn_mutation_key_uses_nonce_as_idempotency_key_despite_run_and_payload_drift() {
+    let operation_key = spawn_mutation_key(
+        "coord",
+        "swarm-1",
+        &Some("/repo-a".to_string()),
+        &Some("first prompt".to_string()),
+        &Some(" op:issue-13-spawn-1 ".to_string()),
+        &Some("run-1".to_string()),
+    );
+    let retry_with_drifted_payload = spawn_mutation_key(
+        "coord",
+        "swarm-1",
+        &Some("/repo-b".to_string()),
+        &Some("retry prompt drift".to_string()),
+        &Some("op:issue-13-spawn-1".to_string()),
+        &Some("run-1".to_string()),
+    );
+    let different_run = spawn_mutation_key(
+        "coord",
+        "swarm-1",
+        &Some("/repo-b".to_string()),
+        &Some("retry prompt drift".to_string()),
+        &Some("op:issue-13-spawn-1".to_string()),
+        &Some("run-2".to_string()),
+    );
+    let no_nonce = spawn_mutation_key(
+        "coord",
+        "swarm-1",
+        &Some("/repo-a".to_string()),
+        &Some("first prompt".to_string()),
+        &None,
+        &Some("run-1".to_string()),
+    );
+    let no_nonce_payload_drift = spawn_mutation_key(
+        "coord",
+        "swarm-1",
+        &Some("/repo-b".to_string()),
+        &Some("retry prompt drift".to_string()),
+        &None,
+        &Some("run-1".to_string()),
+    );
+
+    assert_eq!(operation_key, retry_with_drifted_payload);
+    assert_eq!(operation_key, different_run);
+    assert_ne!(no_nonce, no_nonce_payload_drift);
 }
 
 #[test]
@@ -184,6 +236,224 @@ async fn stop_target_rejects_ambiguous_friendly_name() {
 }
 
 #[tokio::test]
+async fn stop_replay_does_not_send_duplicate_close_request() {
+    let _guard = crate::storage::lock_test_env();
+    let temp_home = tempfile::TempDir::new().expect("temp home");
+    crate::env::set_var("JCODE_HOME", temp_home.path());
+
+    let sessions = Arc::new(RwLock::new(HashMap::new()));
+    let soft_interrupt_queues: SessionInterruptQueues = Arc::new(RwLock::new(HashMap::new()));
+    let swarm_members = Arc::new(RwLock::new(HashMap::new()));
+    let swarms_by_id = Arc::new(RwLock::new(HashMap::from([(
+        "swarm-1".to_string(),
+        HashSet::from(["coord".to_string(), "worker-1".to_string()]),
+    )])));
+    let swarm_coordinators = Arc::new(RwLock::new(HashMap::from([(
+        "swarm-1".to_string(),
+        "coord".to_string(),
+    )])));
+    let swarm_plans = Arc::new(RwLock::new(HashMap::<String, VersionedPlan>::new()));
+    let channel_subscriptions = Arc::new(RwLock::new(HashMap::new()));
+    let channel_subscriptions_by_session = Arc::new(RwLock::new(HashMap::new()));
+    let event_history = Arc::new(RwLock::new(VecDeque::new()));
+    let event_counter = Arc::new(AtomicU64::new(0));
+    let (swarm_event_tx, _swarm_event_rx) = broadcast::channel(8);
+    let swarm_mutation_runtime = SwarmMutationRuntime::default();
+    let (client_event_tx, mut client_event_rx) = mpsc::unbounded_channel();
+
+    let (coord, _coord_rx) = member("coord", Some("swarm-1"), "coordinator");
+    let (mut worker, mut worker_rx) = member("worker-1", Some("swarm-1"), "agent");
+    worker.report_back_to_session_id = Some("coord".to_string());
+    swarm_members.write().await.extend([
+        ("coord".to_string(), coord),
+        ("worker-1".to_string(), worker),
+    ]);
+
+    handle_comm_stop(
+        1,
+        "coord".to_string(),
+        "worker-1".to_string(),
+        false,
+        &client_event_tx,
+        &sessions,
+        &swarm_members,
+        &swarms_by_id,
+        &swarm_coordinators,
+        &swarm_plans,
+        &channel_subscriptions,
+        &channel_subscriptions_by_session,
+        &event_history,
+        &event_counter,
+        &swarm_event_tx,
+        &soft_interrupt_queues,
+        &swarm_mutation_runtime,
+    )
+    .await;
+
+    assert!(matches!(
+        worker_rx.recv().await,
+        Some(ServerEvent::SessionCloseRequested { reason })
+            if reason == "Stopped by coordinator coord"
+    ));
+    assert!(matches!(
+        client_event_rx.recv().await,
+        Some(ServerEvent::Done { id: 1 })
+    ));
+    assert!(
+        !swarm_members.read().await.contains_key("worker-1"),
+        "first stop should remove worker membership"
+    );
+
+    handle_comm_stop(
+        2,
+        "coord".to_string(),
+        "worker-1".to_string(),
+        false,
+        &client_event_tx,
+        &sessions,
+        &swarm_members,
+        &swarms_by_id,
+        &swarm_coordinators,
+        &swarm_plans,
+        &channel_subscriptions,
+        &channel_subscriptions_by_session,
+        &event_history,
+        &event_counter,
+        &swarm_event_tx,
+        &soft_interrupt_queues,
+        &swarm_mutation_runtime,
+    )
+    .await;
+
+    assert!(matches!(
+        client_event_rx.recv().await,
+        Some(ServerEvent::Done { id: 2 })
+    ));
+    assert!(
+        worker_rx.try_recv().is_err(),
+        "replayed stop must not send a duplicate close request"
+    );
+
+    crate::env::remove_var("JCODE_HOME");
+}
+
+#[tokio::test]
+async fn stop_friendly_name_reuse_uses_current_resolved_target() {
+    let _guard = crate::storage::lock_test_env();
+    let temp_home = tempfile::TempDir::new().expect("temp home");
+    crate::env::set_var("JCODE_HOME", temp_home.path());
+
+    let sessions = Arc::new(RwLock::new(HashMap::new()));
+    let soft_interrupt_queues: SessionInterruptQueues = Arc::new(RwLock::new(HashMap::new()));
+    let swarm_members = Arc::new(RwLock::new(HashMap::new()));
+    let swarms_by_id = Arc::new(RwLock::new(HashMap::from([(
+        "swarm-1".to_string(),
+        HashSet::from(["coord".to_string(), "worker-old".to_string()]),
+    )])));
+    let swarm_coordinators = Arc::new(RwLock::new(HashMap::from([(
+        "swarm-1".to_string(),
+        "coord".to_string(),
+    )])));
+    let swarm_plans = Arc::new(RwLock::new(HashMap::<String, VersionedPlan>::new()));
+    let channel_subscriptions = Arc::new(RwLock::new(HashMap::new()));
+    let channel_subscriptions_by_session = Arc::new(RwLock::new(HashMap::new()));
+    let event_history = Arc::new(RwLock::new(VecDeque::new()));
+    let event_counter = Arc::new(AtomicU64::new(0));
+    let (swarm_event_tx, _swarm_event_rx) = broadcast::channel(8);
+    let swarm_mutation_runtime = SwarmMutationRuntime::default();
+    let (client_event_tx, mut client_event_rx) = mpsc::unbounded_channel();
+
+    let (coord, _coord_rx) = member("coord", Some("swarm-1"), "coordinator");
+    let (mut old_worker, mut old_worker_rx) = member("worker-old", Some("swarm-1"), "agent");
+    old_worker.friendly_name = Some("bear".to_string());
+    old_worker.report_back_to_session_id = Some("coord".to_string());
+    swarm_members.write().await.extend([
+        ("coord".to_string(), coord),
+        ("worker-old".to_string(), old_worker),
+    ]);
+
+    handle_comm_stop(
+        1,
+        "coord".to_string(),
+        "bear".to_string(),
+        false,
+        &client_event_tx,
+        &sessions,
+        &swarm_members,
+        &swarms_by_id,
+        &swarm_coordinators,
+        &swarm_plans,
+        &channel_subscriptions,
+        &channel_subscriptions_by_session,
+        &event_history,
+        &event_counter,
+        &swarm_event_tx,
+        &soft_interrupt_queues,
+        &swarm_mutation_runtime,
+    )
+    .await;
+    assert!(matches!(
+        old_worker_rx.recv().await,
+        Some(ServerEvent::SessionCloseRequested { .. })
+    ));
+    assert!(matches!(
+        client_event_rx.recv().await,
+        Some(ServerEvent::Done { id: 1 })
+    ));
+
+    let (mut new_worker, mut new_worker_rx) = member("worker-new", Some("swarm-1"), "agent");
+    new_worker.friendly_name = Some("bear".to_string());
+    new_worker.report_back_to_session_id = Some("coord".to_string());
+    swarm_members
+        .write()
+        .await
+        .insert("worker-new".to_string(), new_worker);
+    swarms_by_id
+        .write()
+        .await
+        .entry("swarm-1".to_string())
+        .or_default()
+        .insert("worker-new".to_string());
+
+    handle_comm_stop(
+        2,
+        "coord".to_string(),
+        "bear".to_string(),
+        false,
+        &client_event_tx,
+        &sessions,
+        &swarm_members,
+        &swarms_by_id,
+        &swarm_coordinators,
+        &swarm_plans,
+        &channel_subscriptions,
+        &channel_subscriptions_by_session,
+        &event_history,
+        &event_counter,
+        &swarm_event_tx,
+        &soft_interrupt_queues,
+        &swarm_mutation_runtime,
+    )
+    .await;
+
+    assert!(matches!(
+        new_worker_rx.recv().await,
+        Some(ServerEvent::SessionCloseRequested { reason })
+            if reason == "Stopped by coordinator coord"
+    ));
+    assert!(matches!(
+        client_event_rx.recv().await,
+        Some(ServerEvent::Done { id: 2 })
+    ));
+    assert!(
+        !swarm_members.read().await.contains_key("worker-new"),
+        "friendly-name reuse should resolve and stop the current matching member"
+    );
+
+    crate::env::remove_var("JCODE_HOME");
+}
+
+#[tokio::test]
 async fn register_visible_spawned_member_marks_startup_as_running() {
     let swarm_members = Arc::new(RwLock::new(HashMap::new()));
     let swarms_by_id = Arc::new(RwLock::new(HashMap::new()));
@@ -197,6 +467,7 @@ async fn register_visible_spawned_member_marks_startup_as_running() {
         Some("/tmp/worktree"),
         true,
         Some("owner"),
+        Some("run-visible"),
         &swarm_members,
         &swarms_by_id,
         &event_history,
@@ -210,6 +481,7 @@ async fn register_visible_spawned_member_marks_startup_as_running() {
     assert_eq!(member.status, "running");
     assert_eq!(member.detail.as_deref(), Some("startup queued"));
     assert_eq!(member.swarm_id.as_deref(), Some("swarm-1"));
+    assert_eq!(member.run_id.as_deref(), Some("run-visible"));
     assert_eq!(
         member.working_dir.as_deref(),
         Some(std::path::Path::new("/tmp/worktree"))

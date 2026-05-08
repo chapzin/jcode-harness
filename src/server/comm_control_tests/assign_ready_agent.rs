@@ -70,6 +70,7 @@ async fn assign_task_without_target_picks_ready_agent() {
         None,
         None,
         Some("Pick a task and worker".to_string()),
+        None,
         &client_tx,
         &sessions,
         &soft_interrupt_queues,

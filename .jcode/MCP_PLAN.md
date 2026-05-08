@@ -12,16 +12,18 @@ MCP setup is intentionally review-first. This init command does not download or 
 
 Review in this order and enable only with explicit permission and documented scopes:
 
-1. Browser/Playwright: useful for UI QA, docs screenshots, and web-flow validation.
-2. GitHub/GitLab: useful for issues, PRs, and release automation. Requires token scoping and secret handling.
-3. Docs/search: useful for network-backed research. Requires network boundary review.
-4. Database/telemetry: useful for diagnostics only with strict read/write boundaries and credential isolation.
-5. Filesystem/code search: usually unnecessary because native jcode tools already cover this repository.
+1. Sequential thinking: local planning/revision helper for complex tasks. It should not require network or credentials and remains a reasoning aid, not a permission expansion.
+2. Browser/Playwright: useful for UI QA, docs screenshots, and web-flow validation.
+3. GitHub/GitLab: useful for issues, PRs, and release automation. Requires token scoping and secret handling.
+4. Docs/search: useful for network-backed research. Requires network boundary review.
+5. Database/telemetry: useful for diagnostics only with strict read/write boundaries and credential isolation.
+6. Filesystem/code search: usually unnecessary because native jcode tools already cover this repository.
 
 ## Tooling/security evidence
 
 - `telemetry-worker/package.json` uses `npx wrangler` for dev, deploy, health, and remote D1 migrations.
 - No active MCP servers are configured in `.jcode/mcp.json`.
+- Sequential thinking is available as a reviewed local helper in the current agent environment, but init must not auto-add it to `.jcode/mcp.json` without an explicit project decision.
 - Discovery reported no Node lockfile for `telemetry-worker`; review package-manager reproducibility before treating telemetry deployment as release-gated.
 - Workflows use deployment secrets and third-party actions; release workflow has write permissions. Keep MCP and automation credentials separate from repository files.
 - No `pull_request_target` workflow trigger was reported.

@@ -1,0 +1,48 @@
+{
+  "id": "2026-05-08-apply-provider-runtime-state-to-simplified-model-picker-5eeed2",
+  "title": "Apply provider runtime state to simplified model picker",
+  "goal": "Ensure simplified model picker routes preserve provider cooldown/backpressure metadata instead of dropping runtime state while rebuilding synthetic routes.",
+  "createdAt": "2026-05-08T17:29:48.328Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 30
+  },
+  "permissions": [
+    "read repo",
+    "edit provider/tui code/tests",
+    "run focused tests",
+    "selfdev build/reload",
+    "commit and push",
+    "comment issue #27"
+  ],
+  "completionConditions": [
+    "Simplified local model picker routes apply the same provider runtime state decoration as MultiProvider::model_routes.",
+    "OpenAI synthetic picker routes show cooldown/backpressure details when provider runtime gates are active.",
+    "The decoration helper remains shared so route metadata semantics do not diverge between full route loading and simplified picker paths.",
+    "Focused tests, cargo fmt/check, cargo check, selfdev build/reload, governance, commit/push, and issue #27 update pass."
+  ],
+  "outputPaths": [
+    "src/provider/mod.rs",
+    "src/provider/tests/fallback_failover.rs",
+    "src/tui/app/inline_interactive.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode provider_runtime_state_to_routes --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "formatting_failure",
+    "picker_runtime_state_regression",
+    "cache_staleness_regression",
+    "governance_failure"
+  ],
+  "notes": "Follow-up to 0b3c6473 and 8cff8ae8. The full provider model_routes path is decorated, but simplified_model_routes_for_picker builds synthetic routes and currently returns them undecorated."
+}

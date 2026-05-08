@@ -1,5 +1,8 @@
 use super::state::{MAX_EVENT_HISTORY, fanout_session_event};
-use super::{FileAccess, SwarmEvent, SwarmEventType, SwarmMember, SwarmState, VersionedPlan};
+use super::{
+    FileAccess, SwarmEvent, SwarmEventMemberMetadata, SwarmEventType, SwarmMember, SwarmState,
+    VersionedPlan,
+};
 use super::{persist_swarm_state_for, remove_persisted_swarm_state_for};
 use crate::agent::Agent;
 use crate::plan::{PlanItem, newly_ready_item_ids};
@@ -608,13 +611,18 @@ pub(super) async fn remove_session_from_swarm(
     broadcast_swarm_status(swarm_id, swarm_members, swarms_by_id).await;
 }
 
-pub(super) async fn record_swarm_event(
+#[expect(
+    clippy::too_many_arguments,
+    reason = "swarm event metadata mirrors the persisted event envelope"
+)]
+pub(super) async fn record_swarm_event_with_member_metadata(
     event_history: &Arc<RwLock<std::collections::VecDeque<SwarmEvent>>>,
     event_counter: &Arc<std::sync::atomic::AtomicU64>,
     swarm_event_tx: &broadcast::Sender<SwarmEvent>,
     session_id: String,
     session_name: Option<String>,
     swarm_id: Option<String>,
+    member: Option<SwarmEventMemberMetadata>,
     event: SwarmEventType,
 ) {
     let swarm_event = SwarmEvent {
@@ -622,6 +630,7 @@ pub(super) async fn record_swarm_event(
         session_id,
         session_name,
         swarm_id,
+        member,
         event,
         timestamp: Instant::now(),
         absolute_time: std::time::SystemTime::now(),
@@ -642,21 +651,26 @@ pub(super) async fn record_swarm_event_for_session(
     event_counter: &Arc<std::sync::atomic::AtomicU64>,
     swarm_event_tx: &broadcast::Sender<SwarmEvent>,
 ) {
-    let (session_name, swarm_id) = {
+    let (session_name, swarm_id, member_metadata) = {
         let members = swarm_members.read().await;
         if let Some(member) = members.get(session_id) {
-            (member.friendly_name.clone(), member.swarm_id.clone())
+            (
+                member.friendly_name.clone(),
+                member.swarm_id.clone(),
+                Some(SwarmEventMemberMetadata::from_member(member)),
+            )
         } else {
-            (None, None)
+            (None, None, None)
         }
     };
-    record_swarm_event(
+    record_swarm_event_with_member_metadata(
         event_history,
         event_counter,
         swarm_event_tx,
         session_id.to_string(),
         session_name,
         swarm_id,
+        member_metadata,
         event,
     )
     .await;
@@ -714,6 +728,7 @@ pub(super) async fn update_member_status_with_report(
         old_status,
         _is_headless,
         report_back_to_session_id,
+        member_metadata,
     ) = {
         let mut members = swarm_members.write().await;
         if let Some(member) = members.get_mut(session_id) {
@@ -734,6 +749,7 @@ pub(super) async fn update_member_status_with_report(
             if completion_report.is_some() {
                 member.latest_completion_report = completion_report.clone();
             }
+            let member_metadata = SwarmEventMemberMetadata::from_member(member);
             (
                 member.swarm_id.clone(),
                 name,
@@ -742,9 +758,10 @@ pub(super) async fn update_member_status_with_report(
                 previous_status,
                 is_headless,
                 report_back_to_session_id,
+                Some(member_metadata),
             )
         } else {
-            (None, None, false, false, String::new(), false, None)
+            (None, None, false, false, String::new(), false, None, None)
         }
     };
     if let Some(ref id) = swarm_id {
@@ -756,13 +773,14 @@ pub(super) async fn update_member_status_with_report(
             && let (Some(history), Some(counter), Some(tx)) =
                 (event_history, event_counter, swarm_event_tx)
         {
-            record_swarm_event(
+            record_swarm_event_with_member_metadata(
                 history,
                 counter,
                 tx,
                 session_id.to_string(),
                 agent_name.clone(),
                 Some(id.clone()),
+                member_metadata,
                 SwarmEventType::StatusChange {
                     old_status: old_status.clone(),
                     new_status: status.to_string(),
@@ -952,12 +970,12 @@ fn parse_swarm_tasks(text: &str) -> Vec<SwarmTaskSpec> {
 mod tests {
     use super::{
         broadcast_swarm_plan_with_previous, now_unix_ms, parse_swarm_tasks,
-        refresh_swarm_task_staleness, remove_session_from_swarm, touch_swarm_task_progress,
-        update_member_status, update_member_status_with_report,
+        record_swarm_event_for_session, refresh_swarm_task_staleness, remove_session_from_swarm,
+        touch_swarm_task_progress, update_member_status, update_member_status_with_report,
     };
     use crate::plan::PlanItem;
     use crate::protocol::{NotificationType, ServerEvent};
-    use crate::server::{SwarmMember, VersionedPlan};
+    use crate::server::{SwarmEventType, SwarmMember, VersionedPlan};
     use jcode_swarm_core::{
         append_swarm_completion_report_instructions, summarize_plan_items, truncate_detail,
     };
@@ -1042,6 +1060,7 @@ mod tests {
                 detail: None,
                 friendly_name: Some(session_id.to_string()),
                 report_back_to_session_id: None,
+                run_id: None,
                 latest_completion_report: None,
                 role: role.to_string(),
                 joined_at: Instant::now(),
@@ -1050,6 +1069,52 @@ mod tests {
             },
             event_rx,
         )
+    }
+
+    #[tokio::test]
+    async fn record_swarm_event_for_session_captures_member_metadata() {
+        let swarm_members = Arc::new(RwLock::new(HashMap::new()));
+        let (mut worker, _rx) = swarm_member("worker", "agent", true);
+        worker.status = "running".to_string();
+        worker.run_id = Some("run-observe".to_string());
+        worker.working_dir = Some(std::path::PathBuf::from("/tmp/jcode-worktrees/worker"));
+        swarm_members
+            .write()
+            .await
+            .insert("worker".to_string(), worker);
+        let history = Arc::new(RwLock::new(std::collections::VecDeque::new()));
+        let counter = Arc::new(std::sync::atomic::AtomicU64::new(1));
+        let (swarm_event_tx, _rx) = tokio::sync::broadcast::channel(4);
+
+        record_swarm_event_for_session(
+            "worker",
+            SwarmEventType::Notification {
+                notification_type: "test".to_string(),
+                message: "metadata".to_string(),
+            },
+            &swarm_members,
+            &history,
+            &counter,
+            &swarm_event_tx,
+        )
+        .await;
+
+        let event = history
+            .read()
+            .await
+            .front()
+            .cloned()
+            .expect("recorded event");
+        assert_eq!(event.session_name.as_deref(), Some("worker"));
+        assert_eq!(event.swarm_id.as_deref(), Some("swarm-1"));
+        let metadata = event.member.expect("member metadata");
+        assert_eq!(metadata.run_id.as_deref(), Some("run-observe"));
+        assert_eq!(metadata.role.as_deref(), Some("agent"));
+        assert_eq!(metadata.status.as_deref(), Some("running"));
+        assert_eq!(
+            metadata.working_dir.as_deref(),
+            Some("/tmp/jcode-worktrees/worker")
+        );
     }
 
     #[tokio::test]

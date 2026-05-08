@@ -1,0 +1,35 @@
+{
+  "id": "gate-2026-05-08-a01e84",
+  "ts": "2026-05-08T16:28:21.692Z",
+  "contractId": "2026-05-08-gate-openai-persistent-websocket-attempts-22186b",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/provider/openai_provider_impl.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openai_tests/transport_runtime.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "OpenAI cooldown and provider/model concurrency permit are acquired before try_persistent_ws_continuation.",
+    "Focused structural regression test passed: openai_backpressure_gate_precedes_persistent_ws_continuation.",
+    "cargo fmt, cargo fmt --check, cargo check -p jcode --lib, and git diff --check passed.",
+    "selfdev build and reload passed for the TUI binary."
+  ],
+  "uncheckedConditions": [
+    "OpenAI provider applies rate-limit cooldown and provider/model concurrency permit before attempting persistent WebSocket continuation.",
+    "The normal fresh connection retry loop continues to run under the same acquired permit without duplicating cooldown/backpressure logic.",
+    "A focused structural regression test verifies the gate appears before persistent WebSocket continuation.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/4833427ra7.output",
+    "/tmp/jcode-bg-tasks/591301oy2e.output",
+    "src/provider/openai_provider_impl.rs",
+    "src/provider/openai_tests/transport_runtime.rs"
+  ],
+  "notes": "The persistent WebSocket continuation path now sits behind the same provider cooldown and concurrency backpressure gate as fresh OpenAI HTTPS/SSE attempts. The focused test asserts ordering so future refactors cannot move try_persistent_ws_continuation ahead of the gates silently."
+}

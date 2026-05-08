@@ -1,0 +1,49 @@
+{
+  "id": "2026-05-08-configure-provider-rate-limit-cooldown-cap-7a6b56",
+  "title": "Configure provider rate-limit cooldown cap",
+  "goal": "Expose the shared provider rate-limit cooldown cap as an environment variable so long Retry-After handling can be tuned or disabled without code changes.",
+  "createdAt": "2026-05-08T17:04:43.875Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 6,
+    "maxMinutes": 30,
+    "maxToolCalls": 20
+  },
+  "permissions": [
+    "modify source",
+    "update README",
+    "run focused tests",
+    "run selfdev build",
+    "commit and push"
+  ],
+  "completionConditions": [
+    "JCODE_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS overrides the default shared provider cooldown cap.",
+    "A value of 0 disables shared provider cooldown recording while keeping same-request retry behavior separate.",
+    "Invalid or unset values fall back to DEFAULT_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS.",
+    "README documents default, override, and disable semantics.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "outputPaths": [
+    "src/provider/routing.rs",
+    "src/provider/mod.rs",
+    "src/provider/tests/fallback_failover.rs",
+    "README.md"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode provider_cooldown_cap --lib -- --test-threads=1 --nocapture",
+    "cargo test -p jcode provider_cooldown_delay --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build --target tui"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "env_parsing_regression",
+    "cooldown_disable_regression",
+    "documentation_gap"
+  ],
+  "notes": "Follow-up to long Retry-After cooldown slice and issue #27. Keep scope limited to env configuration, docs, and focused provider governor tests."
+}

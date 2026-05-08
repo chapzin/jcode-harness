@@ -1,0 +1,52 @@
+{
+  "id": "gate-2026-05-07-5620a8",
+  "ts": "2026-05-07T20:05:59.243Z",
+  "contractId": "2026-05-07-add-opt-in-live-provider-smoke-f66078",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "tests/e2e/harness_live_provider.rs",
+      "exists": true
+    },
+    {
+      "path": "tests/e2e/main.rs",
+      "exists": true
+    },
+    {
+      "path": "docs/SKILLS_HARNESS.md",
+      "exists": true
+    },
+    {
+      "path": "docs/SKILLS_HARNESS_STATUS.md",
+      "exists": true
+    },
+    {
+      "path": "docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Default e2e suite does not contact providers or require credentials. Verified harness_live_provider default skip plus harness_cli offline suite pass.",
+    "Opt-in live-provider smoke is available and skipped unless JCODE_HARNESS_LIVE_PROVIDER_SMOKE is explicitly truthy.",
+    "Live smoke isolates JCODE_HOME, JCODE_RUNTIME_DIR, cwd, removes debug/test session env, requires provider/profile and model when enabled, and copies reviewed provider-profile config into isolated JCODE_HOME when requested.",
+    "Docs describe env vars, credential boundary, cost/network risk, default offline behavior, and safe command usage.",
+    "cargo fmt --check, cargo test --test e2e harness_live_provider -- --nocapture, cargo test --test e2e harness_cli -- --nocapture, cargo check -p jcode, and selfdev build target=auto passed."
+  ],
+  "uncheckedConditions": [
+    "Default e2e suite does not contact providers or require credentials",
+    "Opt-in live-provider smoke is available and skipped unless an explicit enable env var is set",
+    "Live smoke isolates JCODE_HOME, JCODE_RUNTIME_DIR, and cwd, and requires explicit provider/model configuration",
+    "Docs describe variables, credential boundary, costs/network risk, and safe command usage",
+    "Formatting, e2e/default validation, cargo check, and selfdev build pass"
+  ],
+  "evidence": [
+    "tests/e2e/harness_live_provider.rs",
+    "tests/e2e/main.rs",
+    "docs/SKILLS_HARNESS.md",
+    "docs/SKILLS_HARNESS_STATUS.md",
+    "docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md",
+    "/tmp/jcode-bg-tasks/310592d8sv.output",
+    "/tmp/jcode-bg-tasks/334909wuu0.output"
+  ],
+  "notes": "Live-provider call itself was intentionally not run because no explicit opt-in credentials/provider env were provided. Default validation remains offline and credential-free."
+}

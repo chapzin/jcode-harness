@@ -2,9 +2,11 @@
 
 use anyhow::Result;
 use serde::Serialize;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::{Read, Write};
 use std::net::ToSocketAddrs;
+use std::path::PathBuf;
+use std::time::Instant;
 
 use crate::{browser, gateway, memory, session, storage, tui};
 
@@ -143,6 +145,400 @@ pub fn run_session_rename_command(
     }
 
     Ok(())
+}
+
+#[derive(Serialize)]
+struct HarnessEventPathReport {
+    run_id: String,
+    path: String,
+}
+
+#[derive(Serialize)]
+struct HarnessEventExportReport {
+    run_id: String,
+    input_path: String,
+    output_path: Option<String>,
+    events: usize,
+}
+
+#[derive(Serialize)]
+struct HarnessEventReplayOutput {
+    summary: crate::harness_events::HarnessEventLogSummary,
+    timeline: Vec<crate::harness_events::HarnessEventTimelineItem>,
+    diagnostics: Vec<crate::harness_events::HarnessEventReadDiagnostic>,
+    events: Vec<crate::harness_events::HarnessEvent>,
+}
+
+pub fn run_events_list_command(emit_json: bool) -> Result<()> {
+    let summaries = crate::harness_events::list_harness_event_logs()?;
+
+    if emit_json {
+        println!("{}", serde_json::to_string_pretty(&summaries)?);
+        return Ok(());
+    }
+
+    if summaries.is_empty() {
+        println!("No harness event logs found.");
+        return Ok(());
+    }
+
+    println!("run_id\tstatus\tevents\tlast_timestamp\tpath");
+    for summary in summaries {
+        println!(
+            "{}\t{}\t{}\t{}\t{}",
+            summary.run_id,
+            summary.status,
+            summary.events,
+            summary
+                .last_timestamp
+                .map(|timestamp| timestamp.to_string())
+                .unwrap_or_default(),
+            summary.path,
+        );
+    }
+
+    Ok(())
+}
+
+pub fn run_events_show_command(run_id: &str, emit_json: bool) -> Result<()> {
+    let path = crate::harness_events::harness_event_log_path(run_id);
+    let summary = crate::harness_events::summarize_harness_event_log(&path)?;
+
+    if emit_json {
+        println!("{}", serde_json::to_string_pretty(&summary)?);
+        return Ok(());
+    }
+
+    println!("Harness event log: {}", summary.run_id);
+    println!("Status: {}", summary.status);
+    println!("Events: {}", summary.events);
+    if let Some(first) = summary.first_timestamp {
+        println!("Started: {}", first);
+    }
+    if let Some(last) = summary.last_timestamp {
+        println!("Last event: {}", last);
+    }
+    if let Some(duration_ms) = summary.duration_ms {
+        println!("Duration: {} ms", duration_ms);
+    }
+    if let Some(error) = summary.error.as_deref() {
+        println!("Diagnostics: {}", error);
+    }
+    println!("Path: {}", summary.path);
+
+    Ok(())
+}
+
+pub fn run_events_replay_command(
+    run_id: &str,
+    emit_json: bool,
+    output: Option<PathBuf>,
+) -> Result<()> {
+    let path = crate::harness_events::harness_event_log_path(run_id);
+    let report = crate::harness_events::read_harness_event_ndjson_report(&path)?;
+    let summary = crate::harness_events::summarize_harness_event_read_report(&report);
+    let timeline = crate::harness_events::build_harness_event_timeline(&report.events);
+
+    let content = if emit_json {
+        serde_json::to_string_pretty(&HarnessEventReplayOutput {
+            summary,
+            timeline,
+            diagnostics: report.diagnostics,
+            events: report.events,
+        })?
+    } else {
+        crate::harness_events::render_harness_event_replay_markdown_with_summary(
+            &summary,
+            &report.events,
+            &report.diagnostics,
+        )
+    };
+
+    if let Some(output_path) = output {
+        write_output_file(&output_path, content.as_bytes())?;
+        println!("Wrote harness event replay to {}", output_path.display());
+    } else {
+        print!("{}", content);
+        if !content.ends_with('\n') {
+            println!();
+        }
+    }
+
+    Ok(())
+}
+
+pub fn run_events_path_command(run_id: &str, emit_json: bool) -> Result<()> {
+    let path = crate::harness_events::harness_event_log_path(run_id);
+
+    if emit_json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&HarnessEventPathReport {
+                run_id: run_id.to_string(),
+                path: path.display().to_string(),
+            })?
+        );
+    } else {
+        println!("{}", path.display());
+    }
+
+    Ok(())
+}
+
+pub fn run_events_tail_command(run_id: &str, lines: usize, emit_ndjson: bool) -> Result<()> {
+    if lines == 0 {
+        anyhow::bail!("--lines must be greater than zero");
+    }
+
+    let path = crate::harness_events::harness_event_log_path(run_id);
+    let events = crate::harness_events::read_harness_event_ndjson(&path)?;
+    let start = events.len().saturating_sub(lines);
+    let selected = &events[start..];
+
+    if emit_ndjson {
+        let mut stdout = std::io::stdout().lock();
+        write_events_ndjson(&mut stdout, selected)?;
+        return Ok(());
+    }
+
+    println!(
+        "Harness events for run {}: showing {} of {} event(s)",
+        run_id,
+        selected.len(),
+        events.len()
+    );
+    println!("Log: {}", path.display());
+    println!("sequence\ttimestamp\tlevel\tkind\tevent_id");
+    for event in selected {
+        println!(
+            "{}\t{}\t{}\t{}\t{}",
+            event.sequence,
+            event.timestamp,
+            harness_event_label(&event.level),
+            harness_event_label(&event.kind),
+            event.event_id,
+        );
+    }
+
+    Ok(())
+}
+
+pub fn run_events_export_command(
+    run_id: &str,
+    output: Option<PathBuf>,
+    emit_json: bool,
+) -> Result<()> {
+    if emit_json && output.is_none() {
+        anyhow::bail!("--json requires --output so stdout stays valid NDJSON when exporting");
+    }
+
+    let input_path = crate::harness_events::harness_event_log_path(run_id);
+    let events = crate::harness_events::read_harness_event_ndjson(&input_path)?;
+
+    if let Some(output_path) = output {
+        let mut output = Vec::new();
+        write_events_ndjson(&mut output, &events)?;
+        write_output_file(&output_path, &output)?;
+
+        let report = HarnessEventExportReport {
+            run_id: run_id.to_string(),
+            input_path: input_path.display().to_string(),
+            output_path: Some(output_path.display().to_string()),
+            events: events.len(),
+        };
+        if emit_json {
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        } else {
+            println!(
+                "Exported {} harness event(s) for run {} to {}",
+                report.events,
+                run_id,
+                report.output_path.as_deref().unwrap_or("<stdout>")
+            );
+        }
+    } else {
+        let mut stdout = std::io::stdout().lock();
+        write_events_ndjson(&mut stdout, &events)?;
+    }
+
+    Ok(())
+}
+
+pub fn run_events_sse_command(
+    run_id: &str,
+    last_event_id: Option<&str>,
+    retry_ms: u64,
+    output: Option<PathBuf>,
+) -> Result<()> {
+    if retry_ms == 0 {
+        anyhow::bail!("--retry-ms must be greater than zero");
+    }
+
+    let input_path = crate::harness_events::harness_event_log_path(run_id);
+    let events = crate::harness_events::read_harness_event_ndjson(&input_path)?;
+    let selected =
+        crate::harness_events::harness_events_after_last_event_id(&events, last_event_id);
+
+    let mut output_bytes = Vec::new();
+    write_events_sse(&mut output_bytes, selected, retry_ms)?;
+
+    if let Some(output_path) = output {
+        write_output_file(&output_path, &output_bytes)?;
+        println!(
+            "Exported {} SSE harness event frame(s) for run {} to {}",
+            selected.len(),
+            run_id,
+            output_path.display()
+        );
+    } else {
+        let mut stdout = std::io::stdout().lock();
+        stdout.write_all(&output_bytes)?;
+        stdout.flush()?;
+    }
+
+    Ok(())
+}
+
+pub fn run_events_prune_command(
+    keep_logs: Option<usize>,
+    max_total_bytes: Option<u64>,
+    apply: bool,
+    emit_json: bool,
+) -> Result<()> {
+    if keep_logs.is_none() && max_total_bytes.is_none() {
+        anyhow::bail!("set --keep-logs or --max-total-bytes to define a retention limit");
+    }
+    if keep_logs == Some(0) {
+        anyhow::bail!("--keep-logs must be greater than zero");
+    }
+    if max_total_bytes == Some(0) {
+        anyhow::bail!("--max-total-bytes must be greater than zero");
+    }
+
+    let report = crate::harness_events::apply_harness_event_log_retention(
+        crate::harness_events::HarnessEventRetentionPolicy {
+            max_logs: keep_logs,
+            max_total_bytes,
+            dry_run: !apply,
+        },
+    )?;
+
+    if emit_json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+
+    println!(
+        "Harness event retention {}",
+        if report.dry_run { "dry-run" } else { "applied" }
+    );
+    println!("Log dir: {}", report.log_dir);
+    println!(
+        "Before: {} log(s), {} byte(s)",
+        report.before_logs, report.before_bytes
+    );
+    println!(
+        "Kept: {} log(s), {} byte(s)",
+        report.kept_logs, report.kept_bytes
+    );
+    println!(
+        "Pruned: {} log(s), {} byte(s)",
+        report.pruned_logs, report.pruned_bytes
+    );
+    if !report.candidates.is_empty() {
+        println!("run_id\treason\tbytes\tdeleted\tpath");
+        for entry in &report.candidates {
+            println!(
+                "{}\t{}\t{}\t{}\t{}",
+                entry.run_id, entry.reason, entry.bytes, entry.deleted, entry.path
+            );
+        }
+    }
+    if report.dry_run && report.pruned_logs > 0 {
+        println!("Re-run with --apply to delete the listed log(s).");
+    }
+
+    Ok(())
+}
+
+pub fn run_events_bench_command(events: usize, emit_json: bool) -> Result<()> {
+    if events == 0 {
+        anyhow::bail!("--events must be greater than zero");
+    }
+
+    let report = crate::harness_events::run_harness_event_benchmark(
+        crate::harness_events::HarnessEventBenchmarkOptions { events },
+    )?;
+
+    if emit_json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+
+    println!(
+        "Harness events synthetic benchmark: {} events",
+        report.events
+    );
+    println!("NDJSON bytes: {}", report.ndjson_bytes);
+    println!("Read diagnostics: {}", report.read_diagnostics);
+    print_benchmark_metric("publish_no_subscribers", &report.publish_no_subscribers);
+    print_benchmark_metric("ndjson_write_memory", &report.ndjson_write_memory);
+    print_benchmark_metric("ndjson_write_file", &report.ndjson_write_file);
+    print_benchmark_metric("ndjson_read_report_file", &report.ndjson_read_report_file);
+    print_benchmark_metric("timeline_build", &report.timeline_build);
+    if !report.notes.is_empty() {
+        println!("Notes:");
+        for note in report.notes {
+            println!("- {}", note);
+        }
+    }
+
+    Ok(())
+}
+
+fn print_benchmark_metric(name: &str, metric: &crate::harness_events::HarnessEventBenchmarkMetric) {
+    println!(
+        "{}: {} ns total, {:.3} us/event, {:.0} events/s",
+        name, metric.total_nanos, metric.micros_per_event, metric.events_per_second
+    );
+}
+
+fn write_output_file(path: &std::path::Path, bytes: &[u8]) -> Result<()> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, bytes)?;
+    Ok(())
+}
+
+fn write_events_ndjson(
+    writer: &mut impl Write,
+    events: &[crate::harness_events::HarnessEvent],
+) -> Result<()> {
+    for event in events {
+        crate::harness_events::write_harness_event_ndjson(writer, event)?;
+    }
+    Ok(())
+}
+
+fn write_events_sse(
+    writer: &mut impl Write,
+    events: &[crate::harness_events::HarnessEvent],
+    retry_ms: u64,
+) -> Result<()> {
+    for event in events {
+        crate::harness_events::write_harness_event_sse(writer, event, Some(retry_ms))?;
+    }
+    Ok(())
+}
+
+fn harness_event_label(value: &impl Serialize) -> String {
+    serde_json::to_value(value)
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_string))
+        .unwrap_or_else(|| "unknown".to_string())
 }
 
 async fn run_ambient_visible() -> Result<()> {
@@ -757,6 +1153,166 @@ struct NdjsonRunState {
     usage: crate::agent::TokenUsage,
 }
 
+struct HarnessRunEventLogger<'a> {
+    bus: &'a crate::harness_events::HarnessEventBus,
+    run_id: String,
+    path: PathBuf,
+    sampling_policy: crate::harness_events::HarnessEventSamplingPolicy,
+    sampling_counters: std::sync::Mutex<HashMap<crate::harness_events::HarnessEventKind, u64>>,
+}
+
+impl HarnessRunEventLogger<'static> {
+    fn global(run_id: impl Into<String>) -> Result<Self> {
+        Ok(
+            Self::new(run_id, crate::harness_events::HarnessEventBus::global())
+                .with_sampling_policy(
+                    crate::harness_events::HarnessEventSamplingPolicy::from_env()?
+                ),
+        )
+    }
+}
+
+impl<'a> HarnessRunEventLogger<'a> {
+    fn new(run_id: impl Into<String>, bus: &'a crate::harness_events::HarnessEventBus) -> Self {
+        let run_id = run_id.into();
+        let path = crate::harness_events::harness_event_log_path(&run_id);
+        Self {
+            bus,
+            run_id,
+            path,
+            sampling_policy: crate::harness_events::HarnessEventSamplingPolicy::default(),
+            sampling_counters: std::sync::Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn with_sampling_policy(
+        mut self,
+        sampling_policy: crate::harness_events::HarnessEventSamplingPolicy,
+    ) -> Self {
+        self.sampling_policy = sampling_policy;
+        self
+    }
+
+    fn path(&self) -> &PathBuf {
+        &self.path
+    }
+
+    fn append(
+        &self,
+        draft: crate::harness_events::HarnessEventDraft,
+    ) -> Result<Option<crate::harness_events::HarnessEvent>> {
+        let sampling_ordinal = self.next_sampling_ordinal(draft.kind());
+        let sampling_decision = self.sampling_policy.should_record(&draft, sampling_ordinal);
+        if !sampling_decision.record {
+            return Ok(None);
+        }
+
+        let event = self.bus.publish(draft);
+        crate::harness_events::append_harness_event_ndjson(&self.path, &event)?;
+        Ok(Some(event))
+    }
+
+    fn next_sampling_ordinal(&self, kind: crate::harness_events::HarnessEventKind) -> u64 {
+        let mut counters = self
+            .sampling_counters
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let counter = counters.entry(kind).or_insert(0);
+        *counter += 1;
+        *counter
+    }
+
+    fn run_started(&self, provider: &str, model: &str, session_id: &str) -> Result<()> {
+        self.append(
+            crate::harness_events::HarnessEventDraft::run_started(&self.run_id)
+                .with_session_id(session_id)
+                .with_payload(serde_json::json!({
+                    "provider": provider,
+                    "model": model,
+                    "source": "jcode_run_ndjson",
+                })),
+        )?;
+        Ok(())
+    }
+
+    fn protocol_event(&self, event: &crate::protocol::ServerEvent) -> Result<()> {
+        use crate::harness_events::{HarnessEventDraft, HarnessEventKind, HarnessEventLevel};
+        use crate::protocol::ServerEvent;
+
+        let Some(draft) = (match event {
+            ServerEvent::ToolStart { id, name } | ServerEvent::ToolExec { id, name } => Some(
+                HarnessEventDraft::new(&self.run_id, HarnessEventKind::ToolStarted).with_payload(
+                    serde_json::json!({
+                        "tool_call_id": id,
+                        "tool": name,
+                    }),
+                ),
+            ),
+            ServerEvent::ToolDone {
+                id, name, error, ..
+            } => Some(
+                HarnessEventDraft::new(&self.run_id, HarnessEventKind::ToolFinished)
+                    .with_level(if error.is_some() {
+                        HarnessEventLevel::Error
+                    } else {
+                        HarnessEventLevel::Info
+                    })
+                    .with_payload(serde_json::json!({
+                        "tool_call_id": id,
+                        "tool": name,
+                        "status": if error.is_some() { "failed" } else { "ok" },
+                        "has_error": error.is_some(),
+                    })),
+            ),
+            _ => None,
+        }) else {
+            return Ok(());
+        };
+
+        self.append(draft)?;
+        Ok(())
+    }
+
+    fn run_completed(
+        &self,
+        provider: &str,
+        model: &str,
+        state: &NdjsonRunState,
+        duration_ms: u128,
+    ) -> Result<()> {
+        self.append(
+            crate::harness_events::HarnessEventDraft::run_completed(&self.run_id).with_payload(
+                serde_json::json!({
+                    "provider": provider,
+                    "model": model,
+                    "status": "ok",
+                    "duration_ms": duration_ms,
+                    "text_chars": state.text.chars().count(),
+                    "input_tokens": state.usage.input_tokens,
+                    "output_tokens": state.usage.output_tokens,
+                    "cache_read_input_tokens": state.usage.cache_read_input_tokens,
+                    "cache_creation_input_tokens": state.usage.cache_creation_input_tokens,
+                }),
+            ),
+        )?;
+        Ok(())
+    }
+
+    fn run_failed(&self, provider: &str, model: &str, duration_ms: u128) -> Result<()> {
+        self.append(
+            crate::harness_events::HarnessEventDraft::run_failed(&self.run_id).with_payload(
+                serde_json::json!({
+                    "provider": provider,
+                    "model": model,
+                    "status": "failed",
+                    "duration_ms": duration_ms,
+                }),
+            ),
+        )?;
+        Ok(())
+    }
+}
+
 pub fn run_auth_status_command(emit_json: bool) -> Result<()> {
     report_info::run_auth_status_command(emit_json)
 }
@@ -998,6 +1554,399 @@ pub fn run_skills_doctor_command(emit_json: bool) -> Result<()> {
             skill.origin.label(),
             skill.path.display()
         );
+    }
+    Ok(())
+}
+
+pub fn run_skills_scope_init_command(
+    cwd: Option<String>,
+    force: bool,
+    emit_json: bool,
+) -> Result<()> {
+    let root = resolve_existing_root(cwd.as_deref(), "skills scope init")?;
+    let report = crate::skill_scope::init_policy(&root, force)?;
+    print_skill_scope_report(&report, emit_json)
+}
+
+pub fn run_skills_scope_list_command(cwd: Option<String>, emit_json: bool) -> Result<()> {
+    let root = resolve_existing_root(cwd.as_deref(), "skills scope list")?;
+    let report = crate::skill_scope::list_policy(&root)?;
+    print_skill_scope_report(&report, emit_json)
+}
+
+pub fn run_skills_scope_set_command(
+    cwd: Option<String>,
+    name: &str,
+    state: crate::skill_scope::SkillScopeState,
+    reason: Option<String>,
+    emit_json: bool,
+) -> Result<()> {
+    let root = resolve_existing_root(cwd.as_deref(), "skills scope set")?;
+    let report = crate::skill_scope::set_skill_state(&root, name, state, reason)?;
+    print_skill_scope_report(&report, emit_json)
+}
+
+fn resolve_existing_root(cwd: Option<&str>, label: &str) -> Result<PathBuf> {
+    let root = cwd.map(PathBuf::from).unwrap_or(std::env::current_dir()?);
+    if !root.is_dir() {
+        anyhow::bail!(
+            "{label} cwd does not exist or is not a directory: {}",
+            root.display()
+        );
+    }
+    Ok(root)
+}
+
+fn print_skill_scope_report(
+    report: &crate::skill_scope::SkillScopeReport,
+    emit_json: bool,
+) -> Result<()> {
+    if emit_json {
+        println!("{}", serde_json::to_string_pretty(report)?);
+        return Ok(());
+    }
+
+    println!("jcode skills scope: {}", report.policy_path);
+    println!("Exists: {}", report.exists);
+    println!("Created: {}", report.created);
+    println!("Updated: {}", report.updated);
+    println!("Default state: {}", report.policy.default_state.label());
+    if report.policy.skills.is_empty() {
+        println!("No explicit skill scope entries.");
+    } else {
+        println!("Skill scope entries:");
+        for entry in &report.policy.skills {
+            let reason = entry
+                .reason
+                .as_deref()
+                .map(|reason| format!(" ({reason})"))
+                .unwrap_or_default();
+            println!("  - {}: {}{}", entry.name, entry.state.label(), reason);
+        }
+    }
+    Ok(())
+}
+
+pub struct SkillsImportCommandOptions {
+    pub cwd: Option<String>,
+    pub sources: Vec<PathBuf>,
+    pub scope: crate::skill_import::SkillImportScope,
+    pub apply: bool,
+    pub force: bool,
+    pub json: bool,
+}
+
+pub fn run_skills_import_command(options: SkillsImportCommandOptions) -> Result<()> {
+    let root = resolve_existing_root(options.cwd.as_deref(), "skills import")?;
+    let sources = options
+        .sources
+        .into_iter()
+        .map(|path| {
+            if path.is_absolute() {
+                path
+            } else {
+                root.join(path)
+            }
+        })
+        .collect();
+    let report = crate::skill_import::run_import(crate::skill_import::SkillImportOptions {
+        root,
+        sources,
+        scope: options.scope,
+        apply: options.apply,
+        force: options.force,
+    })?;
+
+    if options.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        print_skill_import_report(&report);
+    }
+
+    if report.should_fail() {
+        anyhow::bail!("skill import failed with {} error(s)", report.errors);
+    }
+    Ok(())
+}
+
+fn print_skill_import_report(report: &crate::skill_import::SkillImportReport) {
+    println!("jcode skills import: {}", report.status.label());
+    println!("Offline diagnostics: true");
+    println!("Dry run: {}", report.dry_run);
+    println!(
+        "Target: {} ({})",
+        report.target.scope.label(),
+        report.target.path
+    );
+    println!(
+        "Planned: {} write(s), copied {}, skipped {}",
+        report.planned, report.copied, report.skipped
+    );
+    println!(
+        "Findings: {} error(s), {} warning(s)",
+        report.errors, report.warnings
+    );
+    println!("Sources:");
+    for source in &report.sources {
+        println!(
+            "  - {}: {} checked, exists={} ({})",
+            source.origin, source.checked, source.exists, source.path
+        );
+    }
+
+    if report.actions.is_empty() {
+        println!("No skill import actions planned.");
+        return;
+    }
+
+    println!("Actions:");
+    for action in &report.actions {
+        let name = action.name.as_deref().unwrap_or("<invalid>");
+        let reason = action
+            .reason
+            .as_ref()
+            .map(|reason| format!(" ({reason})"))
+            .unwrap_or_default();
+        println!(
+            "  - {} {} -> {} [{} applied={}]{}",
+            action.action.label(),
+            action.source_path,
+            action.target_path,
+            name,
+            action.applied,
+            reason
+        );
+    }
+}
+
+pub fn run_skills_validate_command(cwd: Option<String>, emit_json: bool) -> Result<()> {
+    let root = resolve_existing_root(cwd.as_deref(), "skills validate")?;
+    let report = crate::skill_validation::validate_for_working_dir(&root)?;
+    if emit_json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        print_skill_validation_report(&report);
+    }
+
+    if report.should_fail() {
+        anyhow::bail!("skill validation failed with {} error(s)", report.errors);
+    }
+    Ok(())
+}
+
+fn print_skill_validation_report(report: &crate::skill_validation::SkillValidationReport) {
+    println!("jcode skills validate: {}", report.status.label());
+    println!("Offline diagnostics: true");
+    println!("Root: {}", report.root);
+    println!(
+        "Skills checked: {} (valid {}, invalid {})",
+        report.checked, report.valid, report.invalid
+    );
+    println!(
+        "Findings: {} error(s), {} warning(s)",
+        report.errors, report.warnings
+    );
+
+    println!("Origins:");
+    for origin in &report.origins {
+        println!(
+            "  - {}: {} checked, exists={} ({})",
+            origin.origin, origin.checked, origin.exists, origin.path
+        );
+    }
+
+    if report.findings.is_empty() {
+        println!("No findings.");
+        return;
+    }
+
+    println!("Findings detail:");
+    for finding in &report.findings {
+        println!(
+            "  - [{}] {} {}: {}",
+            finding.severity.label(),
+            finding.code,
+            finding.path,
+            finding.message
+        );
+    }
+}
+
+pub fn run_skills_match_command(
+    goal: &str,
+    cwd: Option<String>,
+    mode: crate::skill_router::SkillMode,
+    explicit: &[String],
+    emit_json: bool,
+) -> Result<()> {
+    let root = resolve_existing_root(cwd.as_deref(), "skills match")?;
+    let registry = crate::skill::SkillRegistry::load_for_working_dir(Some(&root))?;
+    let raw_selected = crate::skill_router::select_skills(goal, explicit, mode);
+    let scope_selection =
+        crate::skill_scope::apply_policy_for_selection(&root, raw_selected, explicit)?;
+    let selected = scope_selection.selected_names();
+
+    if emit_json {
+        let entries = selected
+            .iter()
+            .map(|name| {
+                if let Some(skill) = registry.get(name) {
+                    serde_json::json!({
+                        "name": skill.name,
+                        "description": skill.description,
+                        "origin": skill.origin.label(),
+                        "path": skill.path.display().to_string(),
+                        "allowed_tools": skill.allowed_tools,
+                    })
+                } else {
+                    serde_json::json!({
+                        "name": name,
+                        "missing": true,
+                    })
+                }
+            })
+            .collect::<Vec<_>>();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "goal": goal,
+                "mode": format!("{:?}", mode).to_ascii_lowercase(),
+                "selected": entries,
+                "policy": scope_selection,
+            }))?
+        );
+        return Ok(());
+    }
+
+    if selected.is_empty() {
+        println!("No skills selected for this task.");
+        if !scope_selection.skipped.is_empty() {
+            println!("Skipped by scope policy:");
+            for decision in scope_selection.skipped {
+                println!(
+                    "- {}\t{}\t{}",
+                    decision.name,
+                    decision.state.label(),
+                    decision.reason.unwrap_or_default()
+                );
+            }
+        }
+        return Ok(());
+    }
+
+    println!("Selected skills for task:");
+    for name in selected {
+        if let Some(skill) = registry.get(&name) {
+            println!(
+                "- {}\t{}\t{}",
+                skill.name,
+                skill.origin.label(),
+                skill.description
+            );
+        } else {
+            println!("- {name}\tmissing");
+        }
+    }
+    if !scope_selection.skipped.is_empty() {
+        println!("Skipped by scope policy:");
+        for decision in scope_selection.skipped {
+            println!(
+                "- {}\t{}\t{}",
+                decision.name,
+                decision.state.label(),
+                decision.reason.unwrap_or_default()
+            );
+        }
+    }
+    Ok(())
+}
+
+pub fn run_llmwiki_bridge_command(emit_json: bool) -> Result<()> {
+    let contract = serde_json::json!({
+        "skill": "llmwiki-memory",
+        "kind": "local-mcp-bridge-preview",
+        "offline": true,
+        "network_required": false,
+        "permission_boundary": {
+            "default": "read-only preview; this command never invokes MCP tools",
+            "writes": "wiki_sync may write local raw/session pages only when the operator explicitly invokes it outside this preview",
+            "secrets": "do not record credentials, tokens, private keys, or unredacted personal data in wiki pages"
+        },
+        "commands": [
+            {
+                "name": "wiki_query",
+                "purpose": "Retrieve synthesized project memory, decisions, and prior context by question.",
+                "mcp_tool": "mcp__llmwiki__wiki_query",
+                "example": { "question": "what did we decide about embedded skills?", "max_pages": 5 }
+            },
+            {
+                "name": "wiki_search",
+                "purpose": "Find literal text across wiki pages and optionally raw session transcripts.",
+                "mcp_tool": "mcp__llmwiki__wiki_search",
+                "example": { "term": "llmwiki-memory", "include_raw": false }
+            },
+            {
+                "name": "wiki_read_page",
+                "purpose": "Read one known wiki or raw page by path for provenance.",
+                "mcp_tool": "mcp__llmwiki__wiki_read_page",
+                "example": { "path": "wiki/index.md" }
+            },
+            {
+                "name": "wiki_sync",
+                "purpose": "Import new local agent session transcripts into raw/sessions for future wiki use.",
+                "mcp_tool": "mcp__llmwiki__wiki_sync",
+                "example": { "dry_run": true },
+                "write_risk": "local-files"
+            },
+            {
+                "name": "wiki_export",
+                "purpose": "Export a machine-readable wiki index or flattened dump for handoff/context packaging.",
+                "mcp_tool": "mcp__llmwiki__wiki_export",
+                "example": { "format": "llms-txt" }
+            },
+            {
+                "name": "wiki_lint",
+                "purpose": "Check wiki integrity before relying on it as durable memory.",
+                "mcp_tool": "mcp__llmwiki__wiki_lint",
+                "example": {}
+            }
+        ],
+        "recommended_flow": [
+            "Query wiki for prior decisions before planning.",
+            "Verify wiki claims against repository files or issues.",
+            "Record durable learnings only after checking local secret boundaries."
+        ]
+    });
+
+    if emit_json {
+        println!("{}", serde_json::to_string_pretty(&contract)?);
+    } else {
+        println!(
+            "jcode skills llmwiki-bridge: {}",
+            contract["kind"].as_str().unwrap_or("preview")
+        );
+        println!(
+            "Skill: {}",
+            contract["skill"].as_str().unwrap_or("llmwiki-memory")
+        );
+        println!("Offline: true");
+        println!("Network required: false");
+        println!(
+            "Permission boundary: {}",
+            contract["permission_boundary"]["default"]
+                .as_str()
+                .unwrap_or("read-only preview")
+        );
+        println!("Commands:");
+        if let Some(commands) = contract["commands"].as_array() {
+            for command in commands {
+                println!(
+                    "  - {} -> {}",
+                    command["name"].as_str().unwrap_or("<unknown>"),
+                    command["mcp_tool"].as_str().unwrap_or("<unknown>")
+                );
+            }
+        }
     }
     Ok(())
 }
@@ -1275,6 +2224,10 @@ async fn run_single_message_command_ndjson(
 ) -> Result<()> {
     let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
     let session_id = agent.session_id().to_string();
+    let run_id = session_id.clone();
+    let harness_log = HarnessRunEventLogger::global(run_id.clone())?;
+    let run_started_at = Instant::now();
+    harness_log.run_started(provider.name(), &provider.model(), &session_id)?;
     let mut stdout = std::io::stdout().lock();
     let mut state = NdjsonRunState {
         session_id: Some(session_id.clone()),
@@ -1285,6 +2238,8 @@ async fn run_single_message_command_ndjson(
         &serde_json::json!({
             "type": "start",
             "session_id": session_id,
+            "harness_run_id": run_id,
+            "harness_event_log": harness_log.path().display().to_string(),
             "provider": provider.name(),
             "model": provider.model(),
         }),
@@ -1310,13 +2265,17 @@ async fn run_single_message_command_ndjson(
                     }
                     event = event_rx.recv() => {
                         match event {
-                            Some(event) => emit_ndjson_event(&mut stdout, &mut state, event)?,
+                            Some(event) => {
+                                harness_log.protocol_event(&event)?;
+                                emit_ndjson_event(&mut stdout, &mut state, event)?;
+                            }
                             None => break,
                         }
                     }
                 }
                 if run_result.is_some() {
                     while let Ok(event) = event_rx.try_recv() {
+                        harness_log.protocol_event(&event)?;
                         emit_ndjson_event(&mut stdout, &mut state, event)?;
                     }
                     break;
@@ -1365,11 +2324,19 @@ async fn run_single_message_command_ndjson(
 
     match result {
         Ok(()) => {
+            harness_log.run_completed(
+                provider.name(),
+                &provider.model(),
+                &state,
+                run_started_at.elapsed().as_millis(),
+            )?;
             write_json_line(
                 &mut stdout,
                 &serde_json::json!({
                     "type": "done",
                     "session_id": session_id,
+                    "harness_run_id": run_id,
+                    "harness_event_log": harness_log.path().display().to_string(),
                     "provider": provider.name(),
                     "model": provider.model(),
                     "text": state.text,
@@ -1383,11 +2350,18 @@ async fn run_single_message_command_ndjson(
             Ok(())
         }
         Err(err) => {
+            harness_log.run_failed(
+                provider.name(),
+                &provider.model(),
+                run_started_at.elapsed().as_millis(),
+            )?;
             write_json_line(
                 &mut stdout,
                 &serde_json::json!({
                     "type": "error",
                     "session_id": session_id,
+                    "harness_run_id": run_id,
+                    "harness_event_log": harness_log.path().display().to_string(),
                     "provider": provider.name(),
                     "model": provider.model(),
                     "message": format!("{err:#}"),

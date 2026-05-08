@@ -111,11 +111,8 @@ pub(super) async fn stream_response(
 
     if !response.status().is_success() {
         let status = response.status();
-        let retry_after = response
-            .headers()
-            .get("retry-after")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse::<u64>().ok());
+        let retry_after =
+            crate::provider::retry_after_secs_from_headers(response.headers(), chrono::Utc::now());
 
         let body = crate::util::http_error_body(response, "HTTP error").await;
 
@@ -139,14 +136,7 @@ pub(super) async fn stream_response(
         }
 
         // For rate limits, include retry info in the error
-        let msg = if status == StatusCode::TOO_MANY_REQUESTS {
-            let wait_info = retry_after
-                .map(|s| format!(" (retry after {}s)", s))
-                .unwrap_or_default();
-            format!("Rate limited{}: {}", wait_info, body)
-        } else {
-            format!("OpenAI API error {}: {}", status, body)
-        };
+        let msg = format_openai_http_error(status, retry_after, &body);
         return Err(OpenAIStreamFailure::Other(anyhow::anyhow!("{}", msg)));
     }
 
@@ -203,6 +193,19 @@ pub(super) async fn stream_response(
     }
 
     Ok(())
+}
+
+pub(super) fn format_openai_http_error(
+    status: StatusCode,
+    retry_after: Option<u64>,
+    body: &str,
+) -> String {
+    if status == StatusCode::TOO_MANY_REQUESTS {
+        let wait_info = crate::provider::retry_after_suffix(retry_after);
+        format!("Rate limited{}: {}", wait_info, body)
+    } else {
+        format!("OpenAI API error {}: {}", status, body)
+    }
 }
 
 pub(super) fn is_ws_upgrade_required(err: &WsError) -> bool {
@@ -1062,6 +1065,8 @@ pub(super) fn extract_error_with_retry(
 
 /// Check if an error is transient and should be retried
 pub(super) fn is_retryable_error(error_str: &str) -> bool {
+    let error_str = error_str.to_ascii_lowercase();
+
     // Network/connection errors
     error_str.contains("connection reset")
         || error_str.contains("connection closed")
@@ -1084,6 +1089,14 @@ pub(super) fn is_retryable_error(error_str: &str) -> bool {
         || error_str.contains("503 service unavailable")
         || error_str.contains("504 gateway timeout")
         || error_str.contains("overloaded")
+        // Provider rate limits and throttling. OpenAI HTTP 429 responses are
+        // formatted as "Rate limited ..." above before they reach the retry
+        // loop, while stream errors may surface provider-specific codes.
+        || error_str.contains("429 too many requests")
+        || error_str.contains("too many requests")
+        || error_str.contains("rate limited")
+        || error_str.contains("rate_limit")
+        || error_str.contains("rate limit")
         // API-level server errors
         || error_str.contains("api_error")
         || error_str.contains("server_error")

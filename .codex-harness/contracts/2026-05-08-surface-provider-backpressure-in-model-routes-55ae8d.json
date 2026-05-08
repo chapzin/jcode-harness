@@ -1,0 +1,48 @@
+{
+  "id": "2026-05-08-surface-provider-backpressure-in-model-routes-55ae8d",
+  "title": "Surface provider backpressure in model routes",
+  "goal": "Expose active provider/model concurrency backpressure in model route metadata so UI/state consumers can see saturated reactive gates without changing request execution semantics.",
+  "createdAt": "2026-05-08T17:23:19.323Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 30
+  },
+  "permissions": [
+    "read repo",
+    "edit provider code/tests",
+    "run focused tests",
+    "selfdev build/reload",
+    "commit and push",
+    "comment issue #27"
+  ],
+  "completionConditions": [
+    "Routes for an actively saturated provider/model semaphore receive a compact provider backpressure detail without becoming unavailable.",
+    "Cooldown detail still takes precedence and can coexist with existing details.",
+    "OpenRouter endpoint routes use the shared openrouter scope for backpressure, matching cooldown behavior.",
+    "Focused tests, cargo fmt/check, cargo check, selfdev build/reload, governance, commit/push, and issue #27 update pass."
+  ],
+  "outputPaths": [
+    "src/provider/routing.rs",
+    "src/provider/mod.rs",
+    "src/provider/tests/fallback_failover.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode provider_model_route_backpressure --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "formatting_failure",
+    "route_availability_regression",
+    "scope_mismatch",
+    "governance_failure"
+  ],
+  "notes": "Follow-up to 0b3c6473. Keep this observational: do not mark routes unavailable for semaphore saturation, since requests can wait for permits."
+}

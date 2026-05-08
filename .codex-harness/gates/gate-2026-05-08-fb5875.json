@@ -1,0 +1,35 @@
+{
+  "id": "gate-2026-05-08-fb5875",
+  "ts": "2026-05-08T17:50:27.538Z",
+  "contractId": "2026-05-08-publish-model-updates-for-provider-runtime-state-489159",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/provider/routing.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/tests/fallback_failover.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Provider runtime state revision changes publish debounced ModelsUpdated events via bump_provider_runtime_state_revision().",
+    "Publish hook covers cooldown record/clear/expiry and backpressure permit acquire/release because all visible runtime state transitions use the shared revision bump helper.",
+    "Focused test provider_runtime_state_revision_publishes_models_updated proved a provider runtime state bump emits BusEvent::ModelsUpdated through the debounced bus.",
+    "Focused verification, cargo fmt/check, cargo check, git diff --check, selfdev build and reload all passed."
+  ],
+  "uncheckedConditions": [
+    "Provider runtime state revision changes publish debounced ModelsUpdated events.",
+    "Publish hook covers cooldown record/clear/expiry and backpressure permit acquire/release via the shared revision bump helper.",
+    "Focused tests prove a runtime state bump emits/coalesces ModelsUpdated through the bus.",
+    "Focused tests, cargo fmt/check, cargo check, selfdev build/reload, governance, commit/push, and issue #27 update pass."
+  ],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/433768tym5.output",
+    "/tmp/jcode-bg-tasks/53265255bs.output",
+    "src/provider/routing.rs",
+    "src/provider/tests/fallback_failover.rs"
+  ],
+  "notes": "Publishing is intentionally done in the shared revision bump helper. The bus's existing publish_models_updated debounce coalesces bursts from cooldown/backpressure transitions before remote clients receive AvailableModelsUpdated."
+}

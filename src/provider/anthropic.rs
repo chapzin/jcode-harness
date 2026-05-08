@@ -1161,10 +1161,73 @@ async fn run_stream_with_retries(
     let mut last_error = None;
     let mut attempted_forced_refresh = false;
 
+    if let Some(delay) =
+        crate::provider::provider_rate_limit_cooldown_remaining_ms("anthropic", &model_name)
+    {
+        let _ = tx
+            .send(Ok(StreamEvent::ConnectionPhase {
+                phase: crate::message::ConnectionPhase::Retrying {
+                    attempt: 1,
+                    max: MAX_RETRIES,
+                },
+            }))
+            .await;
+        let _ = tx
+            .send(Ok(StreamEvent::StatusDetail {
+                detail: format!(
+                    "rate-limit cooldown {}",
+                    crate::provider::provider_wait_status_duration(delay)
+                ),
+            }))
+            .await;
+        crate::logging::info(&format!(
+            "Anthropic provider rate-limit cooldown active for model='{}' ({}ms remaining)",
+            model_name, delay
+        ));
+        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+    }
+
+    let _provider_concurrency_permit =
+        crate::provider::acquire_provider_concurrency_permit("anthropic", &model_name).await;
+    if let Some(permit) = _provider_concurrency_permit.as_ref()
+        && permit.waited_ms() > 0
+    {
+        let _ = tx
+            .send(Ok(StreamEvent::StatusDetail {
+                detail: format!(
+                    "provider backpressure {}",
+                    crate::provider::provider_wait_status_duration(permit.waited_ms())
+                ),
+            }))
+            .await;
+        crate::logging::info(&format!(
+            "{} provider backpressure waited {}ms for model='{}' (limit={})",
+            permit.provider(),
+            permit.waited_ms(),
+            permit.model(),
+            permit.limit()
+        ));
+    }
+
     for attempt in 0..MAX_RETRIES {
         if attempt > 0 {
-            // Exponential backoff: 1s, 2s, 4s
-            let delay = RETRY_BASE_DELAY_MS * (1 << (attempt - 1));
+            let delay = last_error
+                .as_ref()
+                .map(|error: &anyhow::Error| {
+                    crate::provider::retry_delay_ms_for_error(
+                        attempt,
+                        RETRY_BASE_DELAY_MS,
+                        crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
+                        &error.to_string(),
+                    )
+                })
+                .unwrap_or_else(|| {
+                    crate::provider::retry_backoff_delay_ms(
+                        attempt,
+                        RETRY_BASE_DELAY_MS,
+                        crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
+                    )
+                });
             let _ = tx
                 .send(Ok(StreamEvent::ConnectionPhase {
                     phase: crate::message::ConnectionPhase::Retrying {
@@ -1175,7 +1238,8 @@ async fn run_stream_with_retries(
                 .await;
             tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
             crate::logging::info(&format!(
-                "Retrying Anthropic API request (attempt {}/{})",
+                "Retrying Anthropic API request after {}ms (attempt {}/{})",
+                delay,
                 attempt + 1,
                 MAX_RETRIES
             ));
@@ -1230,7 +1294,25 @@ async fn run_stream_with_retries(
                 }
 
                 // Check if this is a transient/retryable error
-                if is_retryable_error(&error_str) && attempt + 1 < MAX_RETRIES {
+                let retryable = is_retryable_error(&error_str);
+                if retryable {
+                    if let Some(cooldown) =
+                        crate::provider::record_provider_rate_limit_cooldown_for_retry(
+                            "anthropic",
+                            &model_name,
+                            &error_str,
+                            attempt + 1,
+                            RETRY_BASE_DELAY_MS,
+                            crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
+                        )
+                    {
+                        crate::logging::info(&format!(
+                            "Recorded Anthropic provider rate-limit cooldown for model='{}' ({}ms)",
+                            model_name, cooldown
+                        ));
+                    }
+                }
+                if retryable && attempt + 1 < MAX_RETRIES {
                     crate::logging::info(&format!("Transient error, will retry: {}", e));
                     last_error = Some(e);
                     continue;
@@ -1390,8 +1472,13 @@ async fn stream_response(
 
     if !response.status().is_success() {
         let status = response.status();
+        let retry_after =
+            crate::provider::retry_after_secs_from_headers(response.headers(), chrono::Utc::now());
         let error_text = crate::util::http_error_body(response, "HTTP error").await;
-        anyhow::bail!("Anthropic API error ({}): {}", status, error_text);
+        anyhow::bail!(
+            "{}",
+            format_anthropic_http_error(status, retry_after, &error_text)
+        );
     }
 
     let _ = tx
@@ -1467,6 +1554,15 @@ async fn stream_response(
     }
 
     Ok(())
+}
+
+fn format_anthropic_http_error(
+    status: reqwest::StatusCode,
+    retry_after: Option<u64>,
+    error_text: &str,
+) -> String {
+    let wait_info = crate::provider::retry_after_suffix(retry_after);
+    format!("Anthropic API error ({status}){wait_info}: {error_text}")
 }
 
 /// Check if an error is transient and should be retried

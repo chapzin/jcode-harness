@@ -443,3 +443,41 @@ async fn await_reload_handoff_returns_failed_after_marker_transition() {
         crate::env::remove_var("JCODE_RUNTIME_DIR");
     }
 }
+
+#[tokio::test]
+async fn await_reload_handoff_times_out_when_live_pid_never_becomes_ready() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_runtime = std::env::var_os("JCODE_RUNTIME_DIR");
+    crate::env::set_var("JCODE_RUNTIME_DIR", temp.path());
+
+    ReloadState {
+        request_id: "test-timeout".to_string(),
+        hash: "test-hash".to_string(),
+        phase: ReloadPhase::Starting,
+        pid: std::process::id(),
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        detail: None,
+    }
+    .write();
+
+    let socket_path = temp.path().join("missing.sock");
+    let status = tokio::time::timeout(
+        Duration::from_secs(1),
+        await_reload_handoff(&socket_path, Duration::from_millis(150)),
+    )
+    .await
+    .expect("await reload handoff should have a hard deadline");
+
+    assert!(
+        matches!(status, ReloadWaitStatus::TimedOut(ref detail) if detail.contains("did not become ready")),
+        "expected explicit timeout status, got: {status:?}"
+    );
+
+    clear_reload_marker();
+    if let Some(prev_runtime) = prev_runtime {
+        crate::env::set_var("JCODE_RUNTIME_DIR", prev_runtime);
+    } else {
+        crate::env::remove_var("JCODE_RUNTIME_DIR");
+    }
+}

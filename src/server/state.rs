@@ -155,6 +155,8 @@ pub struct SwarmMember {
     pub friendly_name: Option<String>,
     /// Session that should receive direct completion report-back for this member, if any.
     pub report_back_to_session_id: Option<String>,
+    /// Run/generation id for the orchestration run that spawned this member.
+    pub run_id: Option<String>,
     /// Latest explicit completion report submitted by this member.
     pub latest_completion_report: Option<String>,
     /// Role: "agent", "coordinator", "worktree_manager"
@@ -179,6 +181,7 @@ impl SwarmMember {
             detail: self.detail.clone(),
             friendly_name: self.friendly_name.clone(),
             report_back_to_session_id: self.report_back_to_session_id.clone(),
+            run_id: self.run_id.clone(),
             latest_completion_report: self.latest_completion_report.clone(),
             role: SwarmRole::from(self.role.clone()),
             is_headless: self.is_headless,
@@ -210,6 +213,7 @@ impl SwarmMember {
             detail: record.detail,
             friendly_name: record.friendly_name,
             report_back_to_session_id: record.report_back_to_session_id,
+            run_id: record.run_id,
             latest_completion_report: record.latest_completion_report,
             role: record.role.as_str().into_owned(),
             joined_at: Instant::now(),
@@ -270,6 +274,29 @@ pub enum SwarmEventType {
     },
 }
 
+/// Snapshot of member metadata captured when a swarm event is recorded.
+#[derive(Clone, Debug, Default)]
+pub struct SwarmEventMemberMetadata {
+    pub run_id: Option<String>,
+    pub role: Option<String>,
+    pub status: Option<String>,
+    pub working_dir: Option<String>,
+}
+
+impl SwarmEventMemberMetadata {
+    pub fn from_member(member: &SwarmMember) -> Self {
+        Self {
+            run_id: member.run_id.clone(),
+            role: Some(member.role.clone()),
+            status: Some(member.status.clone()),
+            working_dir: member
+                .working_dir
+                .as_ref()
+                .map(|path| path.display().to_string()),
+        }
+    }
+}
+
 /// A swarm event with metadata
 #[derive(Clone, Debug)]
 pub struct SwarmEvent {
@@ -277,6 +304,8 @@ pub struct SwarmEvent {
     pub session_id: String,
     pub session_name: Option<String>,
     pub swarm_id: Option<String>,
+    /// Member metadata captured at event-record time, when the member is known.
+    pub member: Option<SwarmEventMemberMetadata>,
     pub event: SwarmEventType,
     pub timestamp: Instant,
     pub absolute_time: std::time::SystemTime,

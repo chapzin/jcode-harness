@@ -1,0 +1,45 @@
+{
+  "id": "2026-05-08-show-swarm-list-run-groups-cadff9",
+  "title": "Show swarm list run groups",
+  "goal": "Implement a small issue #13 UX/observability slice: separate visible swarm members by run in `swarm list` output so old agents and current runs are distinguishable before await/cleanup decisions, without changing orchestration behavior.",
+  "createdAt": "2026-05-08T11:47:14.596Z",
+  "status": "active",
+  "requiredInputs": [
+    "chapzin/jcode-harness issue #13 robust swarm orchestration",
+    "Recent run_id/list/cleanup/event metadata slices"
+  ],
+  "budget": {
+    "maxSteps": 7,
+    "maxMinutes": 35,
+    "maxToolCalls": 30
+  },
+  "permissions": [
+    "Modify tool formatting/tests/governance",
+    "Run cargo fmt/check/test and selfdev build",
+    "Commit and push"
+  ],
+  "completionConditions": [
+    "Default `swarm list` output includes a compact run-group summary when members span run IDs or include unscoped members.",
+    "The run-group summary includes counts by run_id, a count for unscoped members when present, and an actionable scoped-list hint.",
+    "Existing `swarm list run_id=<id>` behavior and empty-run response remain unchanged.",
+    "Focused formatter tests, cargo fmt/check, and selfdev build pass."
+  ],
+  "outputPaths": [
+    "src/tool/communicate.rs",
+    "src/tool/communicate_tests/input_format.rs",
+    ".codex-harness/state.json",
+    ".codex-harness/traces/2026-05-08.jsonl"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode format_members --lib -- --nocapture",
+    "cargo check -p jcode --lib"
+  ],
+  "failureTaxonomy": [
+    "Changing membership selection semantics instead of only formatting list output",
+    "Breaking existing per-agent metadata output",
+    "Making single-run/simple lists noisier than necessary",
+    "Omitting compatibility for unscoped legacy members"
+  ],
+  "notes": "Keep this additive and format-only. Do not change server selection, cleanup, await, health, or reconcile behavior."
+}

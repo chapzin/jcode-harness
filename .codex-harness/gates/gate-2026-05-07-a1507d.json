@@ -1,0 +1,49 @@
+{
+  "id": "gate-2026-05-07-a1507d",
+  "ts": "2026-05-07T19:56:46.713Z",
+  "contractId": "2026-05-07-fix-selfdev-reload-discovery-and-add-release-notes-templ-f7f746",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "crates/jcode-build-support/src/paths.rs",
+      "exists": true
+    },
+    {
+      "path": "crates/jcode-build-support/src/tests.rs",
+      "exists": true
+    },
+    {
+      "path": "docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md",
+      "exists": true
+    },
+    {
+      "path": "docs/JCODE_HARNESS_RELEASE_GATES.md",
+      "exists": true
+    },
+    {
+      "path": "docs/SKILLS_HARNESS_STATUS.md",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "`get_repo_dir()` now walks upward from `CARGO_MANIFEST_DIR`, covering nested `crates/jcode-build-support` manifests",
+    "Regression test `test_get_repo_dir_walks_up_from_nested_crate_manifest_dir` passes",
+    "Release notes template exists and is linked from release gates/product plan/status docs",
+    "cargo fmt, targeted tests, cargo check, and selfdev build passed",
+    "selfdev reload was attempted after build and succeeded; reload marker is SocketReady for e20c118e-dirty-a70101b7947c"
+  ],
+  "uncheckedConditions": [
+    "selfdev repository discovery works when CARGO_MANIFEST_DIR points at a nested crate",
+    "Regression test covers nested manifest-dir discovery",
+    "Release notes template for harness/upstream divergence exists and is linked from release gates/status docs",
+    "Formatting, targeted tests, cargo check, and selfdev build pass",
+    "Attempt selfdev reload after build and record result"
+  ],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/4788730vup.output",
+    "/tmp/jcode-bg-tasks/5027573b55.output",
+    "/tmp/jcode-selfdev-reload-verification.txt",
+    "docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md"
+  ],
+  "notes": "The first post-build selfdev reload attempt was made before activating the corrected binary and still used the old server. After promoting/reloading into the corrected build, the selfdev reload tool succeeded and interrupted the session normally."
+}

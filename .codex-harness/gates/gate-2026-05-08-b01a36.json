@@ -1,0 +1,53 @@
+{
+  "id": "gate-2026-05-08-b01a36",
+  "ts": "2026-05-08T17:42:43.755Z",
+  "contractId": "2026-05-08-invalidate-local-picker-cache-on-provider-runtime-state-b562f6",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/provider/routing.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/mod.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/tests/fallback_failover.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tui/app.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tui/app/inline_interactive.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Provider runtime state revision increments when cooldowns are recorded, cleared, or expire and when backpressure permits are acquired/released.",
+    "Local model picker cache signatures include provider runtime state revision so cached entries refresh after runtime state changes.",
+    "Remote picker cache signature uses 0 provider runtime revision and continues relying on explicit remote route markers.",
+    "Focused verification passed in task 050863sqtz after the initial visibility failure 871539t57b was fixed.",
+    "Selfdev build and reload passed in task 091407kra9."
+  ],
+  "uncheckedConditions": [
+    "Provider runtime state revision increments when cooldown/backpressure visible state can change.",
+    "Local model picker cache signatures include provider runtime state revision so cached entries refresh after cooldown/backpressure transitions.",
+    "Remote picker cache behavior remains unchanged except existing remote route markers.",
+    "Focused tests, cargo fmt/check, cargo check, selfdev build/reload, governance, commit/push, and issue #27 update pass."
+  ],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/871539t57b.output",
+    "/tmp/jcode-bg-tasks/050863sqtz.output",
+    "/tmp/jcode-bg-tasks/091407kra9.output",
+    "src/provider/routing.rs",
+    "src/provider/mod.rs",
+    "src/provider/tests/fallback_failover.rs",
+    "src/tui/app.rs",
+    "src/tui/app/inline_interactive.rs",
+    "src/tui/app/tests/state_model_poke_03.rs"
+  ],
+  "notes": "Initial verification failed only because the cache signature helper was private to the inline_interactive submodule; fixed by making it pub(super), then focused verification passed. The revision intentionally bumps on permit acquire/release and cooldown record/clear/expiry to avoid stale route details."
+}

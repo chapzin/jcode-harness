@@ -1,0 +1,48 @@
+{
+  "id": "gate-2026-05-08-7563a2",
+  "ts": "2026-05-08T16:44:01.007Z",
+  "contractId": "2026-05-08-emit-provider-cooldown-status-details-c738e3",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/provider/routing.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/mod.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/anthropic.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openrouter_sse_stream.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openai.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/tests/fallback_failover.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Anthropic emits a StatusDetail during provider rate-limit cooldown waits.",
+    "OpenRouter emits a StatusDetail during provider rate-limit cooldown waits.",
+    "Provider wait durations use a shared compact formatter so cooldown/backpressure details are consistent.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "uncheckedConditions": [],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/4889574o58.output",
+    "/tmp/jcode-bg-tasks/543954fky5.output",
+    "src/provider/anthropic.rs",
+    "src/provider/openrouter_sse_stream.rs",
+    "src/provider/routing.rs",
+    "src/provider/tests/fallback_failover.rs"
+  ],
+  "notes": "Direct gate re-evaluation after audit lag: Anthropic and OpenRouter emit StatusDetail entries for provider cooldown waits; Anthropic/OpenRouter backpressure details and OpenAI status durations use shared provider_wait_status_duration; focused tests and selfdev build/reload passed."
+}

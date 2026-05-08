@@ -1,8 +1,8 @@
 use super::box_utils::render_rounded_box;
 use super::changelog::get_unseen_changelog_entries;
 use super::{
-    TuiState, binary_age, dim_color, header_name_color, header_session_color,
-    is_running_stable_release, semver, shorten_model_name,
+    TuiState, binary_age, dim_color, harness_brand_color, header_icon_color, header_name_color,
+    header_session_color, is_running_stable_release, semver, shorten_model_name,
 };
 use crate::auth::{AuthState, AuthStatus};
 use crate::tui::color_support::rgb;
@@ -85,6 +85,50 @@ fn format_gpt_name(short: &str) -> String {
     }
 
     format!("GPT-{}", rest)
+}
+
+fn harness_brand_text(status_items: &[&str], width: usize) -> String {
+    let badge = (!status_items.is_empty()).then(|| format!(" · ⟨{}⟩", status_items.join("·")));
+    let mut candidates = Vec::new();
+    if let Some(badge) = badge.as_deref() {
+        candidates.push(format!("⟡ JCode Harness{} ⟡", badge));
+        candidates.push(format!("JCode Harness{}", badge));
+        candidates.push(format!("JH{}", badge));
+    } else {
+        candidates.push("⟡ JCode Harness · local-first engineering loop ⟡".to_string());
+        candidates.push("⟡ JCode Harness ⟡".to_string());
+        candidates.push("JCode Harness".to_string());
+    }
+    candidates.push("JH".to_string());
+    candidates.push("J".to_string());
+    candidates.push(String::new());
+
+    candidates
+        .into_iter()
+        .find(|candidate| candidate.chars().count() <= width)
+        .unwrap_or_default()
+}
+
+fn harness_brand_line(status_items: &[&str], width: usize) -> Line<'static> {
+    let text = harness_brand_text(status_items, width);
+    let mut spans = Vec::new();
+    for token in text.split_inclusive(' ') {
+        let color = if token.contains('⟡') {
+            header_icon_color()
+        } else if token.trim_start().starts_with("Harness") || token.trim_start().starts_with("JH")
+        {
+            harness_brand_color()
+        } else if token.trim_start().starts_with("JCode") {
+            header_name_color()
+        } else {
+            dim_color()
+        };
+        spans.push(Span::styled(
+            token.to_string(),
+            Style::default().fg(color).bold(),
+        ));
+    }
+    Line::from(spans).alignment(Alignment::Center)
 }
 
 pub(super) fn build_auth_status_line(auth: &AuthStatus, max_width: usize) -> Line<'static> {
@@ -393,14 +437,7 @@ pub(super) fn build_persistent_header(app: &dyn TuiState, width: u16) -> Vec<Lin
         status_items.push(badge);
     }
 
-    if !status_items.is_empty() {
-        let badge_text = format!("⟨{}⟩", status_items.join("·"));
-        lines.push(
-            Line::from(Span::styled(badge_text, Style::default().fg(dim_color()))).alignment(align),
-        );
-    } else {
-        lines.push(Line::from(""));
-    }
+    lines.push(harness_brand_line(&status_items, w));
 
     if let Some(server_name) = server_name.as_deref() {
         let server_icon = app.server_display_icon().unwrap_or_default();
@@ -430,7 +467,7 @@ pub(super) fn build_persistent_header(app: &dyn TuiState, width: u16) -> Vec<Lin
     } else if server_name.is_none() {
         lines.push(
             Line::from(Span::styled(
-                "JCode".to_string(),
+                "JCode Harness".to_string(),
                 Style::default().fg(header_name_color()),
             ))
             .alignment(align),
@@ -812,6 +849,33 @@ mod tests {
     fn version_display_candidates_compact_for_narrow_width() {
         let rendered = choose_header_candidate(8, version_display_candidates());
         assert_eq!(rendered, "v0.9");
+    }
+
+    #[test]
+    fn harness_brand_text_scales_from_full_to_compact() {
+        assert_eq!(
+            harness_brand_text(&[], 80),
+            "⟡ JCode Harness · local-first engineering loop ⟡"
+        );
+        assert_eq!(
+            harness_brand_text(&["dev", "perf"], 80),
+            "⟡ JCode Harness · ⟨dev·perf⟩ ⟡"
+        );
+        assert_eq!(harness_brand_text(&[], 2), "JH");
+        assert_eq!(harness_brand_text(&[], 1), "J");
+        assert_eq!(harness_brand_text(&[], 0), "");
+    }
+
+    #[test]
+    fn persistent_header_renders_harness_identity() {
+        let app = create_test_app();
+        let rendered = build_persistent_header(&app, 80)
+            .iter()
+            .flat_map(|line| line.spans.iter())
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        assert!(rendered.contains("JCode Harness"), "rendered: {rendered}");
+        assert!(rendered.contains('⟡'), "rendered: {rendered}");
     }
 
     #[test]

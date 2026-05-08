@@ -15,6 +15,7 @@
 use anyhow::Result;
 use futures::SinkExt;
 use futures::stream::StreamExt;
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -25,15 +26,18 @@ use tokio_tungstenite::tungstenite::Message;
 use crate::logging;
 mod auth;
 mod registry;
-use auth::{WsAuth, WsAuthSource, extract_ws_auth, ws_error_response};
 #[cfg(test)]
-pub(crate) use auth::{is_valid_hex_token, parse_bearer_token, parse_query_token};
+pub(crate) use auth::is_valid_hex_token;
+use auth::{
+    WsAuth, WsAuthSource, extract_ws_auth, parse_bearer_token, parse_query_token, ws_error_response,
+};
 pub use jcode_gateway_types::{PairedDevice, PairingCode};
 pub use registry::DeviceRegistry;
 
 /// Default gateway port ("jc" on phone keypad = 52, but we use 7643)
 pub const DEFAULT_PORT: u16 = 7643;
 const WEBSOCKET_KEEPALIVE_INTERVAL_SECS: u64 = 20;
+const SSE_KEEPALIVE_INTERVAL_SECS: u64 = 15;
 
 /// Gateway configuration
 #[derive(Debug, Clone)]
@@ -220,6 +224,7 @@ async fn handle_ws_connection(
     // Bridge WebSocket frames <-> newline-delimited JSON on the bridge stream
     let (ws_sink, ws_source) = ws_stream.split();
     let ws_sink = Arc::new(tokio::sync::Mutex::new(ws_sink));
+    let harness_event_bus = crate::harness_events::HarnessEventBus::global();
 
     let (bridge_reader, bridge_writer) = bridge_stream.into_split();
     let mut bridge_reader = BufReader::new(bridge_reader);
@@ -228,6 +233,7 @@ async fn handle_ws_connection(
     // Task 1: WebSocket → Unix socket (client requests)
     let writer_for_ws = Arc::clone(&bridge_writer);
     let sink_for_ping = Arc::clone(&ws_sink);
+    let sink_for_control = Arc::clone(&ws_sink);
     let sink_for_unix = Arc::clone(&ws_sink);
     let sink_for_keepalive = Arc::clone(&ws_sink);
     let ws_to_unix = tokio::spawn(async move {
@@ -235,6 +241,16 @@ async fn handle_ws_connection(
         while let Some(msg) = ws_source.next().await {
             match msg {
                 Ok(Message::Text(text)) => {
+                    if let Some(response) =
+                        handle_harness_control_ws_text(&text, true, harness_event_bus)
+                    {
+                        let mut sink = sink_for_control.lock().await;
+                        if sink.send(Message::Text(response)).await.is_err() {
+                            break;
+                        }
+                        continue;
+                    }
+
                     let mut writer = writer_for_ws.lock().await;
                     if text.ends_with('\n') {
                         if writer.write_all(text.as_bytes()).await.is_err() {
@@ -320,11 +336,166 @@ async fn handle_ws_connection(
     Ok(())
 }
 
+fn handle_harness_control_ws_text(
+    text: &str,
+    write_authorized: bool,
+    bus: &crate::harness_events::HarnessEventBus,
+) -> Option<String> {
+    let value = serde_json::from_str::<serde_json::Value>(text).ok()?;
+    let command_name = value.get("command")?.as_str()?;
+    if !is_harness_control_command_name(command_name) {
+        return None;
+    }
+
+    match crate::harness_events::HarnessControlCommand::parse_json(text) {
+        Ok(command) => {
+            let event = bus.publish(crate::harness_events::harness_control_command_event_draft(
+                &command,
+                write_authorized,
+            ));
+            let response_type = if matches!(
+                event.kind,
+                crate::harness_events::HarnessEventKind::ControlCommandRejected
+            ) {
+                "harness_control_rejected"
+            } else {
+                "harness_control_ack"
+            };
+            Some(
+                serde_json::json!({
+                    "type": response_type,
+                    "command": command.command_name(),
+                    "run_id": command.run_id(),
+                    "status": event.payload.get("status").cloned().unwrap_or_else(|| serde_json::Value::String("ok".to_string())),
+                    "event": event,
+                })
+                .to_string(),
+            )
+        }
+        Err(err) => {
+            let event = value
+                .get("run_id")
+                .and_then(serde_json::Value::as_str)
+                .filter(|run_id| !run_id.trim().is_empty())
+                .map(|run_id| {
+                    bus.publish(
+                        crate::harness_events::HarnessEventDraft::new(
+                            run_id,
+                            crate::harness_events::HarnessEventKind::ControlCommandRejected,
+                        )
+                        .with_level(crate::harness_events::HarnessEventLevel::Warn)
+                        .with_payload(serde_json::json!({
+                            "command": command_name,
+                            "status": "rejected",
+                            "authorized": false,
+                            "error": "invalid_command",
+                        })),
+                    )
+                });
+            Some(
+                serde_json::json!({
+                    "type": "harness_control_error",
+                    "command": command_name,
+                    "status": "rejected",
+                    "error": err.to_string(),
+                    "event": event,
+                })
+                .to_string(),
+            )
+        }
+    }
+}
+
+fn is_harness_control_command_name(command: &str) -> bool {
+    matches!(
+        command,
+        "subscribe_events"
+            | "resolve_human_approval"
+            | "pause_run"
+            | "resume_run"
+            | "cancel_run"
+            | "ui_command"
+    )
+}
+
 fn http_response(status: u16, status_text: &str, body: &str) -> Vec<u8> {
     format!(
         "HTTP/1.1 {} {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Content-Type\r\n\r\n{}",
         status, status_text, body.len(), body
     ).into_bytes()
+}
+
+fn http_sse_response_head() -> Vec<u8> {
+    format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Content-Type, Authorization, Last-Event-ID\r\nX-Accel-Buffering: no\r\n\r\n",
+        crate::harness_events::HARNESS_EVENT_SSE_CONTENT_TYPE
+    )
+    .into_bytes()
+}
+
+fn parse_http_headers(request: &str) -> HashMap<String, String> {
+    request
+        .lines()
+        .skip(1)
+        .take_while(|line| !line.trim().is_empty())
+        .filter_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            Some((name.trim().to_ascii_lowercase(), value.trim().to_string()))
+        })
+        .collect()
+}
+
+fn query_param<'a>(query: &'a str, name: &str) -> Option<&'a str> {
+    query.split('&').find_map(|param| {
+        let (key, value) = param.split_once('=')?;
+        (key == name && !value.is_empty()).then_some(value)
+    })
+}
+
+fn route_harness_event_sse_run_id(path_base: &str) -> Option<String> {
+    let rest = path_base.strip_prefix("/events/runs/")?;
+    let run_id = rest.strip_suffix("/stream")?;
+    if run_id.is_empty() {
+        return None;
+    }
+    let decoded = urlencoding::decode(run_id).ok()?;
+    Some(decoded.into_owned())
+}
+
+fn extract_http_auth_token(
+    headers: &HashMap<String, String>,
+    query: Option<&str>,
+) -> std::result::Result<String, Vec<u8>> {
+    let header_token = headers
+        .get("authorization")
+        .map(|value| {
+            parse_bearer_token(value).ok_or_else(|| {
+                http_response(
+                    401,
+                    "Unauthorized",
+                    &serde_json::json!({"error": "Authorization must be 'Bearer <token>'"})
+                        .to_string(),
+                )
+            })
+        })
+        .transpose()?;
+    let query_token = query.and_then(parse_query_token);
+
+    match (header_token, query_token) {
+        (Some(header), Some(query)) if header != query => Err(http_response(
+            401,
+            "Unauthorized",
+            &serde_json::json!({"error": "Conflicting auth token sources"}).to_string(),
+        )),
+        (Some(header), _) => Ok(header.to_string()),
+        (None, Some(query)) => Ok(query.to_string()),
+        (None, None) => Err(http_response(
+            401,
+            "Unauthorized",
+            &serde_json::json!({"error": "Missing Authorization header or token query parameter"})
+                .to_string(),
+        )),
+    }
 }
 
 /// Handle a plain HTTP request (not WebSocket).
@@ -353,11 +524,20 @@ async fn handle_http(
 
     // Strip query params from path for matching
     let path_base = path.split('?').next().unwrap_or(path);
+    let query = path.split_once('?').map(|(_, query)| query);
+    let headers = parse_http_headers(&request);
 
     logging::info(&format!(
         "Gateway HTTP: {} {} from {}",
         method, path_base, peer_addr
     ));
+
+    if method == "GET"
+        && let Some(run_id) = route_harness_event_sse_run_id(path_base)
+    {
+        return handle_harness_event_sse_request(tcp_stream, run_id, query, &headers, registry)
+            .await;
+    }
 
     let response = match (method, path_base) {
         ("GET", "/health") => {
@@ -377,7 +557,7 @@ async fn handle_http(
 
         ("OPTIONS", _) => {
             // CORS preflight
-            "HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type, Authorization\r\nAccess-Control-Max-Age: 86400\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            "HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type, Authorization, Last-Event-ID\r\nAccess-Control-Max-Age: 86400\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
             .to_string().into_bytes()
         }
 
@@ -389,6 +569,121 @@ async fn handle_http(
 
     tcp_stream.write_all(&response).await?;
     tcp_stream.shutdown().await?;
+    Ok(())
+}
+
+async fn handle_harness_event_sse_request(
+    mut tcp_stream: tokio::net::TcpStream,
+    run_id: String,
+    query: Option<&str>,
+    headers: &HashMap<String, String>,
+    registry: Arc<tokio::sync::RwLock<DeviceRegistry>>,
+) -> Result<()> {
+    let token = match extract_http_auth_token(headers, query) {
+        Ok(token) => token,
+        Err(response) => {
+            tcp_stream.write_all(&response).await?;
+            tcp_stream.shutdown().await?;
+            return Ok(());
+        }
+    };
+    if !auth_token_is_paired(&registry, &token).await {
+        let body = serde_json::json!({"error": "Invalid auth token"});
+        tcp_stream
+            .write_all(&http_response(401, "Unauthorized", &body.to_string()))
+            .await?;
+        tcp_stream.shutdown().await?;
+        return Ok(());
+    }
+
+    let last_event_id = headers
+        .get("last-event-id")
+        .map(String::as_str)
+        .or_else(|| query.and_then(|query| query_param(query, "last_event_id")));
+    let retry_ms = query
+        .and_then(|query| query_param(query, "retry_ms"))
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(crate::harness_events::DEFAULT_HARNESS_EVENT_SSE_RETRY_MS);
+    let replay_only = query.is_some_and(|query| {
+        query_param(query, "replay").is_some_and(|value| value.eq_ignore_ascii_case("only"))
+            || query_param(query, "once") == Some("1")
+    });
+
+    let mut receiver = crate::harness_events::HarnessEventBus::global().subscribe();
+    tcp_stream.write_all(&http_sse_response_head()).await?;
+    write_harness_event_sse_replay(&mut tcp_stream, &run_id, last_event_id, retry_ms).await?;
+    if replay_only {
+        tcp_stream.shutdown().await?;
+        return Ok(());
+    }
+
+    let mut keepalive = tokio::time::interval(Duration::from_secs(SSE_KEEPALIVE_INTERVAL_SECS));
+    loop {
+        tokio::select! {
+            event = receiver.recv() => {
+                let event = match event {
+                    Ok(event) => event,
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                        let comment = format!(": lagged {skipped} event(s)\n\n");
+                        if tcp_stream.write_all(comment.as_bytes()).await.is_err() {
+                            break;
+                        }
+                        continue;
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                };
+                if event.run_id != run_id {
+                    continue;
+                }
+                let mut frame = Vec::new();
+                crate::harness_events::write_harness_event_sse(&mut frame, &event, Some(retry_ms))?;
+                if tcp_stream.write_all(&frame).await.is_err() {
+                    break;
+                }
+            }
+            _ = keepalive.tick() => {
+                if tcp_stream.write_all(b": keepalive\n\n").await.is_err() {
+                    break;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn auth_token_is_paired(
+    registry: &Arc<tokio::sync::RwLock<DeviceRegistry>>,
+    token: &str,
+) -> bool {
+    let mut reg = registry.write().await;
+    *reg = DeviceRegistry::load();
+    let valid = reg.validate_token(token).is_some();
+    if valid {
+        reg.touch_device(token);
+    }
+    valid
+}
+
+async fn write_harness_event_sse_replay(
+    tcp_stream: &mut tokio::net::TcpStream,
+    run_id: &str,
+    last_event_id: Option<&str>,
+    retry_ms: u64,
+) -> Result<()> {
+    let path = crate::harness_events::harness_event_log_path(run_id);
+    if !path.exists() {
+        return Ok(());
+    }
+    let events = crate::harness_events::read_harness_event_ndjson(&path)?;
+    let selected =
+        crate::harness_events::harness_events_after_last_event_id(&events, last_event_id);
+    for event in selected {
+        let mut frame = Vec::new();
+        crate::harness_events::write_harness_event_sse(&mut frame, event, Some(retry_ms))?;
+        tcp_stream.write_all(&frame).await?;
+    }
     Ok(())
 }
 

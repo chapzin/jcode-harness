@@ -1,0 +1,46 @@
+{
+  "id": "gate-2026-05-08-5919bc",
+  "ts": "2026-05-08T14:13:01.888Z",
+  "contractId": "2026-05-08-make-run-plan-operation-id-scope-stable-843df5",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/tool/communicate.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate_tests.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate_tests/input_format.rs",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/state.json",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/traces/2026-05-08.jsonl",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "run_plan derives stable run_id from explicit operation_id when run_id is omitted, preserving run scope across retries.",
+    "run_plan internal assign_next calls use deterministic versioned per-slot request_nonce values when operation_id is provided.",
+    "run_plan without operation_id preserves current fresh run_id and non-idempotent assignment behavior because the new helpers return None without operation_id.",
+    "Focused tests cover run_plan operation_id run_id and versioned slot nonce derivation.",
+    "cargo fmt/check/test, git diff --check, selfdev build and reload passed before commit."
+  ],
+  "uncheckedConditions": [
+    "run_plan without operation_id preserves current fresh run_id and non-idempotent assignment behavior.",
+    "cargo fmt/check/test, git diff --check, selfdev build/reload, governance, commit, and push pass."
+  ],
+  "evidence": [
+    "src/tool/communicate.rs run_plan now derives run_id from operation_scoped_run_id(operation_id) before falling back to fresh_swarm_run_id.",
+    "src/tool/communicate.rs adds run_plan_request_nonce(operation_id, plan_version, slot_index) and passes it to internal CommAssignNext requests.",
+    "src/tool/communicate_tests/input_format.rs covers trimmed operation_id, stable run_id, versioned slot nonces, and None behavior without operation_id.",
+    "Verification task 475720az5f passed focused tests, cargo check, and diff check; selfdev build task 516485zbpx passed; reload succeeded."
+  ],
+  "notes": "This is additive and tool-level. The nonce includes PlanGraphStatus.version so retries of the same plan phase replay while later plan versions can continue assigning newly ready work."
+}

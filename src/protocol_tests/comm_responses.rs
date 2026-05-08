@@ -150,11 +150,13 @@ fn test_comm_members_roundtrip_includes_status() -> Result<()> {
             session_id: "sess-peer".to_string(),
             friendly_name: Some("bear".to_string()),
             files_touched: vec!["src/main.rs".to_string()],
+            working_dir: Some("/tmp/jcode-worktrees/bear".to_string()),
             status: Some("running".to_string()),
             detail: Some("working on tests".to_string()),
             role: Some("agent".to_string()),
             is_headless: Some(true),
             report_back_to_session_id: Some("sess-coord".to_string()),
+            run_id: Some("run-proto".to_string()),
             latest_completion_report: None,
             live_attachments: Some(0),
             status_age_secs: Some(12),
@@ -163,6 +165,7 @@ fn test_comm_members_roundtrip_includes_status() -> Result<()> {
 
     let json = encode_event(&event);
     assert!(json.contains("\"type\":\"comm_members\""));
+    assert!(json.contains("\"working_dir\":\"/tmp/jcode-worktrees/bear\""));
     assert!(json.contains("\"status\":\"running\""));
 
     let decoded = parse_event_json(json.trim())?;
@@ -172,6 +175,7 @@ fn test_comm_members_roundtrip_includes_status() -> Result<()> {
     assert_eq!(id, 9);
     assert_eq!(members.len(), 1);
     assert_eq!(members[0].friendly_name.as_deref(), Some("bear"));
+    assert_eq!(members[0].working_dir.as_deref(), Some("/tmp/jcode-worktrees/bear"));
     assert_eq!(members[0].status.as_deref(), Some("running"));
     assert_eq!(members[0].detail.as_deref(), Some("working on tests"));
     assert_eq!(members[0].is_headless, Some(true));
@@ -179,6 +183,7 @@ fn test_comm_members_roundtrip_includes_status() -> Result<()> {
         members[0].report_back_to_session_id.as_deref(),
         Some("sess-coord")
     );
+    assert_eq!(members[0].run_id.as_deref(), Some("run-proto"));
     assert_eq!(members[0].live_attachments, Some(0));
     assert_eq!(members[0].status_age_secs, Some(12));
     Ok(())

@@ -1,4 +1,6 @@
-use super::openrouter_sse_stream::OpenRouterStream;
+use super::openrouter_sse_stream::{
+    OpenRouterStream, format_openai_compatible_http_error, is_retryable_error,
+};
 use super::*;
 use std::ffi::OsString;
 use std::sync::Mutex;
@@ -83,6 +85,23 @@ fn openai_compatible_models_endpoint_allows_minimal_model_objects() {
     assert_eq!(parsed.data.len(), 2);
     assert_eq!(parsed.data[0].id, "glm-51-nvfp4");
     assert_eq!(parsed.data[0].name, "");
+}
+
+#[test]
+fn provider_retry_after_openrouter_http_error_is_retryable() {
+    let message = format_openai_compatible_http_error(
+        "https://openrouter.ai/api/v1/chat/completions",
+        "openrouter/free-model",
+        "openrouter",
+        reqwest::StatusCode::TOO_MANY_REQUESTS,
+        Some(19),
+        r#"{"error":"too many requests"}"#,
+    );
+
+    assert!(message.contains("429 Too Many Requests"));
+    assert!(message.contains("retry after 19s"));
+    assert!(message.contains("too many requests"));
+    assert!(is_retryable_error(&message.to_lowercase()));
 }
 
 #[test]

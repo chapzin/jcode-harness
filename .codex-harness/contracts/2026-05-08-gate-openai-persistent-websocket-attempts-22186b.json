@@ -1,0 +1,43 @@
+{
+  "id": "2026-05-08-gate-openai-persistent-websocket-attempts-22186b",
+  "title": "Gate OpenAI persistent WebSocket attempts",
+  "goal": "Ensure OpenAI persistent WebSocket continuation is covered by the same rate-limit cooldown and concurrency backpressure gates as fresh HTTPS/SSE attempts.",
+  "createdAt": "2026-05-08T16:23:59.786Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 6,
+    "maxMinutes": 30,
+    "maxToolCalls": 20
+  },
+  "permissions": [
+    "modify source",
+    "run focused tests",
+    "run selfdev build",
+    "commit and push"
+  ],
+  "completionConditions": [
+    "OpenAI provider applies rate-limit cooldown and provider/model concurrency permit before attempting persistent WebSocket continuation.",
+    "The normal fresh connection retry loop continues to run under the same acquired permit without duplicating cooldown/backpressure logic.",
+    "A focused structural regression test verifies the gate appears before persistent WebSocket continuation.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "outputPaths": [
+    "src/provider/openai_provider_impl.rs",
+    "src/provider/openai_tests/transport_runtime.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode openai_backpressure_gate_precedes_persistent_ws_continuation --lib -- --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build --target tui"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "ordering_regression",
+    "provider_stream_regression"
+  ],
+  "notes": "Follow-up to provider concurrency backpressure slice. Keep scope to OpenAI gate ordering only."
+}

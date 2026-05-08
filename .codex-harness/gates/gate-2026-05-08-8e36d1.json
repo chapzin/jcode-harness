@@ -1,0 +1,50 @@
+{
+  "id": "gate-2026-05-08-8e36d1",
+  "ts": "2026-05-08T12:13:07.353Z",
+  "contractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/server/comm_session.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/comm_session_tests.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/swarm_mutation_state.rs",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/state.json",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/traces/2026-05-08.jsonl",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "`handle_comm_stop` replays an existing persisted final stop response before target resolution, preventing retries from falling through to target lookup after the member was removed.",
+    "`handle_comm_stop` calls `begin_or_replay` before emitting `SessionCloseRequested`, removing live sessions, removing swarm membership, or cleaning channel subscriptions.",
+    "Repeated exact coordinator/target stop request after completion replays `Done` with the new request id and does not send another close request to the target event channel, covered by `stop_replay_does_not_send_duplicate_close_request`.",
+    "Authorization and target-resolution errors still happen before mutation state is created when there is no persisted final response.",
+    "Focused stop tests, swarm mutation tests, cargo fmt/check, git diff --check, selfdev build, and reload passed."
+  ],
+  "uncheckedConditions": [
+    "`handle_comm_stop` begins or replays its swarm mutation before any stop side effects, including target `SessionCloseRequested` fanout and session/member removal.",
+    "Repeating the same coordinator/target stop request after completion replays `Done` without sending another close request to the target event channel.",
+    "Authorization/target-resolution errors remain unchanged and do not create mutation state before the target is known and stop is allowed.",
+    "Focused stop idempotency test, cargo fmt/check, git diff check, and selfdev build pass."
+  ],
+  "evidence": [
+    "src/server/comm_session.rs now loads a persisted stop final response before resolving the target and moves `begin_or_replay` before `fanout_session_event` and removal side effects.",
+    "src/server/swarm_mutation_state.rs exposes `into_server_event` inside the server module so stop can replay final responses by request id.",
+    "src/server/comm_session_tests.rs adds `stop_replay_does_not_send_duplicate_close_request`.",
+    "Focused verification task 24633590gw passed.",
+    "Selfdev build task 2928649o70 passed and reload succeeded.",
+    "Initial broad filter task 089226mvm0 timed out after selecting unrelated stop-substring tests, but the new focused test had already passed and the tighter final verification passed."
+  ],
+  "notes": "Contract output paths were updated to include src/server/swarm_mutation_state.rs because the stop handler needs to convert a persisted response into a ServerEvent before target resolution."
+}

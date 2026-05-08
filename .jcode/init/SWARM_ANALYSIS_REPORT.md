@@ -1,25 +1,25 @@
 # Jcode Init Swarm Analysis Report
 
-Generated: `<generated-at>`
-Root: `<project-root>`
+Generated: 2026-05-07T20:30:00Z offline refresh after `jcode-harness init --yes --no-memory-wiki --json`
+Root: `/home/chapzin/jcode-harness`
 Branch: `feature/embedded-skills-harness`
 
 ## Barrier status
 
-All required discovery roles reported before synthesis:
+This refresh did not start a new live provider or MCP-backed swarm. It reconciles the prior `/init` synthesis with the current repository state after the embedded-skills-harness implementation slices. Live end-to-end `/init` swarm smoke remains a separate opt-in future item that requires provider, quota, isolation, and UI automation review.
 
-| Role | Session | Status | Scope |
+| Discovery area | Evidence source | Status | Scope |
 | --- | --- | --- | --- |
-| architect | `<architect-session>` | completed | repository structure, architecture boundaries, workflows, high-risk areas |
-| qa | `<qa-session>` | completed | tests, CI gaps, validation strategy, untested risk |
-| documenter | `<documenter-session>` | completed | README, docs, onboarding, AGENTS.md gaps |
-| tooling-security | `<tooling-security-session>` | ready/reported | package managers, MCP, secrets boundaries, automation risk |
+| Architecture | `Cargo.toml`, `AGENTS.md`, `.context/docs/architecture.md`, current harness docs | current/advisory | repository structure, crate boundaries, primary binaries, high-risk runtime areas |
+| QA | `docs/JCODE_HARNESS_RELEASE_GATES.md`, `docs/SKILLS_HARNESS_STATUS.md`, e2e test names, `.context/docs/testing-strategy.md` | current/advisory | validation commands, CI gaps, release gates, smoke coverage |
+| Documentation/onboarding | `README.md`, `AGENTS.md`, `docs/SKILLS_HARNESS*.md`, `docs/JCODE_HARNESS_*.md`, `.jcode/INIT_QUESTIONS.md` | current/advisory | setup guidance, product docs, side-panel defaults, known gaps |
+| Tooling/security | `.jcode/MCP_PLAN.md`, `.jcode/mcp.json`, workflows, `telemetry-worker/package.json`, release gates | current/advisory | MCP disabled-by-default posture, credential boundaries, telemetry/deploy risks |
 
 ## Evidence read for synthesis
 
 - Init files: `.jcode/init/SWARM_ANALYSIS_PLAN.md`, `.jcode/INIT_REPORT.md`, `.jcode/INIT_QUESTIONS.md`, `.jcode/SKILLS_PLAN.md`, `.jcode/MCP_PLAN.md`.
 - Repository roots: `Cargo.toml`, `README.md`, `AGENTS.md`.
-- Harness docs: `docs/JCODE_HARNESS_RELEASE_GATES.md`, plus discovery-agent reads of `docs/SKILLS_HARNESS.md`, `docs/CLEAN_CODE_GUARDIAN.md`, `docs/CODEX_BOOTSTRAP.md`, `docs/JCODE_HARNESS_INIT_SWARM.md`, `docs/SERVER_ARCHITECTURE.md`, `docs/SWARM_ARCHITECTURE.md`, and `docs/CRATE_OWNERSHIP_BOUNDARIES.md`.
+- Harness docs: `docs/SKILLS_HARNESS.md`, `docs/SKILLS_HARNESS_STATUS.md`, `docs/CLEAN_CODE_GUARDIAN.md`, `docs/CODEX_BOOTSTRAP.md`, `docs/JCODE_HARNESS_INIT_SWARM.md`, `docs/JCODE_HARNESS_JSON_SCHEMAS.md`, `docs/JCODE_HARNESS_PRODUCT_PLAN.md`, `docs/JCODE_HARNESS_RELEASE_GATES.md`, and `docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md`.
 - Tooling/security files: `.jcode/mcp.json`, `telemetry-worker/package.json`, `.github/workflows/{ci.yml,windows-smoke.yml,release.yml}`.
 
 ## Project-specific architecture summary
@@ -43,6 +43,14 @@ The current fork focus is not a generic Rust app. It is a jcode self-development
 - Swarm/session workflow: server and swarm code, including `src/server/swarm.rs`, remains high-risk because it coordinates concurrent sessions and lifecycle state.
 - Self-development workflow: `AGENTS.md` says to prefer fast iteration, remote builds if local resources are insufficient, rebuild when done, and use debug socket for runtime-level debugging.
 
+## Implemented harness slices now reflected in docs
+
+- `jcode-harness run` has dry-run, JSON, NDJSON, mock-response, and opt-in live-provider smoke coverage.
+- `jcode-harness smoke` has CI-friendly offline deterministic tool-case coverage.
+- `jcode-harness init --json` and `clean-code check --json` have schema documentation and focused e2e coverage.
+- Release gates, release-note template, product plan, and status snapshot were synchronized after these slices.
+- The selfdev reload repository discovery bug was fixed in `crates/jcode-build-support/src/paths.rs` and validated before the later docs/context slices.
+
 ## High-risk areas
 
 1. **Root crate compile fan-out**: the root package still owns large CLI/runtime surfaces while many crates have been split out. Changes in root modules can trigger broad rebuilds and broad regression risk.
@@ -51,7 +59,7 @@ The current fork focus is not a generic Rust app. It is a jcode self-development
 4. **Embedded skills behavior**: built-in skill availability, precedence, JSON output, and offline operation are release-critical for this branch.
 5. **Harness output contracts**: JSON and NDJSON modes are automation-facing and should be treated as compatibility surfaces.
 6. **Automation scripts and release delivery**: release workflows use write permissions and deployment secrets, and installer scripts/download paths should be reviewed carefully.
-7. **Telemetry worker**: `telemetry-worker/package.json` has deploy and remote D1 migration commands using `npx wrangler`, but no test/lint script was found in that package.
+7. **Telemetry worker**: `telemetry-worker/package.json` has deploy and remote D1 migration commands using `npx wrangler`, but no package-local test/lint script was found.
 
 ## QA and validation findings
 
@@ -65,8 +73,13 @@ cargo test -p jcode test_init_command --lib -- --nocapture
 cargo test -p jcode skill::tests --lib
 cargo test -p jcode clean_code --lib
 cargo test --test e2e harness_cli -- --nocapture
+cargo test --test e2e harness_init_json -- --nocapture
+cargo test --test e2e harness_smoke -- --nocapture
+cargo test --test e2e clean_code_check_json -- --nocapture
+cargo test --test e2e harness_live_provider -- --nocapture
 cargo run -q -p jcode --bin jcode-harness -- skills list --json | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- skills llmwiki-bridge --json | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- run "review this diff" --json --mock-response ok | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- run "review this diff" --ndjson --mock-response ok | while read -r line; do printf '%s\n' "$line" | python3 -m json.tool >/dev/null; done
 scripts/dev_cargo.sh build --profile selfdev -p jcode --bin jcode
@@ -78,10 +91,9 @@ CI evidence from QA discovery: workflows cover formatting, check, clippy, ratche
 
 ## Documentation and onboarding findings
 
-- `README.md` describes the product and mentions the embedded skills harness at line 14.
-- `AGENTS.md` has useful workflow, install, debug socket, and embedded skills guardrails, but it is thin for this repo size.
-- Recommended `AGENTS.md` improvements: add repository map, primary binaries, crate ownership boundaries, validated commands, embedded skills invariants, testing/CI gates, auth/secrets boundaries, and self-dev/debug-socket flow.
-- Generated `.context` documentation should be treated cautiously until reconciled. Discovery found stale references claiming TypeScript entrypoints and a `crates/jcode` main binary, while `Cargo.toml` shows the actual root package and binaries.
+- `README.md`, `AGENTS.md`, and harness docs now identify the `jcode-harness` product direction and operating constraints.
+- `AGENTS.md` includes repository map, primary binaries, crate ownership boundaries, validation commands, embedded skills invariants, self-dev flow, install notes, and security/secrets boundaries.
+- Generated `.context` documentation is advisory. It has been partially reconciled for the current Rust workspace and should still be verified against source before acting.
 
 ## Tooling, MCP, and security findings
 
@@ -104,6 +116,7 @@ Keep recommended initial skills task-routed rather than globally injected:
 - `karpathy-guidelines`: use for concise engineering judgment and repo hygiene.
 - `optimization`: use for performance, compile-time, memory, and multi-session scaling work.
 - `clean-code-guardian`: use when touching production code or preparing release gates, especially via offline `clean-code check`.
+- `llmwiki-memory`: use for local wiki/provenance/transcript/context-history tasks without syncing secrets.
 
 ### MCP
 
@@ -116,15 +129,10 @@ Keep MCP disabled by default. Review candidates in this order:
 
 ### Side-panel default
 
-The side panel should show current goal, swarm status, validation commands, architecture risks, security/MCP boundaries, and open questions from `.jcode/INIT_QUESTIONS.md`.
+The side panel should show current goal, active todos, validation commands, architecture risks, security/MCP boundaries, memory/wiki status when relevant, and open questions from `.jcode/INIT_QUESTIONS.md`.
 
-## Open questions for humans
+## Remaining decisions
 
-From `.jcode/INIT_QUESTIONS.md` and discovery gaps:
-
-1. What exact command set must pass before work is considered done for normal feature work versus release work?
-2. Which directories are forbidden to edit besides standard generated/build/secret paths?
-3. Which provider, telemetry, and deployment credentials exist and must never enter memory or docs?
-4. Should generated `.context` docs be regenerated or corrected now that stale Rust workspace references were found?
-5. Should `cargo test --lib --bins` or `python3 scripts/test_ci_suites.py lib-bins` become a CI gate?
-6. Should `telemetry-worker` add explicit test/lint scripts before deployment workflows are considered gated?
+1. `python3 scripts/test_ci_suites.py lib-bins` was measured locally on 2026-05-07 and hit the 600s Jcode background supervision limit while tests were still passing; do not promote it as a mandatory CI/release gate until the suite is split, made faster, or run under a longer dedicated CI timeout.
+2. Whether `telemetry-worker` should add package-local test/lint scripts before deployment workflows are considered fully gated.
+3. When to schedule a live `/init` swarm smoke with reviewed provider credentials, quota, isolation, and UI automation.

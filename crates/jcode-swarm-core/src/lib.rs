@@ -145,6 +145,8 @@ pub struct SwarmMemberRecord {
     pub friendly_name: Option<String>,
     pub report_back_to_session_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub latest_completion_report: Option<String>,
     pub role: SwarmRole,
     pub is_headless: bool,

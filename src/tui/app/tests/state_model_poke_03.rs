@@ -149,6 +149,24 @@ fn test_model_picker_reuses_cached_entries_until_invalidated() {
 }
 
 #[test]
+fn model_picker_cache_signature_includes_provider_runtime_state_revision() {
+    let mut app = create_test_app();
+    app.is_remote = false;
+    let local_signature = app.model_picker_cache_signature("gpt-test", None, None, &[]);
+    assert_eq!(
+        local_signature.provider_runtime_state_revision,
+        crate::provider::provider_runtime_state_revision()
+    );
+
+    app.is_remote = true;
+    let remote_signature = app.model_picker_cache_signature("gpt-test", None, None, &[]);
+    assert_eq!(
+        remote_signature.provider_runtime_state_revision, 0,
+        "remote route cache signatures already use explicit remote route markers"
+    );
+}
+
+#[test]
 fn test_model_picker_opens_loading_state_before_async_routes_complete() {
     ensure_test_jcode_home_if_unset();
     clear_persisted_test_ui_state();

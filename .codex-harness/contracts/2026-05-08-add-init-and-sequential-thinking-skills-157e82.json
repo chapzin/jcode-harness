@@ -1,0 +1,51 @@
+{
+  "id": "2026-05-08-add-init-and-sequential-thinking-skills-157e82",
+  "title": "Add init and sequential thinking skills",
+  "goal": "Update the embedded skills harness with init bootstrap and sequential thinking support.",
+  "createdAt": "2026-05-08T19:58:59.259Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 30
+  },
+  "permissions": [
+    "Modify source/docs under repo",
+    "Run focused cargo tests/checks",
+    "Create git commit"
+  ],
+  "completionConditions": [
+    "Built-in skills include init-bootstrap and sequential-thinking with valid SKILL.md frontmatter/content.",
+    "Skill router selects init-bootstrap for init/bootstrap goals and sequential-thinking for complex planning/analysis goals without affecting --skills off.",
+    "Project init generated SKILLS_PLAN/MCP_PLAN mention both surfaces and docs/release/status stay in sync.",
+    "Focused Rust tests and JSON smoke checks pass."
+  ],
+  "outputPaths": [
+    ".jcode/skills/init-bootstrap/SKILL.md",
+    ".jcode/skills/sequential-thinking/SKILL.md",
+    "src/skill_pack.rs",
+    "src/skill_router.rs",
+    "src/project_init.rs",
+    "docs/SKILLS_HARNESS.md",
+    "docs/SKILLS_HARNESS_STATUS.md",
+    "docs/JCODE_HARNESS_RELEASE_GATES.md",
+    ".jcode/SKILLS_PLAN.md",
+    ".jcode/MCP_PLAN.md"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode skill_router --lib",
+    "cargo test -p jcode skill::tests --lib",
+    "cargo test -p jcode project_init --lib",
+    "cargo run -q -p jcode --bin jcode-harness -- skills list --json | python3 -m json.tool >/dev/null",
+    "cargo run -q -p jcode --bin jcode-harness -- skills match \"use /init and sequential thinking for project analysis\" --json | python3 -m json.tool >/dev/null"
+  ],
+  "failureTaxonomy": [
+    "Frontmatter parse failure",
+    "Router over-selection/regression",
+    "Docs/tests out of sync",
+    "Build or formatting failure"
+  ],
+  "notes": "User requested in Portuguese: atualizar com o init e pensamento sequencial."
+}

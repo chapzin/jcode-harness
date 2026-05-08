@@ -1,0 +1,66 @@
+{
+  "id": "gate-2026-05-08-6a13f3",
+  "ts": "2026-05-08T11:24:43.837Z",
+  "contractId": "2026-05-08-expose-swarm-cleanup-working-dir-preview-24922a",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "crates/jcode-protocol/src/lib.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/client_comm_context.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/client_comm_channels.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate_tests/input_format.rs",
+      "exists": true
+    },
+    {
+      "path": "src/protocol_tests/comm_responses.rs",
+      "exists": true
+    },
+    {
+      "path": "crates/jcode-protocol/src/protocol_tests/comm_responses.rs",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/state.json",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/traces/2026-05-08.jsonl",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "AgentInfo carries optional working_dir from swarm member state via comm list and channel member responses",
+    "swarm list metadata includes working_dir when present through format_comm_members",
+    "swarm cleanup dry_run=true candidate labels include working_dir when present",
+    "Existing focused formatting/protocol tests pass",
+    "No live cleanup/stop candidate selection or stop behavior changed"
+  ],
+  "uncheckedConditions": [
+    "`AgentInfo` carries optional `working_dir` from swarm member state",
+    "`swarm list` metadata and `swarm cleanup dry_run=true` output include working_dir when known",
+    "Existing swarm formatting/tests are updated and focused tests pass",
+    "No live cleanup/stop behavior is changed"
+  ],
+  "evidence": [
+    "cargo fmt --check passed",
+    "cargo test -p jcode cleanup_dry_run --lib -- --nocapture passed: 2 tests",
+    "cargo test -p jcode format_members --lib -- --nocapture passed: 3 tests",
+    "cargo test -p jcode-protocol test_comm_members_roundtrip_includes_status --lib -- --nocapture passed: 1 test",
+    "cargo check -p jcode --lib passed",
+    "selfdev build auto passed and reloaded"
+  ],
+  "notes": "Implementation is additive/read-only: adds optional serde-default AgentInfo.working_dir, populates it from SwarmMember.working_dir for list/channel member responses, and only appends output metadata when Some."
+}

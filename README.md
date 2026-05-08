@@ -1,6 +1,8 @@
-# jcode-harness
+# ⟡ JCode Harness
 
 > A harness-first fork of [jcode](https://github.com/1jehuang/jcode) that combines fast multi-session agent workflows with offline embedded skills, local LLM wiki memory, and deterministic quality gates.
+
+**Visual identity:** JCode Harness keeps the parent project's terminal-native DNA, then adds a cyan/violet harness layer: `JCode` for the fast runtime, `Harness` for the disciplined local engineering loop, and `⟡` for verified handoffs between context, execution, and evidence.
 
 [![License](https://img.shields.io/github/license/1jehuang/jcode?style=flat-square)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-blue?style=flat-square)](https://github.com/1jehuang/jcode/releases)
@@ -37,7 +39,7 @@ The engineering is built as a closed local loop, similar in spirit to the Codex 
 1. **Request enters Jcode** through the interactive TUI, `jcode run`, `jcode-harness run`, or `/init`. The request is not treated as enough context by itself. It is paired with cwd, provider choice, skill mode, safety policy, and project-local artifacts.
 2. **Project bootstrap creates durable structure** under `.jcode/`: init reports, questions, MCP plan, skills plan, side-panel status, and swarm analysis files. This prevents the first agent turn from being a pure chat transcript with no durable output.
 3. **The swarm analysis separates concerns**. Architecture, QA, documentation/onboarding, and tooling/security are discovered independently, then synthesis waits on a barrier before writing recommendations.
-4. **The skill router narrows behavior**. Coding work gets `karpathy-guidelines` plus `clean-code-guardian`; performance work gets `optimization`; project-memory or prior-decision work gets `llmwiki-memory`. Explicit skills always win, and automatic routing stays conservative.
+4. **The skill router narrows behavior**. Coding work gets `karpathy-guidelines` plus `clean-code-guardian`; performance work gets `optimization`; project-memory or prior-decision work gets `llmwiki-memory`; init/bootstrap work gets `init-bootstrap`; complex planning can get `sequential-thinking`. Explicit skills always win, and automatic routing stays conservative.
 5. **The LLM wiki is the memory plane**. It is used for prior decisions, transcripts, provenance, and handoff context. It is deliberately not treated as source-code truth, so code claims still need repository/test evidence.
 6. **Verification gates close the loop**. `cargo fmt`, focused tests, e2e harness tests, JSON schema checks, clean-code checks, and self-dev builds are the evidence that a change is real.
 7. **Artifacts make the work resumable**. Future agents can read README, `docs/CODEX_BOOTSTRAP.md`, `.jcode/init/SWARM_ANALYSIS_REPORT.md`, `.jcode/SKILLS_PLAN.md`, and side-panel status instead of reconstructing intent from chat history.
@@ -72,6 +74,8 @@ Built-in skills are compiled into the binary with `include_str!`. They do not re
 | `optimization` | Performance, memory, latency, throughput, CPU/RAM, and compile-time improvement work. |
 | `clean-code-guardian` | Offline quality policy and rule pack for readable, focused, well-tested code without silent errors. |
 | `llmwiki-memory` | Safe use of the local LLM wiki as durable project memory with provenance, transcript sync, prior-decision lookup, and secret boundaries. |
+| `init-bootstrap` | `/init`, `.context`/`.jcode` scaffolding, swarm init analysis, side panels, skills plans, MCP plans, and onboarding bootstrap work. |
+| `sequential-thinking` | Bounded use of the sequential-thinking MCP helper for complex planning, debugging, architecture tradeoffs, hypothesis revision, and verification strategy. |
 
 Skill source priority is deterministic:
 
@@ -91,6 +95,8 @@ The router is intentionally conservative:
 - coding, bug, test, refactor, review, implement, fix, pull request, or diff tasks select `karpathy-guidelines` and `clean-code-guardian`;
 - performance, latency, memory, throughput, CPU, RAM, or efficiency tasks select `optimization`;
 - LLM wiki, project memory, prior decision, provenance, transcript, or context-history tasks select `llmwiki-memory`;
+- `/init`, project bootstrap, `.context`, MCP plan, skills plan, side-panel, or scaffold tasks select `init-bootstrap`;
+- sequential-thinking, pensamento sequencial, multi-step reasoning, complex planning, design decision, or hypothesis revision tasks select `sequential-thinking`;
 - explicit `--skill <name>` always includes that skill;
 - `--skills off` disables automatic routing while preserving explicit skills;
 - `--skills always` includes all built-in harness skills.
@@ -122,6 +128,31 @@ OpenAI/Codex OAuth uses the local callback URI
 jcode falls back to a manual paste flow. See `OAUTH.md` for the full provider
 auth notes.
 
+### Provider runtime backpressure
+
+Live OpenAI, Anthropic, and OpenRouter requests share two in-process rate-limit
+protections per `provider::model`: a short cooldown after retryable 429/rate-limit
+responses and a small concurrency semaphore to avoid local request stampedes. The
+cooldown cap defaults to **300000 ms / 5 minutes** and the semaphore defaults to
+**2 concurrent requests per provider/model**.
+
+Tune them with `JCODE_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS` and
+`JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL`:
+
+```bash
+JCODE_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS=60000 jcode
+JCODE_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS=0 jcode  # disable shared cooldowns
+JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL=1 jcode
+JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL=0 jcode  # disable the semaphore
+```
+
+Lower the cooldown cap when a provider returns very long `Retry-After` values
+but you still want the model to become eligible again quickly. Use a lower
+concurrency value when a provider account is rate-limited aggressively or when
+running many swarm/headless sessions against the same model. Use `0` only for
+controlled debugging, because it removes the corresponding local guard while
+keeping provider-side limits unchanged.
+
 ### Interactive jcode
 
 ```bash
@@ -132,13 +163,36 @@ jcode
 
 ```bash
 jcode-harness
+jcode-harness --version
 jcode-harness smoke
+jcode-harness acp manifest --json
+jcode-harness acp serve --stdio
+jcode-harness demo --json
+jcode-harness demo run mock-provider-run-json --json
+jcode-harness demo run all --sandbox --json
+jcode-harness session list --json
+jcode-harness session list --source jcode --json
+jcode-harness session spawn "draft a release plan" --dry-run --json
+jcode-harness session spawn "draft a release plan" --dry-run --ndjson
+jcode-harness session attach <session-id> --dry-run --json
+jcode-harness session attach <session-id> --dry-run --ndjson
+jcode-harness session show <session-id> --json
+jcode-harness session show <session-id> --preview 3 --json
+jcode-harness session resume <session-id> --dry-run --json
+jcode-harness session resume <session-id> --dry-run --ndjson
+jcode-harness session cancel <session-id> --dry-run --json
+jcode-harness session cancel <session-id> --dry-run --ndjson
 jcode-harness safe-eval
 jcode-harness safe-eval --json
 jcode-harness doctor
 jcode-harness doctor --json
+jcode-harness notify test --dry-run --json
 jcode-harness init --yes
 ```
+
+`jcode-harness --version` exits before starting the TUI, provider setup, or MCP
+integrations, and reports the build-time `JCODE_VERSION` generated by
+`build.rs`.
 
 ### Safe first run
 
@@ -159,8 +213,136 @@ activation file.
 
 Use `jcode-harness doctor --json` for offline diagnostics before running live
 providers. It reports safe-eval activation, telemetry opt-out state, platform,
-skill loading health, and project/global MCP config paths without contacting
-model providers or starting MCP/browser/Gmail integrations.
+user-attention alert configuration, skill loading health, and project/global MCP
+config paths without contacting model providers or starting MCP/browser/Gmail
+integrations.
+
+Human-attention sounds are opt-in and silent by default for CI/headless runs. Set
+`JCODE_USER_ATTENTION=bell` or `JCODE_NOTIFY_SOUND=1` to enable the initial
+terminal bell backend, or `JCODE_USER_ATTENTION=off` to force silence. Use
+`jcode-harness notify test --dry-run --json` to inspect the routing without
+emitting `\a`. To verify the permission-request path, run
+`jcode-harness notify test --event human-intervention --dry-run --json`.
+When enabled,
+background task completions that requested `notify` or `wake`, plus ambient
+permission requests and foreground tool stdin prompts that need human approval,
+emit one terminal bell byte to stderr before the usual user-facing
+completion/notification fan-out, keeping stdout and JSON streams clean.
+
+The structured execution-event foundation lives in
+[`docs/HARNESS_EVENTS.md`](docs/HARNESS_EVENTS.md), with the consumer protocol
+and CI guide in
+[`docs/HARNESS_EVENTS_PROTOCOL.md`](docs/HARNESS_EVENTS_PROTOCOL.md). The first
+slice provides a versioned `HarnessEvent` schema, default payload redaction,
+in-process `HarnessEventBus`, local NDJSON logs, replay helpers, SSE framing,
+and benchmark baselines; follow-up issues add live local endpoints, broker
+adapters, and interactive control transports.
+
+### Headless session metadata
+
+The first programmatic runtime slice is a read-only session inventory command for
+scripts and dashboards that need session metadata without scraping or starting the
+TUI:
+
+```bash
+jcode-harness session list --json
+jcode-harness session list --source jcode --json
+jcode-harness session spawn "draft a release plan" --dry-run --json
+jcode-harness session spawn "draft a release plan" --dry-run --ndjson
+jcode-harness session attach <session-id> --dry-run --json
+jcode-harness session attach <session-id> --dry-run --ndjson
+jcode-harness session show <session-id> --json
+jcode-harness session show <session-id> --preview 3 --json
+jcode-harness session resume <session-id> --dry-run --json
+jcode-harness session resume <session-id> --dry-run --ndjson
+jcode-harness session cancel <session-id> --dry-run --json
+jcode-harness session cancel <session-id> --dry-run --ndjson
+```
+
+`session spawn --dry-run --json` returns a safe `jcode run --json <goal>`
+argv/cwd envelope for creating a new headless run/session without starting a
+provider, TUI, network, or credential flow. Omitting `--dry-run` fails safely
+because the harness does not execute spawn flows yet.
+
+`session attach --dry-run --json` validates a local jcode session id and returns
+the current safe attach envelope for an operator-selected execution surface
+without starting the TUI/provider flow or emitting transcript content. Omitting
+`--dry-run` fails safely because the harness does not execute attach flows yet.
+
+`session spawn|attach|resume|cancel --dry-run --ndjson` emits deterministic
+newline-delimited `start`, `envelope`, and `done` events for dashboards and
+external orchestrators while preserving the same offline/read-only safety
+guarantees as `--json`.
+
+`session show` currently supports local jcode sessions. It emits metadata only by
+default, and transcript content appears only when a bounded `--preview N` is
+requested.
+
+`session resume --dry-run --json` validates a local jcode session id and returns
+the exact `jcode --resume <id>` argv/cwd envelope without starting the TUI,
+provider flow, network, or credentials. Omitting `--dry-run` fails safely because
+the harness does not execute resume flows yet.
+
+`session cancel --dry-run --json` records an offline cancellation intent envelope
+for a known or unknown local session id. It does not contact running sessions,
+providers, tools, the network, credentials, or the TUI; optional `--request-id`
+and `--reason` values are echoed for external orchestrators. Omitting
+`--dry-run` fails safely because live cancellation is reserved for a later
+runtime slice.
+
+The session commands are offline/read-only. The inventory command hides debug and
+canary sessions by default, and supports `--include-test`,
+`--source all|jcode|claude-code|codex|pi|opencode`, and `--limit N` for
+deterministic automation.
+
+### ACP preview
+
+Issue #3 starts with a conservative ACP preview surface. It does not claim full
+registry readiness yet, and it does not start providers, tools, or the TUI:
+
+```bash
+jcode-harness acp manifest --json
+jcode-harness acp fixture --json
+jcode-harness acp serve --stdio
+```
+
+`acp manifest --json` prints supported preview methods, safety guarantees, and
+registry gaps. `acp serve --stdio` speaks newline-delimited JSON-RPC 2.0 for the
+implemented `initialize`, `initialized` notification, `shutdown`, and safe
+offline `jcode/session.list|show|spawn|attach|resume|cancel` request methods,
+plus the standards-friendly `$/cancelRequest` notification as an offline no-op.
+Session methods reuse the same read-only/dry-run envelopes as the CLI and still
+avoid starting providers, tools, network,
+credentials, or the TUI. `jcode/session.cancel` returns a structured offline
+control envelope for known or unknown sessions without contacting live provider
+or session processes. `acp fixture --json` prints a versioned conformance
+fixture with newline-delimited JSON-RPC requests, expected responses, and a tiny
+local session file that clients can copy into a temporary `JCODE_HOME` for
+deterministic offline tests.
+
+### Reproducible demos without credentials
+
+Issue/README claims should be reproducible without provider keys, network calls,
+browser windows, or MCP server startup. The `demo` command prints a deterministic
+manifest for safe-eval, mock-provider, memory, plan, swarm, browser, skills, and
+release-gate demos:
+
+```bash
+jcode-harness demo --json
+jcode-harness demo run mock-provider-run-json --json
+```
+
+Some demos intentionally write scaffold or smoke-test files. They are blocked by
+default unless you opt into writes. Prefer the sandbox path, which executes all
+demos in a temporary workspace and removes it after the JSON report is rendered:
+
+```bash
+jcode-harness demo run all --sandbox --json
+```
+
+Use `--keep-sandbox` only when you want to inspect the generated files manually.
+Use `--allow-writes` only in a disposable or already activated safe-eval
+workspace.
 
 ### Skills
 

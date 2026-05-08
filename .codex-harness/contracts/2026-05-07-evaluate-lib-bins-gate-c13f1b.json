@@ -1,0 +1,44 @@
+{
+  "id": "2026-05-07-evaluate-lib-bins-gate-c13f1b",
+  "title": "Evaluate lib-bins gate",
+  "goal": "Evaluate the lib/bin unit test gate identified by init context and update release/context docs only if evidence supports it.",
+  "createdAt": "2026-05-07T20:34:41.248Z",
+  "status": "active",
+  "requiredInputs": [
+    "Current branch clean except harness state update from previous governance close"
+  ],
+  "budget": {
+    "maxSteps": 6,
+    "maxMinutes": 45,
+    "maxToolCalls": 18
+  },
+  "permissions": [
+    "run local cargo tests via scripts/test_ci_suites.py lib-bins",
+    "edit docs/context/governance files if needed",
+    "commit and push docs/governance changes"
+  ],
+  "completionConditions": [
+    "Measure `python3 scripts/test_ci_suites.py lib-bins` locally with recorded elapsed time and result",
+    "Decide whether to document lib-bins as a recommended or release-gated validation based on evidence",
+    "If docs/context change, validate diff/scope and commit/push",
+    "Do not modify CI workflow unless the measured result and risk justify it"
+  ],
+  "outputPaths": [
+    "docs/JCODE_HARNESS_RELEASE_GATES.md",
+    "docs/SKILLS_HARNESS_STATUS.md",
+    ".jcode/side_panel/status.md",
+    ".jcode/init/SWARM_ANALYSIS_REPORT.md"
+  ],
+  "verificationCommands": [
+    "python3 scripts/test_ci_suites.py lib-bins",
+    "git diff --check",
+    "python3 - <<'PY'\nimport json, pathlib\nfor p in pathlib.Path('.codex-harness').rglob('*.json'):\n    json.loads(p.read_text())\nPY"
+  ],
+  "failureTaxonomy": [
+    "lib_bins_failure",
+    "runtime_too_high",
+    "overbroad_ci_change",
+    "uncommitted_governance_state"
+  ],
+  "notes": "Safe local measurement. No provider, network, package install, or credential use. Prefer docs-only decision before CI workflow changes."
+}

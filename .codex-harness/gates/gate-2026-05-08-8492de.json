@@ -1,0 +1,36 @@
+{
+  "id": "gate-2026-05-08-8492de",
+  "ts": "2026-05-08T14:34:20.665Z",
+  "contractId": "2026-05-08-run-scoped-await-no-candidates-guidance-bbd166",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/server/comm_await.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/comm_control_tests/await_late_joiners.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "owned_only + run_id empty snapshot uses run-specific guidance instead of generic no-scoped-candidates text",
+    "guidance includes the requested run_id and actionable swarm list/health/cleanup/retry suggestions",
+    "generic owned_only no-run_id fallback remains unchanged",
+    "focused test 660030awbd passed with cargo fmt --check, targeted cargo test, cargo check, and git diff --check",
+    "selfdev build task 729382p1b0 passed and reload completed"
+  ],
+  "uncheckedConditions": [
+    "await_members owned_only + run_id empty snapshot uses run-specific guidance instead of generic scoped default text.",
+    "Guidance mentions run_id and actionable list/health/cleanup/retry next steps.",
+    "Existing generic owned_only behavior without run_id remains unchanged.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "evidence": [
+    "src/server/comm_await.rs",
+    "src/server/comm_control_tests/await_late_joiners.rs",
+    "/tmp/jcode-bg-tasks/660030awbd.output",
+    "/tmp/jcode-bg-tasks/729382p1b0.output"
+  ],
+  "notes": "Run-scoped await no-candidates response now reports the run scope and gives concrete follow-up commands for complete, terminal, or stale operation-scoped runs."
+}

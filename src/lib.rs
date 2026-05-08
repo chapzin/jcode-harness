@@ -34,6 +34,7 @@ pub mod env;
 pub mod gateway;
 pub mod gmail;
 pub mod goal;
+pub mod harness_events;
 pub mod id;
 pub mod import;
 pub mod logging;
@@ -89,6 +90,7 @@ pub mod transport;
 pub mod tui;
 pub mod update;
 pub mod usage;
+pub mod user_attention;
 pub mod util;
 pub mod video_export;
 

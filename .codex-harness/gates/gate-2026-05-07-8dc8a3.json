@@ -1,0 +1,44 @@
+{
+  "id": "gate-2026-05-07-8dc8a3",
+  "ts": "2026-05-07T20:33:01.248Z",
+  "contractId": "2026-05-07-refresh-init-context-scaffolds-19bd29",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": ".jcode/INIT_QUESTIONS.md",
+      "exists": true
+    },
+    {
+      "path": ".jcode/init/SWARM_ANALYSIS_REPORT.md",
+      "exists": true
+    },
+    {
+      "path": ".jcode/side_panel/status.md",
+      "exists": true
+    },
+    {
+      "path": ".jcode/side_panel/questions.md",
+      "exists": true
+    },
+    {
+      "path": ".context/docs/project-overview.md",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    ".jcode init/side-panel context no longer contains stale placeholders or old completed-slice status",
+    "Generated .context project overview has a concrete repository root and current harness context",
+    "Changes are docs/context/governance-only",
+    "Validation checks pass before commit"
+  ],
+  "uncheckedConditions": [
+    "Validation checks pass and changes are committed/pushed"
+  ],
+  "evidence": [
+    "git diff --check passed",
+    "placeholder grep for <generated-at>, <project-root>, <.*session>, and stale selfdev reload failure text returned no matches",
+    "all .codex-harness/**/*.json parsed successfully",
+    "scope check limited changes to .jcode/, .context/docs/, and .codex-harness/"
+  ],
+  "notes": "Commit/push still pending after gate; will verify git clean/synced after push."
+}

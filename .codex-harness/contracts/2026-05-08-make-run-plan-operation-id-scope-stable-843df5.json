@@ -1,0 +1,49 @@
+{
+  "id": "2026-05-08-make-run-plan-operation-id-scope-stable-843df5",
+  "title": "Make run_plan operation_id scope stable",
+  "goal": "Implement a bounded issue #13 idempotency slice so explicit operation_id on run_plan uses a stable run scope and versioned per-slot assign_next request_nonce values, reducing duplicate assignment risk when run_plan is retried while allowing later plan versions to continue progressing.",
+  "createdAt": "2026-05-08T14:10:26.273Z",
+  "status": "active",
+  "requiredInputs": [
+    "chapzin/jcode-harness issue #13 robust swarm orchestration",
+    "Existing CommAssignNext request_nonce idempotency",
+    "Existing operation_scoped_run_id and fill_slots per-slot nonce pattern"
+  ],
+  "budget": {
+    "maxSteps": 7,
+    "maxMinutes": 35,
+    "maxToolCalls": 35
+  },
+  "permissions": [
+    "Modify run_plan helper/wiring and focused tests",
+    "Run cargo fmt/check/test and selfdev build",
+    "Commit and push"
+  ],
+  "completionConditions": [
+    "run_plan derives stable run_id from explicit operation_id when run_id is omitted, preserving run scope across retries.",
+    "run_plan internal assign_next calls use deterministic versioned per-slot request_nonce values when operation_id is provided.",
+    "run_plan without operation_id preserves current fresh run_id and non-idempotent assignment behavior.",
+    "Focused tests cover run_plan operation_id run_id and versioned slot nonce derivation.",
+    "cargo fmt/check/test, git diff --check, selfdev build/reload, governance, commit, and push pass."
+  ],
+  "outputPaths": [
+    "src/tool/communicate.rs",
+    "src/tool/communicate_tests.rs",
+    "src/tool/communicate_tests/input_format.rs",
+    ".codex-harness/state.json",
+    ".codex-harness/traces/2026-05-08.jsonl"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode run_plan_operation_id --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check"
+  ],
+  "failureTaxonomy": [
+    "Changing run_plan defaults without operation_id",
+    "Using unversioned slot nonces that block later run_plan phases after plan progress",
+    "Breaking fill_slots nonce behavior",
+    "Adding broad run_plan persistence instead of bounded tool-level retry stability"
+  ],
+  "notes": "Keep this additive and tool-level: reuse existing CommAssignNext idempotency. Version nonce by PlanGraphStatus.version so later phases can still assign newly ready tasks."
+}

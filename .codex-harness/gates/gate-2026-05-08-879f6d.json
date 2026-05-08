@@ -1,0 +1,36 @@
+{
+  "id": "gate-2026-05-08-879f6d",
+  "ts": "2026-05-08T17:01:57.157Z",
+  "contractId": "2026-05-08-honor-long-retry-after-cooldown-hints-e68e87",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/provider/routing.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/mod.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/tests/fallback_failover.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Shared provider cooldown recording uses full Retry-After hints beyond the short retry backoff cap.",
+    "Same-request retry delay behavior remains capped by DEFAULT_RETRY_BACKOFF_CAP_MS.",
+    "Excessively large Retry-After hints are bounded by a separate provider cooldown cap.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "uncheckedConditions": [],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/367569f45w.output",
+    "/tmp/jcode-bg-tasks/4869828fqo.output",
+    "/tmp/jcode-bg-tasks/536644xqw3.output",
+    "src/provider/routing.rs",
+    "src/provider/mod.rs",
+    "src/provider/tests/fallback_failover.rs"
+  ],
+  "notes": "Direct completion gate after focused verification: same-request retry delay remains bounded by the short retry cap, while shared provider cooldowns now honor longer Retry-After hints up to DEFAULT_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS. The focused cooldown-delay tests cover both long hints and extreme hint capping."
+}

@@ -1,0 +1,48 @@
+{
+  "id": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede",
+  "title": "Deduplicate swarm stop side effects",
+  "goal": "Fix a small issue #13 robustness gap in swarm stop idempotency by ensuring duplicate stop retries cannot emit duplicate stop side effects before replaying the persisted response.",
+  "createdAt": "2026-05-08T12:05:54.765Z",
+  "status": "active",
+  "requiredInputs": [
+    "Existing swarm_mutation_state helper",
+    "Observed handle_comm_stop side effect before begin_or_replay"
+  ],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 35
+  },
+  "permissions": [
+    "Modify swarm stop handler and tests",
+    "Run cargo fmt/check/test and selfdev build",
+    "Commit and push"
+  ],
+  "completionConditions": [
+    "`handle_comm_stop` begins or replays its swarm mutation before any stop side effects, including target `SessionCloseRequested` fanout and session/member removal.",
+    "Repeating the same coordinator/target stop request after completion replays `Done` without sending another close request to the target event channel.",
+    "Authorization/target-resolution errors remain unchanged and do not create mutation state before the target is known and stop is allowed.",
+    "Focused stop idempotency test, cargo fmt/check, git diff check, and selfdev build pass."
+  ],
+  "outputPaths": [
+    "src/server/comm_session.rs",
+    "src/server/comm_session_tests.rs",
+    "src/server/swarm_mutation_state.rs",
+    ".codex-harness/state.json",
+    ".codex-harness/traces/2026-05-08.jsonl"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode stop --lib -- --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check"
+  ],
+  "failureTaxonomy": [
+    "Moving mutation before authorization and persisting unauthorized stop attempts",
+    "Changing stop permissions or force behavior",
+    "Returning stale replay for a different target/swarm",
+    "Breaking normal first stop removal/member cleanup behavior",
+    "Leaving mutation active on early return after begin"
+  ],
+  "notes": "Keep the slice limited to stop side-effect ordering and tests. Do not redesign cleanup or stop permissions."
+}

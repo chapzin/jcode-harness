@@ -1,6 +1,6 @@
 use super::{
-    SwarmEvent, SwarmEventType, SwarmMember, record_swarm_event, subscribe_session_to_channel,
-    unsubscribe_session_from_channel,
+    SwarmEvent, SwarmEventType, SwarmMember, record_swarm_event_for_session,
+    subscribe_session_to_channel, unsubscribe_session_from_channel,
 };
 use crate::protocol::{AgentInfo, ServerEvent, SwarmChannelInfo};
 use jcode_swarm_core::ChannelIndex;
@@ -85,11 +85,16 @@ pub(super) async fn handle_comm_channel_members(
                     session_id: sid.clone(),
                     friendly_name: member.friendly_name.clone(),
                     files_touched: Vec::new(),
+                    working_dir: member
+                        .working_dir
+                        .as_ref()
+                        .map(|path| path.display().to_string()),
                     status: Some(member.status.clone()),
                     detail: member.detail.clone(),
                     role: Some(member.role.clone()),
                     is_headless: Some(member.is_headless),
                     report_back_to_session_id: member.report_back_to_session_id.clone(),
+                    run_id: member.run_id.clone(),
                     latest_completion_report: member.latest_completion_report.clone(),
                     live_attachments: Some(member.event_txs.len()),
                     status_age_secs: Some(member.last_status_change.elapsed().as_secs()),
@@ -138,17 +143,16 @@ pub(super) async fn handle_comm_subscribe_channel(
         )
         .await;
 
-        record_swarm_event(
-            event_history,
-            event_counter,
-            swarm_event_tx,
-            req_session_id.clone(),
-            None,
-            Some(swarm_id.clone()),
+        record_swarm_event_for_session(
+            &req_session_id,
             SwarmEventType::Notification {
                 notification_type: "channel_subscribe".to_string(),
                 message: channel.clone(),
             },
+            swarm_members,
+            event_history,
+            event_counter,
+            swarm_event_tx,
         )
         .await;
 
@@ -190,17 +194,16 @@ pub(super) async fn handle_comm_unsubscribe_channel(
         )
         .await;
 
-        record_swarm_event(
-            event_history,
-            event_counter,
-            swarm_event_tx,
-            req_session_id.clone(),
-            None,
-            Some(swarm_id.clone()),
+        record_swarm_event_for_session(
+            &req_session_id,
             SwarmEventType::Notification {
                 notification_type: "channel_unsubscribe".to_string(),
                 message: channel.clone(),
             },
+            swarm_members,
+            event_history,
+            event_counter,
+            swarm_event_tx,
         )
         .await;
 

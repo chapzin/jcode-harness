@@ -1,0 +1,44 @@
+{
+  "id": "2026-05-08-operation-scoped-cleanup-and-await-followups-a0a848",
+  "title": "Operation scoped cleanup and await followups",
+  "goal": "Let reactive cleanup and await_members commands target the same operation-scoped run_id as operation_id-created workers.",
+  "createdAt": "2026-05-08T14:23:47.724Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 30
+  },
+  "permissions": [
+    "modify source",
+    "run focused tests",
+    "run selfdev build",
+    "commit and push"
+  ],
+  "completionConditions": [
+    "A helper derives operation-scoped run_id from operation_id while preserving explicit run_id priority.",
+    "cleanup uses the derived run scope when operation_id is present and run_id is omitted.",
+    "await_members uses the derived run scope when operation_id is present and no explicit run_id/member scope is requested.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "outputPaths": [
+    "src/tool/communicate.rs",
+    "src/tool/communicate_tests.rs",
+    "src/tool/communicate_tests/input_format.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode operation_run_scope --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build --target tui"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "scope_regression",
+    "overbroad_cleanup"
+  ],
+  "notes": "Continuation of issue #13. This reduces accidental broad cleanup and makes operation_id retries/follow-up commands more fluid."
+}

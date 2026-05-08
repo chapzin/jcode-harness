@@ -1,0 +1,52 @@
+{
+  "id": "gate-2026-05-08-9dff3e",
+  "ts": "2026-05-08T16:10:04.183Z",
+  "contractId": "2026-05-08-add-provider-rate-limit-cooldown-governor-1fe4ca",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/provider/routing.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/mod.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openai_provider_impl.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/anthropic.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openrouter_sse_stream.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/tests/fallback_failover.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Shared provider/model cooldown helper records scoped cooldowns for rate-limit errors and reports remaining delay.",
+    "OpenAI, Anthropic, and OpenRouter retry loops gate initial attempts on scoped provider cooldown and record cooldowns on retryable rate-limit errors.",
+    "Focused provider_rate_limit_cooldown tests passed.",
+    "cargo fmt --check, cargo check -p jcode --lib, and git diff --check passed.",
+    "Selfdev build and reload passed."
+  ],
+  "uncheckedConditions": [
+    "Shared provider rate-limit cooldown helper records scoped cooldowns for provider/model rate-limit errors and exposes remaining delay.",
+    "OpenAI, Anthropic, and OpenRouter retry loops gate first attempts on an existing scoped cooldown and record cooldowns when retryable rate-limit errors occur.",
+    "Tests cover scoped cooldown record/clear behavior and non-rate-limit errors not opening a cooldown.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/497589fnsm.output",
+    "/tmp/jcode-bg-tasks/543264vbps.output",
+    "trace-2026-05-08-eb37c623",
+    "trace-2026-05-08-f8fa7ee8"
+  ],
+  "notes": "The governor is intentionally in-process and minimal: it avoids local request stampedes across follow-up/concurrent calls after rate-limit signals without introducing persistent global limiter policy."
+}

@@ -88,6 +88,59 @@ impl Provider for OpenAIProvider {
 
         tokio::spawn(async move {
             let stream_task = async move {
+                if let Some(delay) = crate::provider::provider_rate_limit_cooldown_remaining_ms(
+                    "openai",
+                    &model_for_transport,
+                ) {
+                    emit_connection_phase(
+                        &tx,
+                        crate::message::ConnectionPhase::Retrying {
+                            attempt: 1,
+                            max: MAX_RETRIES,
+                        },
+                    )
+                    .await;
+                    emit_status_detail(
+                        &tx,
+                        format!(
+                            "rate-limit cooldown {}",
+                            format_status_duration(Duration::from_millis(delay))
+                        ),
+                    )
+                    .await;
+                    crate::logging::info(&format!(
+                        "OpenAI provider rate-limit cooldown active for model='{}' ({}ms remaining)",
+                        model_for_transport, delay
+                    ));
+                    tokio::time::sleep(Duration::from_millis(delay)).await;
+                }
+
+                let _provider_concurrency_permit =
+                    crate::provider::acquire_provider_concurrency_permit(
+                        "openai",
+                        &model_for_transport,
+                    )
+                    .await;
+                if let Some(permit) = _provider_concurrency_permit.as_ref()
+                    && permit.waited_ms() > 0
+                {
+                    emit_status_detail(
+                        &tx,
+                        format!(
+                            "provider backpressure {}",
+                            format_status_duration(Duration::from_millis(permit.waited_ms()))
+                        ),
+                    )
+                    .await;
+                    crate::logging::info(&format!(
+                        "{} provider backpressure waited {}ms for model='{}' (limit={})",
+                        permit.provider(),
+                        permit.waited_ms(),
+                        permit.model(),
+                        permit.limit()
+                    ));
+                }
+
                 // Attempt persistent WebSocket continuation first
                 if use_websocket_transport {
                     let continuation_result = try_persistent_ws_continuation(
@@ -142,10 +195,27 @@ impl Provider for OpenAIProvider {
                         .await;
                     }
                     if attempt > 0 && !skip_backoff_once {
-                        let delay = RETRY_BASE_DELAY_MS * (1 << (attempt - 1));
+                        let delay = last_error
+                            .as_ref()
+                            .map(|error: &anyhow::Error| {
+                                crate::provider::retry_delay_ms_for_error(
+                                    attempt,
+                                    RETRY_BASE_DELAY_MS,
+                                    crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
+                                    &error.to_string(),
+                                )
+                            })
+                            .unwrap_or_else(|| {
+                                crate::provider::retry_backoff_delay_ms(
+                                    attempt,
+                                    RETRY_BASE_DELAY_MS,
+                                    crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
+                                )
+                            });
                         tokio::time::sleep(Duration::from_millis(delay)).await;
                         crate::logging::info(&format!(
-                            "Retrying OpenAI API request (attempt {}/{})",
+                            "Retrying OpenAI API request after {}ms (attempt {}/{})",
+                            delay,
                             attempt + 1,
                             MAX_RETRIES
                         ));
@@ -288,7 +358,25 @@ impl Provider for OpenAIProvider {
                         Err(OpenAIStreamFailure::Other(error)) => {
                             let elapsed_ms = attempt_started.elapsed().as_millis();
                             let error_str = error.to_string().to_lowercase();
-                            if is_retryable_error(&error_str) && attempt + 1 < MAX_RETRIES {
+                            let retryable = is_retryable_error(&error_str);
+                            if retryable {
+                                if let Some(cooldown) =
+                                    crate::provider::record_provider_rate_limit_cooldown_for_retry(
+                                        "openai",
+                                        &model_for_transport,
+                                        &error_str,
+                                        attempt + 1,
+                                        RETRY_BASE_DELAY_MS,
+                                        crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
+                                    )
+                                {
+                                    crate::logging::info(&format!(
+                                        "Recorded OpenAI provider rate-limit cooldown for model='{}' ({}ms)",
+                                        model_for_transport, cooldown
+                                    ));
+                                }
+                            }
+                            if retryable && attempt + 1 < MAX_RETRIES {
                                 crate::logging::info(&format!(
                                     "Transient error after {}ms, will retry: {}",
                                     elapsed_ms, error

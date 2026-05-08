@@ -1,0 +1,51 @@
+{
+  "id": "2026-05-08-make-swarm-messages-idempotent-9554bf",
+  "title": "Make swarm messages idempotent",
+  "goal": "Implement a small issue #13 idempotency slice: make explicit operation_id protect swarm message, dm, and channel fanout from duplicate retry/reload/tool-call delivery, while preserving existing behavior when operation_id is omitted.",
+  "createdAt": "2026-05-08T11:55:13.995Z",
+  "status": "active",
+  "requiredInputs": [
+    "chapzin/jcode-harness issue #13 robust swarm orchestration",
+    "Existing operation_id schema and swarm_mutation_state helpers"
+  ],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 35
+  },
+  "permissions": [
+    "Modify protocol, tool, server message handling, tests, governance",
+    "Run cargo fmt/check/test and selfdev build",
+    "Commit and push"
+  ],
+  "completionConditions": [
+    "`swarm message`/`broadcast`, `swarm dm`, and `swarm channel` send an optional operation_id through the protocol to the server.",
+    "When operation_id is present, repeating the same sender/action operation after completion returns the prior Done response without sending duplicate notifications, soft interrupts, or swarm notification events.",
+    "When operation_id is absent, existing message delivery behavior is unchanged.",
+    "Focused protocol/server/tool tests, cargo fmt/check, and selfdev build pass."
+  ],
+  "outputPaths": [
+    "crates/jcode-protocol/src/lib.rs",
+    "src/tool/communicate.rs",
+    "src/tool/communicate_tests/input_format.rs",
+    "src/server/client_comm_message.rs",
+    "src/server/client_comm_tests.rs",
+    "src/server/client_lifecycle.rs",
+    ".codex-harness/state.json",
+    ".codex-harness/traces/2026-05-08.jsonl"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode comm_message --lib -- --nocapture",
+    "cargo test -p jcode communicate_input_accepts_operation_id_for_messages --lib -- --nocapture",
+    "cargo check -p jcode --lib"
+  ],
+  "failureTaxonomy": [
+    "Accidentally deduplicating messages without operation_id",
+    "Dropping the first notification or Done response for operation_id messages",
+    "Breaking existing Request::CommMessage JSON compatibility",
+    "Persisting a final response before message fanout completes",
+    "Over-scoping the slice into message content/history redesign"
+  ],
+  "notes": "Use the existing swarm_mutation_state helper. Keep key semantics explicit-operation-id based and do not change target resolution or delivery modes beyond suppressing duplicate side effects on replay."
+}

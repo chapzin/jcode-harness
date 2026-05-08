@@ -1,6 +1,6 @@
 use super::*;
 use crate::message::{Message, ToolDefinition};
-use crate::provider::{EventStream, Provider};
+use crate::provider::{EventStream, ModelRoute, Provider};
 use async_trait::async_trait;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -76,6 +76,8 @@ struct PanicOnForkProvider {
     forked: Arc<AtomicBool>,
 }
 
+struct ModelsUpdatedMockProvider;
+
 #[async_trait]
 impl Provider for PanicOnForkProvider {
     async fn complete(
@@ -98,9 +100,119 @@ impl Provider for PanicOnForkProvider {
     }
 }
 
+#[async_trait]
+impl Provider for ModelsUpdatedMockProvider {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _tools: &[ToolDefinition],
+        _system: &str,
+        _resume_session_id: Option<&str>,
+    ) -> Result<EventStream> {
+        panic!("complete should never run in models-updated defer test")
+    }
+
+    fn name(&self) -> &str {
+        "models-updated-mock"
+    }
+
+    fn model(&self) -> String {
+        "mock-model".to_string()
+    }
+
+    fn available_models_display(&self) -> Vec<String> {
+        vec!["mock-model".to_string()]
+    }
+
+    fn model_routes(&self) -> Vec<ModelRoute> {
+        vec![ModelRoute {
+            model: "mock-model".to_string(),
+            provider: "Mock".to_string(),
+            api_method: "mock".to_string(),
+            available: true,
+            detail: "reactive".to_string(),
+            cheapness: None,
+        }]
+    }
+
+    fn fork(&self) -> Arc<dyn Provider> {
+        Arc::new(Self)
+    }
+}
+
 #[test]
 fn ping_request_is_lightweight_control_request() {
     assert!((Request::Ping { id: 1 }).is_lightweight_control_request());
+}
+
+#[tokio::test]
+async fn models_updated_push_defers_when_agent_lock_is_busy() {
+    let provider: Arc<dyn Provider> = Arc::new(ModelsUpdatedMockProvider);
+    let registry = Registry::new(Arc::clone(&provider)).await;
+    let agent = Arc::new(Mutex::new(Agent::new(provider, registry)));
+    let (client_event_tx, mut client_event_rx) = mpsc::unbounded_channel::<ServerEvent>();
+    let mut last_snapshot = None;
+
+    let busy_agent = agent.lock().await;
+    assert_eq!(
+        try_enqueue_available_models_update(
+            &agent,
+            &client_event_tx,
+            &mut last_snapshot,
+            "conn-test",
+            64 * 1024,
+        ),
+        AvailableModelsUpdateFlush::Busy
+    );
+    assert!(client_event_rx.try_recv().is_err());
+
+    drop(busy_agent);
+
+    assert_eq!(
+        try_enqueue_available_models_update(
+            &agent,
+            &client_event_tx,
+            &mut last_snapshot,
+            "conn-test",
+            64 * 1024,
+        ),
+        AvailableModelsUpdateFlush::Flushed
+    );
+
+    let event = client_event_rx
+        .recv()
+        .await
+        .expect("deferred models update should be sent after lock release");
+    match event {
+        ServerEvent::AvailableModelsUpdated {
+            provider_name,
+            provider_model,
+            available_models,
+            available_model_routes,
+        } => {
+            assert_eq!(provider_name.as_deref(), Some("models-updated-mock"));
+            assert_eq!(provider_model.as_deref(), Some("mock-model"));
+            assert_eq!(available_models, vec!["mock-model".to_string()]);
+            assert_eq!(available_model_routes.len(), 1);
+            assert_eq!(available_model_routes[0].detail, "reactive");
+        }
+        other => panic!("expected AvailableModelsUpdated, got {other:?}"),
+    }
+
+    assert_eq!(
+        try_enqueue_available_models_update(
+            &agent,
+            &client_event_tx,
+            &mut last_snapshot,
+            "conn-test",
+            64 * 1024,
+        ),
+        AvailableModelsUpdateFlush::Flushed
+    );
+    assert!(
+        client_event_rx.try_recv().is_err(),
+        "unchanged snapshot should not enqueue a duplicate update"
+    );
 }
 
 #[test]

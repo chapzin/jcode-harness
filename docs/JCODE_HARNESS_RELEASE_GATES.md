@@ -41,6 +41,7 @@ test -s docs/SKILLS_HARNESS_STATUS.md
 ```bash
 cargo test -p jcode project_init --lib -- --nocapture
 cargo test -p jcode test_init_command --lib -- --nocapture
+cargo test --test e2e harness_init_json -- --nocapture
 ```
 
 ## Gate 2: Deterministic embedded skills
@@ -49,7 +50,7 @@ cargo test -p jcode test_init_command --lib -- --nocapture
 
 **Acceptance criteria:**
 
-- Built-ins include `karpathy-guidelines`, `optimization`, `clean-code-guardian`, and `llmwiki-memory`.
+- Built-ins include `karpathy-guidelines`, `optimization`, `clean-code-guardian`, `llmwiki-memory`, `init-bootstrap`, and `sequential-thinking`.
 - Source precedence remains: built-in < `.claude/skills` < `~/.jcode/skills` < project `.jcode/skills`.
 - Duplicate skill names are discoverable via `skills doctor`.
 - JSON output for skills commands remains machine-readable.
@@ -59,8 +60,12 @@ cargo test -p jcode test_init_command --lib -- --nocapture
 ```bash
 cargo test -p jcode skill::tests --lib
 cargo test --test e2e harness_cli -- --nocapture
+cargo run -q -p jcode --bin jcode-harness -- acp manifest --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- acp fixture --json | python3 -m json.tool >/dev/null
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize"}' '{"jsonrpc":"2.0","id":2,"method":"shutdown"}' | cargo run -q -p jcode --bin jcode-harness -- acp serve --stdio | python3 -c 'import json,sys; [json.loads(line) for line in sys.stdin if line.strip()]'
 cargo run -q -p jcode --bin jcode-harness -- skills list --json | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- skills match "use /init and sequential thinking for project analysis" --json | python3 -m json.tool >/dev/null
 ```
 
 ## Gate 3: Harness run contract
@@ -73,11 +78,13 @@ cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m j
 - `--json` emits one JSON report with `session_id`, `provider`, `model`, `text`, and `usage`.
 - `--ndjson` emits `start` and `done` events.
 - `--mock-response` exercises the real Agent runtime offline.
+- Live-provider smoke remains opt-in only, skips by default, and isolates `JCODE_HOME`, runtime, cwd, provider profile config, and credentials when explicitly enabled.
 
 **Checks:**
 
 ```bash
 cargo test --test e2e harness_cli -- --nocapture
+cargo test --test e2e harness_live_provider -- --nocapture
 cargo run -q -p jcode --bin jcode-harness -- run "review this diff" --json --mock-response ok | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- run "review this diff" --ndjson --mock-response ok | while read -r line; do printf '%s\n' "$line" | python3 -m json.tool >/dev/null; done
 ```
@@ -97,6 +104,7 @@ cargo run -q -p jcode --bin jcode-harness -- run "review this diff" --ndjson --m
 
 ```bash
 cargo test -p jcode clean_code --lib
+cargo test --test e2e clean_code_check_json -- --nocapture
 cargo test --test e2e harness_cli -- --nocapture
 cargo run -q -p jcode --bin jcode-harness -- clean-code rules >/tmp/jcode-clean-code-rules.yaml
 ```
@@ -128,14 +136,42 @@ selfdev build target=auto
 - New JSON fields are additive and backward-compatible.
 - Breaking CLI behavior changes require an explicit migration note.
 - Examples in docs are runnable or intentionally marked as conceptual.
+- Stable automation-facing schemas are documented for `init`, `acp manifest`, `acp fixture`, `acp serve --stdio` including offline `jcode/session.*` methods, `safe-eval`, `doctor`, `session list`, `session spawn --dry-run`, `session attach --dry-run`, `session dry-run --ndjson`, `session show`, `session resume --dry-run`, `session cancel --dry-run`, `demo`, `demo run`, skills JSON commands, `run` JSON/NDJSON, and `clean-code check`.
 
 **Checks:**
 
 ```bash
+cargo run -q -p jcode --bin jcode-harness -- acp manifest --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- acp fixture --json | python3 -m json.tool >/dev/null
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize"}' '{"jsonrpc":"2.0","id":2,"method":"shutdown"}' | cargo run -q -p jcode --bin jcode-harness -- acp serve --stdio | python3 -c 'import json,sys; [json.loads(line) for line in sys.stdin if line.strip()]'
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"jcode/session.list","params":{"source":"jcode","limit":5}}' '{"jsonrpc":"2.0","id":2,"method":"shutdown"}' | cargo run -q -p jcode --bin jcode-harness -- acp serve --stdio | python3 -c 'import json,sys; rows=[json.loads(line) for line in sys.stdin if line.strip()]; assert rows[0]["result"]["command"] == "session list"'
 cargo run -q -p jcode --bin jcode-harness -- skills list --json | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- skills show karpathy-guidelines --json | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- skills show llmwiki-memory --json | python3 -m json.tool >/dev/null
 cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- skills llmwiki-bridge --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- session list --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- session spawn "review this diff" --dry-run --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- session spawn "review this diff" --dry-run --ndjson | python3 -c 'import json,sys; [json.loads(line) for line in sys.stdin if line.strip()]'
+# Optional local smoke when a jcode session id is available:
+# cargo run -q -p jcode --bin jcode-harness -- session attach "$JCODE_SESSION_ID" --dry-run --json | python3 -m json.tool >/dev/null
+# cargo run -q -p jcode --bin jcode-harness -- session show "$JCODE_SESSION_ID" --json | python3 -m json.tool >/dev/null
+# cargo run -q -p jcode --bin jcode-harness -- session resume "$JCODE_SESSION_ID" --dry-run --json | python3 -m json.tool >/dev/null
+# cargo run -q -p jcode --bin jcode-harness -- session cancel "$JCODE_SESSION_ID" --dry-run --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- demo --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- demo run mock-provider-run-json --json | python3 -m json.tool >/dev/null
+cargo run -q -p jcode --bin jcode-harness -- demo run all --sandbox --json | python3 -m json.tool >/dev/null
+cargo test --test e2e harness_acp_stdio_initialize_shutdown -- --nocapture
+cargo test --test e2e harness_session_list_json -- --nocapture
+cargo test --test e2e harness_session_spawn_dry_run_json -- --nocapture
+cargo test --test e2e harness_session_attach_dry_run_json -- --nocapture
+cargo test --test e2e harness_session_dry_run_ndjson_envelopes -- --nocapture
+cargo test --test e2e harness_session_show_json -- --nocapture
+cargo test --test e2e harness_session_resume_dry_run_json -- --nocapture
+cargo test --test e2e harness_session_cancel_dry_run_json -- --nocapture
+cargo test --test e2e harness_init_json -- --nocapture
+cargo test --test e2e clean_code_check_json -- --nocapture
+cargo test --test e2e harness_smoke -- --nocapture
 ```
 
 ## Gate 7: Upstream divergence review
@@ -147,6 +183,7 @@ cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m j
 - Harness-specific behavior is named in docs as `jcode-harness` behavior.
 - Upstream-compatible reuse remains behind existing `jcode` paths where practical.
 - Divergence is captured in commits and release notes.
+- Release notes are drafted from `docs/JCODE_HARNESS_RELEASE_NOTES_TEMPLATE.md` so CLI, skills, quality-gate, provider/runtime, security/MCP, validation, known-gap, migration, and rollback sections are reviewed consistently.
 
 **Suggested release note sections:**
 
@@ -154,7 +191,10 @@ cargo run -q -p jcode --bin jcode-harness -- skills doctor --json | python3 -m j
 - Embedded skills and routing changes
 - Quality gate changes
 - Provider/runtime compatibility
+- Upstream divergence review
+- Security, secrets, and MCP review
 - Known gaps and opt-in integration tests
+- Migration notes and rollback plan
 
 ## Release decision
 

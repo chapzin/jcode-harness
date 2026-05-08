@@ -50,6 +50,9 @@ pub fn header_name_color() -> Color {
 pub fn header_session_color() -> Color {
     rgb(255, 255, 255)
 }
+pub fn harness_brand_color() -> Color {
+    rgb(186, 139, 255)
+}
 
 // Spinner frames for animated status
 const SPINNER_FRAMES: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];

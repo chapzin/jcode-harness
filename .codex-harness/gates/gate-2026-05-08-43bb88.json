@@ -1,0 +1,38 @@
+{
+  "id": "gate-2026-05-08-43bb88",
+  "ts": "2026-05-08T15:41:24.896Z",
+  "contractId": "2026-05-08-improve-openai-retry-after-handling-833992",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/provider/openai_stream_runtime.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openai_tests/transport_runtime.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "OpenAI Retry-After parser accepts numeric delay-seconds and HTTP-date formats, including past dates mapped to immediate retry.",
+    "OpenAI retry classifier lowercases inputs and explicitly treats 429, rate limited, rate_limit, and too many requests as retryable.",
+    "OpenAI 429 HTTP error formatting preserves retry-after seconds when available.",
+    "Focused tests 762111pat9 passed with cargo fmt --check, two targeted tests, cargo check, and git diff --check.",
+    "selfdev build task 8179124ldh passed and reload completed."
+  ],
+  "uncheckedConditions": [
+    "OpenAI Retry-After parser accepts both delay-seconds and HTTP-date values.",
+    "OpenAI retry classifier explicitly treats 429/rate limit/too many requests as retryable.",
+    "Rate limit error text preserves retry-after seconds when available.",
+    "Focused tests and cargo check pass.",
+    "selfdev build/reload, governance, commit and push pass."
+  ],
+  "evidence": [
+    "src/provider/openai_stream_runtime.rs",
+    "src/provider/openai.rs",
+    "src/provider/openai_tests/transport_runtime.rs",
+    "/tmp/jcode-bg-tasks/762111pat9.output",
+    "/tmp/jcode-bg-tasks/8179124ldh.output"
+  ],
+  "notes": "First issue #27 implementation slice: OpenAI HTTP 429 responses now retain richer Retry-After handling and reliably enter retryable error classification."
+}

@@ -1,0 +1,56 @@
+{
+  "id": "2026-05-07-add-offline-demo-runner-4e8c91",
+  "title": "Add offline demo runner",
+  "goal": "Add `jcode-harness demo run <id|all>` so issue #2 demos can execute deterministic non-writing offline demos while blocking project-writing demos unless explicitly allowed.",
+  "createdAt": "2026-05-07T21:15:35.766Z",
+  "status": "active",
+  "requiredInputs": [
+    "Issue #2 reproducible mock demos",
+    "Existing demo manifest schema"
+  ],
+  "budget": {
+    "maxSteps": 10,
+    "maxMinutes": 60,
+    "maxToolCalls": 40
+  },
+  "permissions": [
+    "edit harness CLI/tests/docs",
+    "run focused cargo tests/checks",
+    "selfdev build/reload",
+    "commit and push branch"
+  ],
+  "completionConditions": [
+    "`demo run mock-provider-run-json --json` executes successfully and emits parseable JSON report",
+    "`demo run release-gate-smoke --json` is blocked without `--allow-writes` and exits non-zero after JSON report",
+    "`demo run all --json` executes non-writing demos and marks writing demos blocked with status warn",
+    "Docs/status/release gates document `demo run` JSON contract and checks",
+    "Focused e2e, cargo check, selfdev jcode, and selfdev jcode-harness validations pass"
+  ],
+  "outputPaths": [
+    "src/bin/harness.rs",
+    "tests/e2e/harness_cli.rs",
+    "docs/JCODE_HARNESS_JSON_SCHEMAS.md",
+    "docs/JCODE_HARNESS_RELEASE_GATES.md",
+    "docs/SKILLS_HARNESS_STATUS.md"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "git diff --check",
+    "cargo test --test e2e harness_demo_run_executes_non_writing_demo_and_blocks_project_writes -- --nocapture",
+    "cargo run -q -p jcode --bin jcode-harness -- demo run mock-provider-run-json --json | python3 -m json.tool >/dev/null",
+    "cargo run -q -p jcode --bin jcode-harness -- demo run all --json",
+    "cargo check -p jcode",
+    "selfdev build target=auto",
+    "scripts/dev_cargo.sh build --profile selfdev -p jcode --bin jcode-harness",
+    "target/selfdev/jcode-harness demo run all --json"
+  ],
+  "failureTaxonomy": [
+    "unsafe_project_write",
+    "json_schema_invalid",
+    "demo_failure",
+    "blocked_policy_not_enforced",
+    "test_failure",
+    "uncommitted_or_unpushed"
+  ],
+  "notes": "Runner executes the current binary recursively with manifest argv minus argv[0]. It captures stdout/stderr and blocks project_writes demos by default."
+}

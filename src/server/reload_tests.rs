@@ -32,6 +32,7 @@ fn member(session_id: &str, status: &str) -> SwarmMember {
         detail: None,
         friendly_name: None,
         report_back_to_session_id: None,
+        run_id: None,
         latest_completion_report: None,
         role: "agent".to_string(),
         joined_at: Instant::now(),
@@ -173,6 +174,7 @@ async fn graceful_shutdown_sessions_signals_all_running_sessions_including_initi
             session_id: "initiator".to_string(),
             session_name: None,
             swarm_id: None,
+            member: None,
             event: SwarmEventType::StatusChange {
                 old_status: "running".to_string(),
                 new_status: "ready".to_string(),
@@ -185,6 +187,7 @@ async fn graceful_shutdown_sessions_signals_all_running_sessions_including_initi
             session_id: "peer".to_string(),
             session_name: None,
             swarm_id: None,
+            member: None,
             event: SwarmEventType::StatusChange {
                 old_status: "running".to_string(),
                 new_status: "ready".to_string(),
@@ -242,6 +245,7 @@ async fn graceful_shutdown_sessions_does_not_wait_for_triggering_session_checkpo
             session_id: "peer".to_string(),
             session_name: None,
             swarm_id: None,
+            member: None,
             event: SwarmEventType::StatusChange {
                 old_status: "running".to_string(),
                 new_status: "ready".to_string(),
@@ -392,6 +396,7 @@ async fn graceful_shutdown_sessions_waits_until_target_status_change_arrives() {
         session_id: "target".to_string(),
         session_name: None,
         swarm_id: None,
+        member: None,
         event: SwarmEventType::StatusChange {
             old_status: "running".to_string(),
             new_status: "ready".to_string(),
@@ -444,6 +449,7 @@ async fn graceful_shutdown_sessions_ignores_unrelated_events_until_target_leaves
         session_id: "other".to_string(),
         session_name: None,
         swarm_id: None,
+        member: None,
         event: SwarmEventType::StatusChange {
             old_status: "running".to_string(),
             new_status: "ready".to_string(),
@@ -468,6 +474,7 @@ async fn graceful_shutdown_sessions_ignores_unrelated_events_until_target_leaves
         session_id: "target".to_string(),
         session_name: None,
         swarm_id: None,
+        member: None,
         event: SwarmEventType::StatusChange {
             old_status: "running".to_string(),
             new_status: "stopped".to_string(),
@@ -520,6 +527,7 @@ async fn graceful_shutdown_sessions_treats_member_left_as_unblocked() {
         session_id: "target".to_string(),
         session_name: None,
         swarm_id: None,
+        member: None,
         event: SwarmEventType::MemberChange {
             action: "left".to_string(),
         },

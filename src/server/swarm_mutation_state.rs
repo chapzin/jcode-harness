@@ -43,7 +43,7 @@ pub(crate) enum PersistedSwarmMutationResponse {
 }
 
 impl PersistedSwarmMutationResponse {
-    fn into_server_event(self, id: u64, session_id: &str) -> ServerEvent {
+    pub(super) fn into_server_event(self, id: u64, session_id: &str) -> ServerEvent {
         match self {
             Self::Done => ServerEvent::Done { id },
             Self::AssignTask {

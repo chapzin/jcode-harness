@@ -3,24 +3,24 @@ type: doc
 name: project-overview
 description: High-level overview of the project, its purpose, and key components
 category: overview
-generated: 2026-05-06
+generated: 2026-05-07
 status: filled
 scaffoldVersion: "2.0.0"
 ---
 
 # Project Overview
 
-Jcode is an open source agentic coding environment focused on terminal-first development, multi-agent coordination, tool use, memory, self-development, and desktop/mobile companion experiences. This repository is currently on the `feature/embedded-skills-harness` branch and also serves as a `jcode-harness` product fork with embedded offline skills, an offline clean-code quality gate, and `/init` swarm bootstrap support.
+Jcode is an open source agentic coding environment focused on terminal-first development, multi-agent coordination, tool use, memory, self-development, and desktop/mobile companion experiences. This repository is currently on the `feature/embedded-skills-harness` branch and also serves as a `jcode-harness` product fork with embedded offline skills, deterministic skill routing, an offline clean-code quality gate, scriptable harness smoke/run surfaces, documented JSON contracts, and `/init` swarm bootstrap support.
 
 > **Detailed Analysis**: For generated symbol counts and dependency graphs, see `codebase-map.json` when present. Treat generated context as advisory and verify against `Cargo.toml` and the current tree.
 
 ## Quick Facts
-- Root: `<project-root>`
+- Root: `/home/chapzin/jcode-harness`
 - Primary languages: Rust for the application/workspace, Python for automation and black-box tests, JavaScript for the telemetry worker and related tooling.
 - Root package: `jcode` in `Cargo.toml`.
 - Main binaries: `jcode` at `src/main.rs`, `jcode-harness` at `src/bin/harness.rs`, `test_api` at `src/bin/test_api.rs`, plus dev-only binaries behind features.
 - Desktop crate: `crates/jcode-desktop`.
-- Current branch: `feature/embedded-skills-harness`.
+- Current branch: `feature/embedded-skills-harness`. The branch has recent pushed harness slices for selfdev reload discovery, opt-in live-provider smoke, CI-friendly smoke e2e, init/clean-code JSON schemas, and release-gate/product-plan synchronization.
 
 ## Entry Points
 - `src/lib.rs` for the root library.
@@ -56,4 +56,4 @@ Jcode is primarily a Rust 2024 Cargo workspace. Python scripts provide automatio
 3. Use `selfdev build` when available, or fallback to `scripts/dev_cargo.sh build --profile selfdev -p jcode --bin jcode`.
 4. Run focused tests near the touched crate/module.
 5. For UI/session changes, validate with debug socket tester sessions.
-6. For embedded skills or harness changes, use release-gate commands from `docs/JCODE_HARNESS_RELEASE_GATES.md`.
+6. For embedded skills or harness changes, use release-gate commands from `docs/JCODE_HARNESS_RELEASE_GATES.md`, including focused e2e filters for `harness_init_json`, `harness_smoke`, `clean_code_check_json`, and the default-skipped `harness_live_provider` smoke.

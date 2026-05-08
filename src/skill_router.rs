@@ -82,6 +82,36 @@ pub fn select_skills(goal: &str, explicit: &[String], mode: SkillMode) -> Vec<St
         "transcript",
         "session history",
     ];
+    let init_terms = [
+        "/init",
+        "project init",
+        "project initialization",
+        "jcode init",
+        "init scaffold",
+        "init scaffolding",
+        "swarm init",
+        "bootstrap",
+        ".context",
+        ".jcode/init",
+        "mcp plan",
+        "skills plan",
+        "side panel",
+        "inicialização",
+        "inicializacao",
+    ];
+    let sequential_terms = [
+        "sequential-thinking",
+        "sequential thinking",
+        "pensamento sequencial",
+        "multi-step reasoning",
+        "multistep reasoning",
+        "complex planning",
+        "architecture tradeoff",
+        "design decision",
+        "revise hypothesis",
+        "hypothesis revision",
+        "root cause analysis",
+    ];
 
     if mode == SkillMode::Always || coding_terms.iter().any(|term| text.contains(term)) {
         push_unique(&mut selected, "karpathy-guidelines");
@@ -92,6 +122,12 @@ pub fn select_skills(goal: &str, explicit: &[String], mode: SkillMode) -> Vec<St
     }
     if mode == SkillMode::Always || memory_terms.iter().any(|term| text.contains(term)) {
         push_unique(&mut selected, "llmwiki-memory");
+    }
+    if mode == SkillMode::Always || init_terms.iter().any(|term| text.contains(term)) {
+        push_unique(&mut selected, "init-bootstrap");
+    }
+    if mode == SkillMode::Always || sequential_terms.iter().any(|term| text.contains(term)) {
+        push_unique(&mut selected, "sequential-thinking");
     }
 
     selected
@@ -128,6 +164,10 @@ pub fn build_skill_preface_for_working_dir(
                 out.push_str("Minimal principles: prefer readable, focused, well-tested code; avoid silent errors; improve only touched code; explain trade-offs.\n");
             } else if name == "llmwiki-memory" {
                 out.push_str("Minimal principles: query durable wiki memory before assuming prior decisions; cite provenance; verify wiki claims against the repository; never sync secrets.\n");
+            } else if name == "init-bootstrap" {
+                out.push_str("Minimal principles: check existing context/init scaffold first; preserve /init swarm barrier semantics; review MCP before enabling servers; keep bootstrap files in sync.\n");
+            } else if name == "sequential-thinking" {
+                out.push_str("Minimal principles: use bounded explicit reasoning for complex tasks; revise hypotheses against evidence; summarize conclusions without exposing private chain-of-thought.\n");
             }
             out.push_str(&skill.content);
             out.push('\n');
@@ -184,6 +224,42 @@ mod tests {
     }
 
     #[test]
+    fn auto_selects_init_bootstrap_for_init_tasks() {
+        assert_eq!(
+            names(
+                "refresh the /init scaffold and MCP plan",
+                &[],
+                SkillMode::Auto
+            ),
+            vec!["init-bootstrap"]
+        );
+    }
+
+    #[test]
+    fn auto_selects_sequential_thinking_for_complex_reasoning_tasks() {
+        assert_eq!(
+            names(
+                "use pensamento sequencial for complex planning",
+                &[],
+                SkillMode::Auto,
+            ),
+            vec!["sequential-thinking"]
+        );
+    }
+
+    #[test]
+    fn auto_combines_init_and_sequential_thinking_when_both_match() {
+        assert_eq!(
+            names(
+                "use /init and sequential thinking for project analysis",
+                &[],
+                SkillMode::Auto,
+            ),
+            vec!["init-bootstrap", "sequential-thinking"]
+        );
+    }
+
+    #[test]
     fn auto_combines_coding_and_optimization_when_both_match() {
         assert_eq!(
             names(
@@ -217,6 +293,8 @@ mod tests {
                 "clean-code-guardian",
                 "optimization",
                 "llmwiki-memory",
+                "init-bootstrap",
+                "sequential-thinking",
             ]
         );
     }

@@ -1,0 +1,41 @@
+{
+  "id": "gate-2026-05-08-8105a0",
+  "ts": "2026-05-08T17:33:02.208Z",
+  "contractId": "2026-05-08-apply-provider-runtime-state-to-simplified-model-picker-5eeed2",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/provider/mod.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/tests/fallback_failover.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tui/app/inline_interactive.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Simplified local model picker returns crate::provider::apply_provider_runtime_state_to_routes(routes) for synthetic routes.",
+    "Shared helper decorates synthetic OpenAI picker routes with cooldown and provider backpressure details when gates are active.",
+    "MultiProvider::model_routes also uses the shared helper, keeping full and simplified route semantics aligned.",
+    "Focused cargo fmt/test/check/diff verification passed in task 450107eflu.",
+    "Selfdev build and reload passed in task 499977pmk9."
+  ],
+  "uncheckedConditions": [
+    "Simplified local model picker routes apply the same provider runtime state decoration as MultiProvider::model_routes.",
+    "OpenAI synthetic picker routes show cooldown/backpressure details when provider runtime gates are active.",
+    "The decoration helper remains shared so route metadata semantics do not diverge between full route loading and simplified picker paths.",
+    "Focused tests, cargo fmt/check, cargo check, selfdev build/reload, governance, commit/push, and issue #27 update pass."
+  ],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/450107eflu.output",
+    "/tmp/jcode-bg-tasks/499977pmk9.output",
+    "src/provider/mod.rs",
+    "src/provider/tests/fallback_failover.rs",
+    "src/tui/app/inline_interactive.rs"
+  ],
+  "notes": "The simplified picker was the remaining local route path that rebuilt routes synthetically and could drop provider cooldown/backpressure metadata."
+}

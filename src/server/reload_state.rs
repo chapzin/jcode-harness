@@ -1,7 +1,7 @@
 use super::{has_live_listener, is_server_ready};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const RELOAD_HANDOFF_EVENT_POLL_MS: i32 = 100;
 
@@ -145,7 +145,24 @@ pub enum ReloadWaitStatus {
     Ready,
     Waiting { pid: Option<u32> },
     Failed(Option<String>),
+    TimedOut(String),
     Idle,
+}
+
+fn reload_handoff_timeout_status(
+    socket_path: &std::path::Path,
+    max_wait: Duration,
+    started: Instant,
+    last_known_pid: Option<u32>,
+) -> ReloadWaitStatus {
+    ReloadWaitStatus::TimedOut(format!(
+        "reload handoff did not become ready within {}ms on {}; waited_ms={}; last_known_pid={:?}; recent_state={}",
+        max_wait.as_millis(),
+        socket_path.display(),
+        started.elapsed().as_millis(),
+        last_known_pid,
+        reload_state_summary(Duration::from_secs(60))
+    ))
 }
 
 pub async fn inspect_reload_wait_status(
@@ -221,6 +238,7 @@ pub async fn await_reload_handoff(
     socket_path: &std::path::Path,
     max_age: Duration,
 ) -> ReloadWaitStatus {
+    let started = Instant::now();
     let mut last_known_pid = None;
     crate::logging::info(&format!(
         "await_reload_handoff: begin socket={} max_age_ms={} state={}",
@@ -230,15 +248,43 @@ pub async fn await_reload_handoff(
     ));
 
     loop {
+        let Some(remaining) = max_age.checked_sub(started.elapsed()) else {
+            let status =
+                reload_handoff_timeout_status(socket_path, max_age, started, last_known_pid);
+            crate::logging::warn(&format!(
+                "await_reload_handoff: timeout socket={} result={:?}",
+                socket_path.display(),
+                status
+            ));
+            return status;
+        };
+
         match inspect_reload_wait_status(socket_path, max_age, last_known_pid).await {
             ReloadWaitStatus::Waiting { pid } => {
                 last_known_pid = pid;
                 crate::logging::info(&format!(
-                    "await_reload_handoff: waiting for reload event socket={} pid={:?}",
+                    "await_reload_handoff: waiting for reload event socket={} pid={:?} remaining_ms={}",
                     socket_path.display(),
-                    pid
+                    pid,
+                    remaining.as_millis()
                 ));
-                wait_for_reload_handoff_event(pid, socket_path).await;
+                if tokio::time::timeout(remaining, wait_for_reload_handoff_event(pid, socket_path))
+                    .await
+                    .is_err()
+                {
+                    let status = reload_handoff_timeout_status(
+                        socket_path,
+                        max_age,
+                        started,
+                        last_known_pid,
+                    );
+                    crate::logging::warn(&format!(
+                        "await_reload_handoff: wait event timeout socket={} result={:?}",
+                        socket_path.display(),
+                        status
+                    ));
+                    return status;
+                }
             }
             other => {
                 crate::logging::info(&format!(

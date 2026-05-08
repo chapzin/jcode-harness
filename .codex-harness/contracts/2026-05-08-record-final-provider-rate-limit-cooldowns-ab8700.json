@@ -1,0 +1,47 @@
+{
+  "id": "2026-05-08-record-final-provider-rate-limit-cooldowns-ab8700",
+  "title": "Record final provider rate-limit cooldowns",
+  "goal": "Ensure retryable provider rate-limit errors update the shared cooldown governor even on the final failed retry, so the next request does not immediately stampede into the same limit.",
+  "createdAt": "2026-05-08T16:46:30.428Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 6,
+    "maxMinutes": 30,
+    "maxToolCalls": 20
+  },
+  "permissions": [
+    "modify source",
+    "run focused tests",
+    "run selfdev build",
+    "commit and push"
+  ],
+  "completionConditions": [
+    "OpenAI records provider rate-limit cooldown before checking whether retry attempts remain.",
+    "Anthropic records provider rate-limit cooldown before checking whether retry attempts remain.",
+    "OpenRouter records provider rate-limit cooldown before checking whether retry attempts remain.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "outputPaths": [
+    "src/provider/routing.rs",
+    "src/provider/mod.rs",
+    "src/provider/openai_provider_impl.rs",
+    "src/provider/anthropic.rs",
+    "src/provider/openrouter_sse_stream.rs",
+    "src/provider/tests/fallback_failover.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode provider_rate_limit_cooldown --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build --target tui"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "cooldown_not_recorded_on_final_attempt",
+    "provider_retry_regression"
+  ],
+  "notes": "Follow-up to issue #27. Keep scope to OpenAI, Anthropic, and OpenRouter, which currently use the shared provider cooldown governor."
+}

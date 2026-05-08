@@ -1,0 +1,59 @@
+{
+  "id": "gate-2026-05-08-e11618",
+  "ts": "2026-05-08T13:26:46.042Z",
+  "contractId": "2026-05-08-make-assign-next-operation-id-idempotent-086ab7",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "crates/jcode-protocol/src/lib.rs",
+      "exists": true
+    },
+    {
+      "path": "crates/jcode-protocol/src/protocol_tests/comm_requests.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate_tests/input_format.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/client_lifecycle.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/comm_control.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/comm_control_tests/assign_next_dependency.rs",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/state.json",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/traces/2026-05-08.jsonl",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "CommAssignNext accepts an optional request_nonce propagated from swarm operation_id for explicit retry idempotency.",
+    "When assign_next is called without target_session and with request_nonce, duplicate calls replay the original AssignTask response instead of selecting the next unassigned task.",
+    "assign_next behavior without operation_id remains unchanged so intentional repeated assign_next calls can still assign additional tasks.",
+    "Focused protocol/server/tool tests, cargo fmt/check, git diff --check, selfdev build/reload, governance, commit, and push pass."
+  ],
+  "uncheckedConditions": [],
+  "evidence": [
+    "crates/jcode-protocol/src/lib.rs adds optional request_nonce to CommAssignNext and protocol roundtrip coverage validates serialization.",
+    "src/tool/communicate.rs maps explicit assign_next operation_id to an op-prefixed request_nonce while run_plan/fill_slots and calls without operation_id continue sending None.",
+    "src/server/comm_control.rs wraps target_session=None assign_next in an outer mutation keyed by swarm_id and request_nonce, finishing only after resolved assign_task response capture.",
+    "src/server/comm_control_tests/assign_next_dependency.rs proves duplicate request_nonce replays the original task-one assignment and leaves task-two queued.",
+    "Focused verification task 50282844x5 and selfdev build task 629485ai5d passed; reload succeeded."
+  ],
+  "notes": "The idempotency key is explicit-only: default repeated assign_next calls remain able to advance to additional tasks, and target_session-specific paths still rely on existing assign_task mutation behavior."
+}

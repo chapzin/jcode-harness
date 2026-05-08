@@ -1,0 +1,47 @@
+{
+  "id": "2026-05-08-honor-provider-retry-after-delays-2832c1",
+  "title": "Honor provider Retry-After delays",
+  "goal": "Honor provider Retry-After delay hints in retry sleeps before falling back to shared jittered backoff.",
+  "createdAt": "2026-05-08T15:58:03.922Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 30
+  },
+  "permissions": [
+    "modify source",
+    "run focused tests",
+    "run selfdev build",
+    "commit and push"
+  ],
+  "completionConditions": [
+    "Shared helper chooses Retry-After-derived delay when retryable provider errors include a valid retry-after hint, capped to the provider retry cap.",
+    "OpenAI, Anthropic, and OpenRouter retry loops use Retry-After-aware delay with jitter fallback.",
+    "Tests cover parsing delay hints from retryable error messages and fallback/cap behavior.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "outputPaths": [
+    "src/provider/routing.rs",
+    "src/provider/mod.rs",
+    "src/provider/openai_provider_impl.rs",
+    "src/provider/anthropic.rs",
+    "src/provider/openrouter_sse_stream.rs",
+    "src/provider/tests/fallback_failover.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode provider_retry_delay --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build --target tui"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "retry_timing_regression",
+    "provider_retry_regression"
+  ],
+  "notes": "Follow-up to shared Retry-After parsing and jitter slices for issue #27. Keep scope to retry delay selection, not global limiter architecture."
+}

@@ -1,0 +1,30 @@
+{
+  "id": "gate-2026-05-08-1d23a9",
+  "ts": "2026-05-08T16:28:33.289Z",
+  "contractId": "2026-05-08-gate-openai-persistent-websocket-attempts-22186b",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/provider/openai_provider_impl.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openai_tests/transport_runtime.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "OpenAI provider applies rate-limit cooldown and provider/model concurrency permit before attempting persistent WebSocket continuation.",
+    "The normal fresh connection retry loop continues to run under the same acquired permit without duplicating cooldown/backpressure logic.",
+    "A focused structural regression test verifies the gate appears before persistent WebSocket continuation.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "uncheckedConditions": [],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/4833427ra7.output",
+    "/tmp/jcode-bg-tasks/591301oy2e.output",
+    "src/provider/openai_provider_impl.rs",
+    "src/provider/openai_tests/transport_runtime.rs"
+  ],
+  "notes": "All contract completion conditions are satisfied before commit except commit/push, which is represented by this pre-commit governance pass and will be completed immediately after. The implementation hoists the cooldown/backpressure gate to the top of stream_task, before persistent WebSocket continuation, while keeping the acquired permit alive for the fresh connection retry loop."
+}

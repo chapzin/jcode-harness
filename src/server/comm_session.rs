@@ -1,15 +1,16 @@
 use super::client_lifecycle::process_message_streaming_mpsc;
 use super::swarm_mutation_state::{
     PersistedSwarmMutationResponse, SwarmMutationRuntime, begin_or_replay, finish_request,
-    request_key,
+    load_state as load_swarm_mutation_state, request_key,
 };
 use super::{
     SessionInterruptQueues, SwarmEvent, SwarmEventType, SwarmMember, SwarmState, VersionedPlan,
     append_swarm_completion_report_instructions, broadcast_swarm_plan, broadcast_swarm_status,
-    create_headless_session, fanout_session_event, persist_swarm_state_for, record_swarm_event,
-    record_swarm_event_for_session, remove_session_channel_subscriptions,
-    remove_session_from_swarm, remove_session_interrupt_queue, truncate_detail,
-    update_member_status, update_member_status_with_report,
+    create_headless_session, fanout_session_event, persist_swarm_state_for,
+    record_swarm_event_for_session, record_swarm_event_with_member_metadata,
+    remove_session_channel_subscriptions, remove_session_from_swarm,
+    remove_session_interrupt_queue, truncate_detail, update_member_status,
+    update_member_status_with_report,
 };
 use crate::agent::Agent;
 use crate::protocol::{NotificationType, ServerEvent};
@@ -79,6 +80,31 @@ async fn resolve_spawn_working_dir(
         .and_then(|member| member.working_dir.as_ref())
         .map(|dir| dir.display().to_string())
         .filter(|dir| !dir.trim().is_empty())
+}
+
+fn spawn_mutation_key(
+    req_session_id: &str,
+    swarm_id: &str,
+    working_dir: &Option<String>,
+    initial_message: &Option<String>,
+    request_nonce: &Option<String>,
+    run_id: &Option<String>,
+) -> String {
+    let request_nonce = request_nonce
+        .as_deref()
+        .map(str::trim)
+        .filter(|nonce| !nonce.is_empty());
+    let components = if let Some(request_nonce) = request_nonce {
+        vec![swarm_id.to_string(), format!("nonce:{request_nonce}")]
+    } else {
+        vec![
+            swarm_id.to_string(),
+            working_dir.clone().unwrap_or_default(),
+            initial_message.clone().unwrap_or_default(),
+            run_id.clone().unwrap_or_default(),
+        ]
+    };
+    request_key(req_session_id, "spawn", &components)
 }
 
 fn spawn_visible_session_window(
@@ -163,6 +189,7 @@ async fn register_visible_spawned_member(
     working_dir: Option<&str>,
     has_startup_message: bool,
     report_back_to_session_id: Option<&str>,
+    run_id: Option<&str>,
     swarm_members: &Arc<RwLock<HashMap<String, SwarmMember>>>,
     swarms_by_id: &Arc<RwLock<HashMap<String, HashSet<String>>>>,
     event_history: &Arc<RwLock<std::collections::VecDeque<SwarmEvent>>>,
@@ -195,6 +222,7 @@ async fn register_visible_spawned_member(
                 detail,
                 friendly_name: Some(friendly_name),
                 report_back_to_session_id: report_back_to_session_id.map(str::to_string),
+                run_id: run_id.map(str::to_string),
                 latest_completion_report: None,
                 role: "agent".to_string(),
                 joined_at: now,
@@ -235,6 +263,7 @@ pub(super) async fn spawn_swarm_agent(
     swarm_id: &str,
     working_dir: Option<String>,
     initial_message: Option<String>,
+    run_id: Option<String>,
     sessions: &SessionAgents,
     global_session_id: &Arc<RwLock<String>>,
     provider_template: &Arc<dyn Provider>,
@@ -311,6 +340,7 @@ pub(super) async fn spawn_swarm_agent(
                 spawn_model.clone(),
                 Some(Arc::clone(mcp_pool)),
                 Some(req_session_id.to_string()),
+                run_id.clone(),
             )
             .await
             .and_then(|result_json| {
@@ -354,6 +384,7 @@ pub(super) async fn spawn_swarm_agent(
             resolved_working_dir.as_deref(),
             startup_message.is_some(),
             Some(req_session_id),
+            run_id.as_deref(),
             swarm_members,
             swarms_by_id,
             event_history,
@@ -460,6 +491,7 @@ pub(super) async fn handle_comm_spawn(
     working_dir: Option<String>,
     initial_message: Option<String>,
     request_nonce: Option<String>,
+    run_id: Option<String>,
     client_event_tx: &mpsc::UnboundedSender<ServerEvent>,
     sessions: &SessionAgents,
     global_session_id: &Arc<RwLock<String>>,
@@ -493,15 +525,13 @@ pub(super) async fn handle_comm_spawn(
         None => return,
     };
 
-    let mutation_key = request_key(
+    let mutation_key = spawn_mutation_key(
         &req_session_id,
-        "spawn",
-        &[
-            swarm_id.clone(),
-            working_dir.clone().unwrap_or_default(),
-            initial_message.clone().unwrap_or_default(),
-            request_nonce.clone().unwrap_or_default(),
-        ],
+        &swarm_id,
+        &working_dir,
+        &initial_message,
+        &request_nonce,
+        &run_id,
     );
     let Some(mutation_state) = begin_or_replay(
         swarm_mutation_runtime,
@@ -521,6 +551,7 @@ pub(super) async fn handle_comm_spawn(
         &swarm_id,
         working_dir,
         initial_message,
+        run_id,
         sessions,
         global_session_id,
         provider_template,
@@ -581,6 +612,15 @@ pub(super) async fn handle_comm_stop(
         return;
     };
 
+    let target_key = target_session.trim().to_string();
+    let replay_key = request_key(&req_session_id, "stop", &[swarm_id.clone(), target_key]);
+    if let Some(final_response) =
+        load_swarm_mutation_state(&replay_key).and_then(|state| state.final_response)
+    {
+        let _ = client_event_tx.send(final_response.into_server_event(id, &req_session_id));
+        return;
+    }
+
     let target_session =
         match resolve_stop_target_session(&swarm_id, &target_session, swarm_members).await {
             Ok(target_session) => target_session,
@@ -612,16 +652,12 @@ pub(super) async fn handle_comm_stop(
         return;
     }
 
-    let _ = fanout_session_event(
-        swarm_members,
-        &target_session,
-        ServerEvent::SessionCloseRequested {
-            reason: format!("Stopped by coordinator {req_session_id}"),
-        },
-    )
-    .await;
+    let mutation_key = request_key(
+        &req_session_id,
+        "stop",
+        &[swarm_id.clone(), target_session.clone()],
+    );
 
-    let mutation_key = request_key(&req_session_id, "stop", &[swarm_id, target_session.clone()]);
     let Some(mutation_state) = begin_or_replay(
         swarm_mutation_runtime,
         &mutation_key,
@@ -634,6 +670,15 @@ pub(super) async fn handle_comm_stop(
     else {
         return;
     };
+
+    let _ = fanout_session_event(
+        swarm_members,
+        &target_session,
+        ServerEvent::SessionCloseRequested {
+            reason: format!("Stopped by coordinator {req_session_id}"),
+        },
+    )
+    .await;
 
     let mut sessions_guard = sessions.write().await;
     let removed_agent = sessions_guard.remove(&target_session);
@@ -661,22 +706,24 @@ pub(super) async fn handle_comm_stop(
         }
     }
 
-    let (removed_swarm_id, removed_name) = {
+    let (removed_swarm_id, removed_name, member_metadata) = {
         let mut members = swarm_members.write().await;
         if let Some(member) = members.remove(&target_session) {
-            (member.swarm_id, member.friendly_name)
+            let metadata = super::SwarmEventMemberMetadata::from_member(&member);
+            (member.swarm_id, member.friendly_name, Some(metadata))
         } else {
-            (None, None)
+            (None, None, None)
         }
     };
     if let Some(ref swarm_id) = removed_swarm_id {
-        record_swarm_event(
+        record_swarm_event_with_member_metadata(
             event_history,
             event_counter,
             swarm_event_tx,
             target_session.clone(),
             removed_name.clone(),
             Some(swarm_id.clone()),
+            member_metadata,
             SwarmEventType::MemberChange {
                 action: "left".to_string(),
             },

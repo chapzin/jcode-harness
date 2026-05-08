@@ -14,11 +14,21 @@ pub(super) async fn awaited_member_statuses(
     swarm_id: &str,
     requested_ids: &[String],
     target_status: &[String],
+    run_id: Option<&str>,
     swarm_members: &Arc<RwLock<HashMap<String, SwarmMember>>>,
     swarms_by_id: &Arc<RwLock<HashMap<String, HashSet<String>>>>,
 ) -> Vec<AwaitedMemberStatus> {
     let watch_ids: Vec<String> = if requested_ids.is_empty() {
-        let mut watch_ids: Vec<String> = {
+        let mut watch_ids: Vec<String> = if let Some(run_id) = run_id {
+            let members = swarm_members.read().await;
+            members
+                .values()
+                .filter(|member| member.session_id != req_session_id)
+                .filter(|member| member.swarm_id.as_deref() == Some(swarm_id))
+                .filter(|member| member.run_id.as_deref() == Some(run_id))
+                .map(|member| member.session_id.clone())
+                .collect()
+        } else {
             let swarms = swarms_by_id.read().await;
             swarms
                 .get(swarm_id)
@@ -64,6 +74,48 @@ pub(super) async fn awaited_member_statuses(
             }
         })
         .collect()
+}
+
+pub(super) async fn owned_non_terminal_member_snapshot(
+    req_session_id: &str,
+    swarm_id: &str,
+    target_status: &[String],
+    run_id: Option<&str>,
+    swarm_members: &Arc<RwLock<HashMap<String, SwarmMember>>>,
+) -> Vec<String> {
+    let done_statuses = target_status
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    let members = swarm_members.read().await;
+    let mut ids = members
+        .values()
+        .filter(|member| member.session_id != req_session_id)
+        .filter(|member| member.swarm_id.as_deref() == Some(swarm_id))
+        .filter(|member| member.report_back_to_session_id.as_deref() == Some(req_session_id))
+        .filter(|member| run_id.is_none_or(|run_id| member.run_id.as_deref() == Some(run_id)))
+        .filter(|member| !done_statuses.contains(member.status.as_str()))
+        .filter(|member| {
+            !matches!(
+                member.status.as_str(),
+                "crashed" | "closed" | "disconnected" | "running_stale"
+            )
+        })
+        .map(|member| member.session_id.clone())
+        .collect::<Vec<_>>();
+    ids.sort();
+    ids
+}
+
+fn no_scoped_candidates_summary() -> String {
+    "No scoped await_members candidates found. Default await_members only waits for non-terminal workers spawned by this coordinator. Pass explicit session_ids or target_session to await older or user-created agents."
+        .to_string()
+}
+
+fn no_run_candidates_summary(run_id: &str) -> String {
+    format!(
+        "No active await_members candidates found for run_id={run_id}. The run may already be complete or only have terminal/stale workers. Use `swarm list run_id={run_id}` or `swarm health run_id={run_id}` to inspect it, `swarm cleanup run_id={run_id}` to clear terminal workers, or `swarm retry`/`swarm reassign` for stale tasks."
+    )
 }
 
 fn short_member_name(member: &AwaitedMemberStatus) -> String {
@@ -163,6 +215,7 @@ pub(super) async fn spawn_or_resume_await_members(
     let requested_ids = state.requested_ids.clone();
     let target_status = state.target_status.clone();
     let mode = state.mode.clone();
+    let run_id = state.run_id.clone();
 
     tokio::spawn(async move {
         let mut event_rx = swarm_event_tx.subscribe();
@@ -174,6 +227,7 @@ pub(super) async fn spawn_or_resume_await_members(
                 &swarm_id,
                 &requested_ids,
                 &target_status,
+                run_id.as_deref(),
                 &swarm_members,
                 &swarms_by_id,
             )
@@ -237,7 +291,9 @@ pub(super) async fn handle_comm_await_members(
     id: u64,
     req_session_id: String,
     target_status: Vec<String>,
-    requested_ids: Vec<String>,
+    mut requested_ids: Vec<String>,
+    owned_only: bool,
+    run_id: Option<String>,
     mode: Option<String>,
     timeout_secs: Option<u64>,
     ctx: CommAwaitMembersContext<'_>,
@@ -250,12 +306,39 @@ pub(super) async fn handle_comm_await_members(
     };
 
     if let Some(swarm_id) = swarm_id {
+        if owned_only && requested_ids.is_empty() {
+            requested_ids = owned_non_terminal_member_snapshot(
+                &req_session_id,
+                &swarm_id,
+                &target_status,
+                run_id.as_deref(),
+                ctx.swarm_members,
+            )
+            .await;
+            if requested_ids.is_empty() {
+                let summary = run_id
+                    .as_deref()
+                    .map(no_run_candidates_summary)
+                    .unwrap_or_else(no_scoped_candidates_summary);
+                let _ = ctx
+                    .client_event_tx
+                    .send(ServerEvent::CommAwaitMembersResponse {
+                        id,
+                        completed: true,
+                        members: vec![],
+                        summary,
+                    });
+                return;
+            }
+        }
         let key = request_key(
             &req_session_id,
             &swarm_id,
             &requested_ids,
             &target_status,
+            owned_only,
             mode.as_deref(),
+            run_id.as_deref(),
         );
         let persisted = load_state(&key);
 
@@ -279,19 +362,27 @@ pub(super) async fn handle_comm_await_members(
             &swarm_id,
             &requested_ids,
             &target_status,
+            run_id.as_deref(),
             ctx.swarm_members,
             ctx.swarms_by_id,
         )
         .await;
 
         if initial_statuses.is_empty() {
+            let summary = if owned_only {
+                no_scoped_candidates_summary()
+            } else if let Some(run_id) = run_id.as_deref() {
+                no_run_candidates_summary(run_id)
+            } else {
+                "No other members in swarm to wait for.".to_string()
+            };
             let _ = ctx
                 .client_event_tx
                 .send(ServerEvent::CommAwaitMembersResponse {
                     id,
                     completed: true,
                     members: vec![],
-                    summary: "No other members in swarm to wait for.".to_string(),
+                    summary,
                 });
             return;
         }
@@ -308,7 +399,9 @@ pub(super) async fn handle_comm_await_members(
                 &swarm_id,
                 &requested_ids,
                 &target_status,
+                owned_only,
                 mode.as_deref(),
+                run_id.as_deref(),
                 requested_deadline,
             )
         });

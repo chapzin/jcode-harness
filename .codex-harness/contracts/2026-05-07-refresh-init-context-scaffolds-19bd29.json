@@ -1,0 +1,45 @@
+{
+  "id": "2026-05-07-refresh-init-context-scaffolds-19bd29",
+  "title": "Refresh init context scaffolds",
+  "goal": "Refresh project-local init and context scaffolds after running offline init so next steps are based on current jcode-harness state.",
+  "createdAt": "2026-05-07T20:29:37.821Z",
+  "status": "active",
+  "requiredInputs": [
+    "offline init report already run with no file writes"
+  ],
+  "budget": {
+    "maxSteps": 6,
+    "maxMinutes": 30,
+    "maxToolCalls": 20
+  },
+  "permissions": [
+    "edit docs/context/governance files",
+    "run local validation commands",
+    "commit and push branch"
+  ],
+  "completionConditions": [
+    ".jcode init/side-panel context no longer contains stale placeholders or old completed-slice status",
+    "Generated .context project overview has a concrete repository root and current harness context",
+    "Changes are docs/context/governance-only",
+    "Validation checks pass and changes are committed/pushed"
+  ],
+  "outputPaths": [
+    ".jcode/INIT_QUESTIONS.md",
+    ".jcode/init/SWARM_ANALYSIS_REPORT.md",
+    ".jcode/side_panel/status.md",
+    ".jcode/side_panel/questions.md",
+    ".context/docs/project-overview.md"
+  ],
+  "verificationCommands": [
+    "git diff --check",
+    "grep -RIn \"<generated-at>\\|<project-root>\\|<.*session>\\|Selfdev build passed. `selfdev reload` was attempted\" .jcode .context/docs || true",
+    "python3 - <<'PY'\nimport json, pathlib\nfor p in pathlib.Path('.codex-harness').rglob('*.json'):\n    json.loads(p.read_text())\nPY"
+  ],
+  "failureTaxonomy": [
+    "stale_context_leftover",
+    "overbroad_runtime_change",
+    "invalid_markdown_or_json",
+    "uncommitted_changes"
+  ],
+  "notes": "Safe docs/context slice only. No provider, MCP network, package install, or runtime source changes."
+}

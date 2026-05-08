@@ -36,6 +36,20 @@ fn test_oauth_beta_headers_require_explicit_1m_suffix() {
     );
 }
 
+#[test]
+fn provider_retry_after_anthropic_http_error_is_retryable() {
+    let message = format_anthropic_http_error(
+        reqwest::StatusCode::TOO_MANY_REQUESTS,
+        Some(23),
+        r#"{"error":{"type":"rate_limit_error"}}"#,
+    );
+
+    assert!(message.contains("429 Too Many Requests"));
+    assert!(message.contains("retry after 23s"));
+    assert!(message.contains("rate_limit_error"));
+    assert!(is_retryable_error(&message.to_lowercase()));
+}
+
 #[tokio::test]
 async fn test_dangling_tool_use_repair() {
     let provider = AnthropicProvider::new();

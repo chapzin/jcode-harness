@@ -24,13 +24,78 @@ pub(super) async fn run_stream_with_retries(
 ) {
     let mut last_error = None;
 
+    if let Some(delay) =
+        crate::provider::provider_rate_limit_cooldown_remaining_ms("openrouter", &model)
+    {
+        let _ = tx
+            .send(Ok(StreamEvent::ConnectionPhase {
+                phase: crate::message::ConnectionPhase::Retrying {
+                    attempt: 1,
+                    max: MAX_RETRIES,
+                },
+            }))
+            .await;
+        let _ = tx
+            .send(Ok(StreamEvent::StatusDetail {
+                detail: format!(
+                    "rate-limit cooldown {}",
+                    crate::provider::provider_wait_status_duration(delay)
+                ),
+            }))
+            .await;
+        crate::logging::info(&format!(
+            "OpenRouter provider rate-limit cooldown active for model='{}' ({}ms remaining)",
+            model, delay
+        ));
+        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+    }
+
+    let _provider_concurrency_permit =
+        crate::provider::acquire_provider_concurrency_permit("openrouter", &model).await;
+    if let Some(permit) = _provider_concurrency_permit.as_ref()
+        && permit.waited_ms() > 0
+    {
+        let _ = tx
+            .send(Ok(StreamEvent::StatusDetail {
+                detail: format!(
+                    "provider backpressure {}",
+                    crate::provider::provider_wait_status_duration(permit.waited_ms())
+                ),
+            }))
+            .await;
+        crate::logging::info(&format!(
+            "{} provider backpressure waited {}ms for model='{}' (limit={})",
+            permit.provider(),
+            permit.waited_ms(),
+            permit.model(),
+            permit.limit()
+        ));
+    }
+
     for attempt in 0..MAX_RETRIES {
         if attempt > 0 {
-            let delay = RETRY_BASE_DELAY_MS * (1 << (attempt - 1));
+            let delay = last_error
+                .as_ref()
+                .map(|error: &anyhow::Error| {
+                    crate::provider::retry_delay_ms_for_error(
+                        attempt,
+                        RETRY_BASE_DELAY_MS,
+                        crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
+                        &error.to_string(),
+                    )
+                })
+                .unwrap_or_else(|| {
+                    crate::provider::retry_backoff_delay_ms(
+                        attempt,
+                        RETRY_BASE_DELAY_MS,
+                        crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
+                    )
+                });
             tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
             crate::logging::info(&format!(
-                "Retrying API request using {} (attempt {}/{})",
+                "Retrying API request using {} after {}ms (attempt {}/{})",
                 auth.label(),
+                delay,
                 attempt + 1,
                 MAX_RETRIES
             ));
@@ -60,7 +125,25 @@ pub(super) async fn run_stream_with_retries(
             Ok(()) => return,
             Err(e) => {
                 let error_str = e.to_string().to_lowercase();
-                if is_retryable_error(&error_str) && attempt + 1 < MAX_RETRIES {
+                let retryable = is_retryable_error(&error_str);
+                if retryable {
+                    if let Some(cooldown) =
+                        crate::provider::record_provider_rate_limit_cooldown_for_retry(
+                            "openrouter",
+                            &model,
+                            &error_str,
+                            attempt + 1,
+                            RETRY_BASE_DELAY_MS,
+                            crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
+                        )
+                    {
+                        crate::logging::info(&format!(
+                            "Recorded OpenRouter provider rate-limit cooldown for model='{}' ({}ms)",
+                            model, cooldown
+                        ));
+                    }
+                }
+                if retryable && attempt + 1 < MAX_RETRIES {
                     crate::logging::info(&format!("Transient API error, will retry: {}", e));
                     last_error = Some(e);
                     continue;
@@ -146,14 +229,19 @@ async fn stream_response(
 
     if !response.status().is_success() {
         let status = response.status();
+        let retry_after =
+            crate::provider::retry_after_secs_from_headers(response.headers(), chrono::Utc::now());
         let body = crate::util::http_error_body(response, "HTTP error").await;
         anyhow::bail!(
-            "OpenAI-compatible chat request failed\n  endpoint: {}\n  model: {}\n  auth: {}\n  status: {}\n  response: {}\nHint: verify the selected model exists in `/models`, your key has access, and the endpoint supports POST /chat/completions with streaming.",
-            url,
-            model,
-            auth.label(),
-            status,
-            body
+            "{}",
+            format_openai_compatible_http_error(
+                &url,
+                &model,
+                auth.label(),
+                status,
+                retry_after,
+                &body
+            )
         );
     }
 
@@ -196,7 +284,21 @@ async fn stream_response(
     Ok(())
 }
 
-fn is_retryable_error(error_str: &str) -> bool {
+pub(super) fn format_openai_compatible_http_error(
+    url: &str,
+    model: &str,
+    auth_label: &str,
+    status: reqwest::StatusCode,
+    retry_after: Option<u64>,
+    body: &str,
+) -> String {
+    let wait_info = crate::provider::retry_after_suffix(retry_after);
+    format!(
+        "OpenAI-compatible chat request failed\n  endpoint: {url}\n  model: {model}\n  auth: {auth_label}\n  status: {status}{wait_info}\n  response: {body}\nHint: verify the selected model exists in `/models`, your key has access, and the endpoint supports POST /chat/completions with streaming."
+    )
+}
+
+pub(super) fn is_retryable_error(error_str: &str) -> bool {
     crate::provider::is_transient_transport_error(error_str)
         || error_str.contains("stream error")
         || error_str.contains("eof")
@@ -207,6 +309,11 @@ fn is_retryable_error(error_str: &str) -> bool {
                 || error_str.contains("504")
                 || error_str.contains("internal server error"))
         || error_str.contains("overloaded")
+        || error_str.contains("429 too many requests")
+        || error_str.contains("too many requests")
+        || error_str.contains("rate limited")
+        || error_str.contains("rate_limit")
+        || error_str.contains("rate limit")
 }
 
 pub(crate) struct OpenRouterStream {

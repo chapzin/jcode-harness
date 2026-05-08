@@ -70,11 +70,330 @@ fn communicate_input_accepts_cleanup_lifecycle_flags() {
     let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
         "action": "run_plan",
         "force": true,
+        "dry_run": true,
         "retain_agents": true
     }))
     .expect("lifecycle flags should deserialize");
     assert_eq!(parsed.force, Some(true));
+    assert_eq!(parsed.dry_run, Some(true));
     assert_eq!(parsed.retain_agents, Some(true));
+}
+
+#[test]
+fn communicate_input_accepts_run_id() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "run_plan",
+        "run_id": "run-explicit-1"
+    }))
+    .expect("run_id should deserialize");
+    assert_eq!(parsed.run_id.as_deref(), Some("run-explicit-1"));
+}
+
+#[test]
+fn communicate_input_accepts_operation_id_for_idempotent_spawns() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "spawn",
+        "operation_id": " issue-13-spawn-1 "
+    }))
+    .expect("operation_id should deserialize");
+    assert_eq!(parsed.operation_id.as_deref(), Some(" issue-13-spawn-1 "));
+
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    assert_eq!(
+        super::spawn_request_nonce(&ctx, parsed.operation_id.as_deref()),
+        "op:issue-13-spawn-1"
+    );
+}
+
+#[test]
+fn communicate_input_accepts_operation_id_for_messages() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "dm",
+        "message": "ping",
+        "to_session": "bear",
+        "operation_id": " issue-13-message-1 "
+    }))
+    .expect("message operation_id should deserialize");
+
+    assert_eq!(parsed.operation_id.as_deref(), Some(" issue-13-message-1 "));
+}
+
+#[test]
+fn communicate_input_accepts_operation_id_for_assign_next() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "assign_next",
+        "operation_id": " issue-13-assign-next-1 "
+    }))
+    .expect("assign_next operation_id should deserialize");
+
+    assert_eq!(
+        explicit_operation_request_nonce(parsed.operation_id.as_deref()).as_deref(),
+        Some("op:issue-13-assign-next-1")
+    );
+    assert_eq!(explicit_operation_request_nonce(None), None);
+}
+
+#[test]
+fn communicate_input_accepts_operation_id_for_assign_task() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "assign_task",
+        "operation_id": " issue-13-assign-task-1 "
+    }))
+    .expect("assign_task operation_id should deserialize");
+
+    assert_eq!(
+        explicit_operation_request_nonce(parsed.operation_id.as_deref()).as_deref(),
+        Some("op:issue-13-assign-task-1")
+    );
+}
+
+#[test]
+fn communicate_input_accepts_operation_id_for_task_control() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "wake",
+        "task_id": "task-1",
+        "operation_id": " issue-13-task-control-1 "
+    }))
+    .expect("task_control operation_id should deserialize");
+
+    assert_eq!(parsed.operation_id.as_deref(), Some(" issue-13-task-control-1 "));
+    assert_eq!(
+        explicit_operation_request_nonce(parsed.operation_id.as_deref()).as_deref(),
+        Some("op:issue-13-task-control-1")
+    );
+}
+
+#[test]
+fn fill_slots_operation_id_derives_stable_run_and_slot_nonces() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "fill_slots",
+        "concurrency_limit": 3,
+        "operation_id": " issue-13-fill-slots-1 "
+    }))
+    .expect("fill_slots operation_id should deserialize");
+
+    assert_eq!(parsed.operation_id.as_deref(), Some(" issue-13-fill-slots-1 "));
+    assert_eq!(
+        operation_scoped_run_id(parsed.operation_id.as_deref()).as_deref(),
+        Some("run:op:issue-13-fill-slots-1")
+    );
+    assert_eq!(
+        fill_slots_request_nonce(parsed.operation_id.as_deref(), 0).as_deref(),
+        Some("op:issue-13-fill-slots-1:slot:0")
+    );
+    assert_eq!(
+        fill_slots_request_nonce(parsed.operation_id.as_deref(), 2).as_deref(),
+        Some("op:issue-13-fill-slots-1:slot:2")
+    );
+    assert_eq!(fill_slots_request_nonce(None, 0), None);
+    assert_eq!(operation_scoped_run_id(None), None);
+}
+
+#[test]
+fn run_plan_operation_id_derives_stable_run_and_versioned_slot_nonces() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "run_plan",
+        "operation_id": " issue-13-run-plan-1 "
+    }))
+    .expect("run_plan operation_id should deserialize");
+
+    assert_eq!(parsed.operation_id.as_deref(), Some(" issue-13-run-plan-1 "));
+    assert_eq!(
+        operation_scoped_run_id(parsed.operation_id.as_deref()).as_deref(),
+        Some("run:op:issue-13-run-plan-1")
+    );
+    assert_eq!(
+        run_plan_request_nonce(parsed.operation_id.as_deref(), 7, 0).as_deref(),
+        Some("op:issue-13-run-plan-1:plan:7:slot:0")
+    );
+    assert_eq!(
+        run_plan_request_nonce(parsed.operation_id.as_deref(), 7, 2).as_deref(),
+        Some("op:issue-13-run-plan-1:plan:7:slot:2")
+    );
+    assert_eq!(
+        run_plan_request_nonce(parsed.operation_id.as_deref(), 8, 0).as_deref(),
+        Some("op:issue-13-run-plan-1:plan:8:slot:0")
+    );
+    assert_eq!(run_plan_request_nonce(None, 7, 0), None);
+}
+
+#[test]
+fn spawned_worker_run_id_uses_operation_scope_for_retryable_spawns() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "spawn",
+        "operation_id": " issue-13-spawn-run-1 "
+    }))
+    .expect("spawn operation_id should deserialize");
+    let first_ctx = test_ctx_with_call_id("coord", std::path::Path::new("."), "call-a");
+    let retry_ctx = test_ctx_with_call_id("coord", std::path::Path::new("."), "call-b");
+
+    assert_eq!(
+        spawned_worker_run_id(&first_ctx, None, parsed.operation_id.as_deref()),
+        "run:op:issue-13-spawn-run-1"
+    );
+    assert_eq!(
+        spawned_worker_run_id(&retry_ctx, None, parsed.operation_id.as_deref()),
+        "run:op:issue-13-spawn-run-1"
+    );
+}
+
+#[test]
+fn spawned_worker_run_id_preserves_explicit_run_id_over_operation_scope() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+
+    assert_eq!(
+        spawned_worker_run_id(&ctx, Some("run-explicit"), Some(" issue-13-spawn-run-1 ")),
+        "run-explicit"
+    );
+}
+
+#[test]
+fn spawned_worker_run_id_stays_fresh_without_operation_id() {
+    let first_ctx = test_ctx_with_call_id("coord", std::path::Path::new("."), "call-a");
+    let second_ctx = test_ctx_with_call_id("coord", std::path::Path::new("."), "call-b");
+
+    let first = spawned_worker_run_id(&first_ctx, None, None);
+    let second = spawned_worker_run_id(&second_ctx, None, None);
+
+    assert!(first.starts_with("run-coord-call-a-"));
+    assert!(second.starts_with("run-coord-call-b-"));
+    assert_ne!(first, second);
+}
+
+fn await_scope_member(
+    session_id: &str,
+    owner: Option<&str>,
+    run_id: Option<&str>,
+    status: &str,
+) -> AgentInfo {
+    AgentInfo {
+        session_id: session_id.to_string(),
+        friendly_name: Some(session_id.to_string()),
+        files_touched: vec![],
+        working_dir: None,
+        status: Some(status.to_string()),
+        detail: None,
+        role: Some("agent".to_string()),
+        is_headless: Some(true),
+        report_back_to_session_id: owner.map(str::to_string),
+        run_id: run_id.map(str::to_string),
+        latest_completion_report: None,
+        live_attachments: None,
+        status_age_secs: None,
+    }
+}
+
+#[test]
+fn implicit_await_run_scope_infers_single_active_owned_run() {
+    let statuses = default_await_target_statuses();
+    let members = vec![
+        await_scope_member("worker-active", Some("coord"), Some("run-active"), "running"),
+        await_scope_member("worker-ready", Some("coord"), Some("run-old"), "ready"),
+        await_scope_member(
+            "worker-stale",
+            Some("coord"),
+            Some("run-stale"),
+            "running_stale",
+        ),
+        await_scope_member("worker-foreign", Some("other"), Some("run-other"), "running"),
+    ];
+
+    assert_eq!(
+        implicit_await_run_scope("coord", &members, &statuses)
+            .expect("single active run should infer scope")
+            .as_deref(),
+        Some("run-active")
+    );
+}
+
+#[test]
+fn implicit_await_run_scope_rejects_multiple_active_owned_runs() {
+    let statuses = default_await_target_statuses();
+    let members = vec![
+        await_scope_member("worker-a", Some("coord"), Some("run-a"), "running"),
+        await_scope_member("worker-b", Some("coord"), Some("run-b"), "spawned"),
+    ];
+
+    let error = implicit_await_run_scope("coord", &members, &statuses)
+        .expect_err("mixed active runs should require explicit scope");
+    assert!(error.contains("multiple active owned run scopes"));
+    assert!(error.contains("run-a"));
+    assert!(error.contains("run-b"));
+    assert!(error.contains("Pass run_id=<id>"));
+}
+
+#[test]
+fn implicit_await_run_scope_keeps_fallback_when_no_active_run_scope() {
+    let statuses = default_await_target_statuses();
+    let members = vec![
+        await_scope_member("worker-ready", Some("coord"), Some("run-old"), "ready"),
+        await_scope_member("worker-unscoped", Some("coord"), None, "running"),
+    ];
+
+    assert_eq!(
+        implicit_await_run_scope("coord", &members, &statuses),
+        Ok(None)
+    );
+}
+
+#[test]
+fn operation_run_scope_derives_followup_scope_and_preserves_explicit_run_id() {
+    assert_eq!(
+        operation_run_scope(None, Some(" issue-13-followup-1 ")).as_deref(),
+        Some("run:op:issue-13-followup-1")
+    );
+    assert_eq!(
+        operation_run_scope(Some("run-explicit"), Some(" issue-13-followup-1 ")).as_deref(),
+        Some("run-explicit")
+    );
+    assert_eq!(operation_run_scope(None, None), None);
+}
+
+#[test]
+fn operation_run_scope_limits_cleanup_candidates_to_operation_run() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "cleanup",
+        "operation_id": " issue-13-followup-1 "
+    }))
+    .expect("cleanup operation_id should deserialize");
+    let members = vec![
+        await_scope_member("coord", None, None, "ready"),
+        await_scope_member(
+            "op-run-worker",
+            Some("coord"),
+            Some("run:op:issue-13-followup-1"),
+            "completed",
+        ),
+        await_scope_member("old-run-worker", Some("coord"), Some("run-old"), "completed"),
+    ];
+    let statuses = default_cleanup_target_statuses();
+    let run_scope = operation_run_scope(None, parsed.operation_id.as_deref());
+
+    assert_eq!(
+        cleanup_candidate_session_ids(
+            "coord",
+            &members,
+            &statuses,
+            &[],
+            false,
+            run_scope.as_deref(),
+        ),
+        vec!["op-run-worker".to_string()]
+    );
+}
+
+#[test]
+fn operation_run_scope_matches_await_followup_scope_without_explicit_members() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "await_members",
+        "operation_id": " issue-13-followup-1 "
+    }))
+    .expect("await_members operation_id should deserialize");
+
+    assert_eq!(
+        operation_run_scope(parsed.run_id.as_deref(), parsed.operation_id.as_deref()).as_deref(),
+        Some("run:op:issue-13-followup-1")
+    );
 }
 
 #[test]
@@ -84,11 +403,13 @@ fn cleanup_candidates_default_to_owned_terminal_workers() {
             session_id: "coord".to_string(),
             friendly_name: Some("coord".to_string()),
             files_touched: vec![],
+            working_dir: None,
             status: Some("ready".to_string()),
             detail: None,
             role: Some("coordinator".to_string()),
             is_headless: None,
             report_back_to_session_id: None,
+            run_id: None,
             latest_completion_report: None,
             live_attachments: None,
             status_age_secs: None,
@@ -97,11 +418,13 @@ fn cleanup_candidates_default_to_owned_terminal_workers() {
             session_id: "owned-done".to_string(),
             friendly_name: Some("owned".to_string()),
             files_touched: vec![],
+            working_dir: None,
             status: Some("completed".to_string()),
             detail: None,
             role: Some("agent".to_string()),
             is_headless: Some(true),
             report_back_to_session_id: Some("coord".to_string()),
+            run_id: None,
             latest_completion_report: None,
             live_attachments: None,
             status_age_secs: None,
@@ -110,11 +433,13 @@ fn cleanup_candidates_default_to_owned_terminal_workers() {
             session_id: "user-created".to_string(),
             friendly_name: Some("user".to_string()),
             files_touched: vec![],
+            working_dir: None,
             status: Some("completed".to_string()),
             detail: None,
             role: Some("agent".to_string()),
             is_headless: None,
             report_back_to_session_id: None,
+            run_id: None,
             latest_completion_report: None,
             live_attachments: None,
             status_age_secs: None,
@@ -123,11 +448,13 @@ fn cleanup_candidates_default_to_owned_terminal_workers() {
             session_id: "owned-running".to_string(),
             friendly_name: Some("running".to_string()),
             files_touched: vec![],
+            working_dir: None,
             status: Some("running".to_string()),
             detail: None,
             role: Some("agent".to_string()),
             is_headless: Some(true),
             report_back_to_session_id: Some("coord".to_string()),
+            run_id: None,
             latest_completion_report: None,
             live_attachments: None,
             status_age_secs: None,
@@ -135,13 +462,535 @@ fn cleanup_candidates_default_to_owned_terminal_workers() {
     ];
     let statuses = default_cleanup_target_statuses();
     assert_eq!(
-        cleanup_candidate_session_ids("coord", &members, &statuses, &[], false),
+        cleanup_candidate_session_ids("coord", &members, &statuses, &[], false, None),
         vec!["owned-done".to_string()]
     );
     assert_eq!(
-        cleanup_candidate_session_ids("coord", &members, &statuses, &[], true),
+        cleanup_candidate_session_ids("coord", &members, &statuses, &[], true, None),
         vec!["owned-done".to_string(), "user-created".to_string()]
     );
+}
+
+#[test]
+fn cleanup_candidates_include_owned_stale_workers_by_default() {
+    let members = vec![
+        AgentInfo {
+            session_id: "coord".to_string(),
+            friendly_name: Some("coord".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("coordinator".to_string()),
+            is_headless: None,
+            report_back_to_session_id: None,
+            run_id: None,
+            latest_completion_report: None,
+            live_attachments: None,
+            status_age_secs: None,
+        },
+        AgentInfo {
+            session_id: "owned-crashed".to_string(),
+            friendly_name: Some("owned-crashed".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("crashed".to_string()),
+            detail: Some("recovered after reload".to_string()),
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: None,
+            status_age_secs: Some(900),
+        },
+        AgentInfo {
+            session_id: "owned-running-stale".to_string(),
+            friendly_name: Some("owned-stale".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("running_stale".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: None,
+            status_age_secs: Some(600),
+        },
+        AgentInfo {
+            session_id: "foreign-crashed".to_string(),
+            friendly_name: Some("foreign".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("crashed".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("other-coord".to_string()),
+            run_id: Some("run-foreign".to_string()),
+            latest_completion_report: None,
+            live_attachments: None,
+            status_age_secs: Some(1200),
+        },
+    ];
+    let statuses = default_cleanup_target_statuses();
+
+    assert_eq!(
+        cleanup_candidate_session_ids("coord", &members, &statuses, &[], false, None),
+        vec![
+            "owned-crashed".to_string(),
+            "owned-running-stale".to_string()
+        ]
+    );
+    assert_eq!(
+        cleanup_candidate_session_ids("coord", &members, &statuses, &[], true, None),
+        vec![
+            "foreign-crashed".to_string(),
+            "owned-crashed".to_string(),
+            "owned-running-stale".to_string()
+        ]
+    );
+}
+
+#[test]
+fn cleanup_candidates_can_be_scoped_by_run_id() {
+    let members = vec![
+        AgentInfo {
+            session_id: "coord".to_string(),
+            friendly_name: Some("coord".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("coordinator".to_string()),
+            is_headless: None,
+            report_back_to_session_id: None,
+            run_id: None,
+            latest_completion_report: None,
+            live_attachments: None,
+            status_age_secs: None,
+        },
+        AgentInfo {
+            session_id: "current-run".to_string(),
+            friendly_name: Some("current".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("completed".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: None,
+            status_age_secs: None,
+        },
+        AgentInfo {
+            session_id: "old-run".to_string(),
+            friendly_name: Some("old".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("completed".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-old".to_string()),
+            latest_completion_report: None,
+            live_attachments: None,
+            status_age_secs: None,
+        },
+    ];
+    let statuses = default_cleanup_target_statuses();
+
+    assert_eq!(
+        cleanup_candidate_session_ids(
+            "coord",
+            &members,
+            &statuses,
+            &[],
+            false,
+            Some("run-current")
+        ),
+        vec!["current-run".to_string()]
+    );
+}
+
+#[test]
+fn cleanup_dry_run_lists_scoped_candidates_without_stopping() {
+    let members = vec![AgentInfo {
+        session_id: "done-worker".to_string(),
+        friendly_name: Some("done".to_string()),
+        files_touched: vec![],
+        working_dir: Some("/tmp/jcode-worktrees/done".to_string()),
+        status: Some("ready".to_string()),
+        detail: None,
+        role: Some("agent".to_string()),
+        is_headless: Some(true),
+        report_back_to_session_id: Some("coord".to_string()),
+        run_id: Some("run-clean".to_string()),
+        latest_completion_report: None,
+        live_attachments: Some(0),
+        status_age_secs: Some(30),
+    }];
+    let candidates = vec!["done-worker".to_string()];
+    let target_status = vec!["ready".to_string(), "crashed".to_string()];
+
+    let output = format_cleanup_dry_run(
+        &members,
+        &candidates,
+        &target_status,
+        false,
+        Some("run-clean"),
+    );
+
+    assert!(output.contains("Dry-run cleanup for run_id=run-clean: 1 candidate(s)"));
+    assert!(output.contains("force=false"));
+    assert!(output.contains("target_status=[ready, crashed]"));
+    assert!(output.contains("Would stop:"));
+    assert!(output.contains("done-worker (name=done, status=ready, run_id=run-clean, owner=coord, working_dir=/tmp/jcode-worktrees/done)"));
+}
+
+#[test]
+fn cleanup_dry_run_reports_empty_scope() {
+    let output = format_cleanup_dry_run(&[], &[], &["ready".to_string()], false, Some("run-empty"));
+
+    assert!(output.contains("Dry-run cleanup for run_id=run-empty: 0 candidate(s)"));
+    assert!(output.contains("No agents would be stopped."));
+}
+
+#[test]
+fn format_swarm_health_summarizes_freshness_and_stale_members() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let members = vec![
+        AgentInfo {
+            session_id: "coord".to_string(),
+            friendly_name: Some("coord".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("coordinator".to_string()),
+            is_headless: Some(false),
+            report_back_to_session_id: None,
+            run_id: None,
+            latest_completion_report: None,
+            live_attachments: Some(1),
+            status_age_secs: Some(1),
+        },
+        AgentInfo {
+            session_id: "owned-running".to_string(),
+            friendly_name: Some("worker".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(3),
+        },
+        AgentInfo {
+            session_id: "owned-ready".to_string(),
+            friendly_name: Some("done".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(10),
+        },
+        AgentInfo {
+            session_id: "legacy".to_string(),
+            friendly_name: Some("old-coord".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("crashed".to_string()),
+            detail: None,
+            role: Some("coordinator".to_string()),
+            is_headless: Some(false),
+            report_back_to_session_id: None,
+            run_id: None,
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(99),
+        },
+    ];
+
+    let output = format_swarm_health(
+        &ctx,
+        std::path::Path::new("/tmp/jcode.sock"),
+        &[1234],
+        &members,
+    )
+    .output;
+
+    assert!(output.contains("Swarm health"));
+    assert!(output.contains("socket: /tmp/jcode.sock"));
+    assert!(output.contains("server listener pid(s): 1234"));
+    assert!(output.contains("members: total=4 owned=2 owned_active=1 owned_terminal=1 stale=1 foreign=1"));
+    assert!(output.contains("statuses: crashed=1, ready=1, running=2"));
+    assert!(output.contains("runs: run-current=2"));
+    assert!(output.contains("scoped await default: 1 active owned candidate(s)"));
+    assert!(output.contains("owned terminal members: done(ready)"));
+    assert!(output.contains("stale members: old-coord(crashed)"));
+}
+
+#[test]
+fn format_swarm_health_can_be_scoped_to_one_run_id() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let members = vec![
+        AgentInfo {
+            session_id: "coord".to_string(),
+            friendly_name: Some("coord".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("coordinator".to_string()),
+            is_headless: Some(false),
+            report_back_to_session_id: None,
+            run_id: None,
+            latest_completion_report: None,
+            live_attachments: Some(1),
+            status_age_secs: Some(1),
+        },
+        AgentInfo {
+            session_id: "current-worker".to_string(),
+            friendly_name: Some("current".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(3),
+        },
+        AgentInfo {
+            session_id: "old-worker".to_string(),
+            friendly_name: Some("old".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-old".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(10),
+        },
+    ];
+
+    let output = format_swarm_health_for_run(
+        &ctx,
+        std::path::Path::new("/tmp/jcode.sock"),
+        &[1234],
+        &members,
+        Some("run-current"),
+    )
+    .output;
+
+    assert!(output.contains("run scope: run_id=run-current (showing 1/3)"));
+    assert!(output.contains("members: total=1 owned=1 owned_active=1"));
+    assert!(output.contains("runs: run-current=1"));
+    assert!(!output.contains("run-old"));
+}
+
+#[test]
+fn format_swarm_reconcile_suggests_next_step_for_active_run() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let members = vec![
+        AgentInfo {
+            session_id: "coord".to_string(),
+            friendly_name: Some("coord".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("coordinator".to_string()),
+            is_headless: Some(false),
+            report_back_to_session_id: None,
+            run_id: None,
+            latest_completion_report: None,
+            live_attachments: Some(1),
+            status_age_secs: Some(1),
+        },
+        AgentInfo {
+            session_id: "current-worker".to_string(),
+            friendly_name: Some("current".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(3),
+        },
+        AgentInfo {
+            session_id: "old-worker".to_string(),
+            friendly_name: Some("old".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-old".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(10),
+        },
+    ];
+
+    let output = format_swarm_reconcile(&ctx, &members, None, Some("run-current")).output;
+
+    assert!(output.contains("Swarm reconcile"));
+    assert!(output.contains("scope: run_id=run-current (showing 1/3)"));
+    assert!(output.contains("members: total=1 owned=1 active=1 terminal=0 stale=0"));
+    assert!(output.contains("recovery: coordinator=present live=1 lease_expired=0"));
+    assert!(output.contains("active members: current(running)"));
+    assert!(output.contains("next: swarm await_members run_id=run-current mode=all"));
+    assert!(!output.contains("run-old"));
+}
+
+#[test]
+fn format_swarm_reconcile_flags_missing_coordinator_for_active_run() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let members = vec![AgentInfo {
+        session_id: "orphan-worker".to_string(),
+        friendly_name: Some("orphan".to_string()),
+        files_touched: vec![],
+        working_dir: None,
+        status: Some("running".to_string()),
+        detail: None,
+        role: Some("agent".to_string()),
+        is_headless: Some(true),
+        report_back_to_session_id: Some("coord".to_string()),
+        run_id: Some("run-current".to_string()),
+        latest_completion_report: None,
+        live_attachments: Some(0),
+        status_age_secs: Some(15),
+    }];
+
+    let output = format_swarm_reconcile(&ctx, &members, None, Some("run-current")).output;
+
+    assert!(output.contains("recovery: coordinator=missing live=1 lease_expired=0"));
+    assert!(output.contains(
+        "hint=assign coordinator with `swarm assign_role target_session=current role=coordinator`"
+    ));
+}
+
+#[test]
+fn format_swarm_reconcile_flags_expired_active_lease() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let members = vec![
+        AgentInfo {
+            session_id: "coord".to_string(),
+            friendly_name: Some("coord".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("coordinator".to_string()),
+            is_headless: Some(false),
+            report_back_to_session_id: None,
+            run_id: None,
+            latest_completion_report: None,
+            live_attachments: Some(1),
+            status_age_secs: Some(1),
+        },
+        AgentInfo {
+            session_id: "old-worker".to_string(),
+            friendly_name: Some("old".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(900),
+        },
+    ];
+
+    let output = format_swarm_reconcile(&ctx, &members, None, Some("run-current")).output;
+
+    assert!(output.contains("recovery: coordinator=present live=1 lease_expired=1"));
+    assert!(output.contains("max_status_age=900s"));
+    assert!(output.contains("hint=lease expired; run `swarm cleanup run_id=run-current`"));
+}
+
+#[test]
+fn format_swarm_reconcile_suggests_assign_next_for_ready_plan() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let plan = crate::protocol::PlanGraphStatus {
+        swarm_id: Some("swarm-1".to_string()),
+        version: 2,
+        item_count: 1,
+        ready_ids: vec!["task-1".to_string()],
+        blocked_ids: vec![],
+        active_ids: vec![],
+        completed_ids: vec![],
+        cycle_ids: vec![],
+        unresolved_dependency_ids: vec![],
+        next_ready_ids: vec!["task-1".to_string()],
+        newly_ready_ids: vec![],
+    };
+
+    let output = format_swarm_reconcile(&ctx, &[], Some(&plan), Some("run-next")).output;
+
+    assert!(output.contains("scope: run_id=run-next (showing 0/0)"));
+    assert!(output.contains("plan: ready=1 active=0 blocked=0 completed=0 cycle=0"));
+    assert!(output.contains("next: swarm assign_next run_id=run-next spawn_if_needed=true"));
+}
+
+#[test]
+fn format_swarm_reconcile_suggests_cleanup_for_terminal_or_stale_members() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let members = vec![AgentInfo {
+        session_id: "done-worker".to_string(),
+        friendly_name: Some("done".to_string()),
+        files_touched: vec![],
+        working_dir: None,
+        status: Some("ready".to_string()),
+        detail: None,
+        role: Some("agent".to_string()),
+        is_headless: Some(true),
+        report_back_to_session_id: Some("coord".to_string()),
+        run_id: Some("run-current".to_string()),
+        latest_completion_report: None,
+        live_attachments: Some(0),
+        status_age_secs: Some(30),
+    }];
+
+    let output = format_swarm_reconcile(&ctx, &members, None, Some("run-current")).output;
+
+    assert!(output.contains("terminal members: done(ready)"));
+    assert!(output.contains("next: swarm cleanup run_id=run-current"));
 }
 
 #[test]
@@ -189,11 +1038,13 @@ fn format_members_includes_status_and_detail() {
             session_id: "sess-peer".to_string(),
             friendly_name: Some("bear".to_string()),
             files_touched: vec!["src/main.rs".to_string()],
+            working_dir: Some("/tmp/jcode-worktrees/bear".to_string()),
             status: Some("running".to_string()),
             detail: Some("working on tests".to_string()),
             role: Some("agent".to_string()),
             is_headless: Some(true),
             report_back_to_session_id: Some("sess-self".to_string()),
+            run_id: None,
             latest_completion_report: None,
             live_attachments: Some(0),
             status_age_secs: Some(12),
@@ -205,8 +1056,176 @@ fn format_members_includes_status_and_detail() {
     assert!(
         output
             .output
-            .contains("Meta: headless · owned_by_you · attachments=0 · status_age=12s")
+            .contains("Meta: headless · owned_by_you · working_dir=/tmp/jcode-worktrees/bear · attachments=0 · status_age=12s")
     );
+}
+
+#[test]
+fn format_members_can_be_scoped_to_one_run_id() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let members = vec![
+        AgentInfo {
+            session_id: "current-worker".to_string(),
+            friendly_name: Some("current".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(3),
+        },
+        AgentInfo {
+            session_id: "old-worker".to_string(),
+            friendly_name: Some("old".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-old".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(10),
+        },
+    ];
+
+    let output = format_members_for_run(&ctx, &members, Some("run-current")).output;
+
+    assert!(output.contains("Run scope: run_id=run-current (showing 1/2)"));
+    assert!(output.contains("current"));
+    assert!(output.contains("run_id=run-current"));
+    assert!(!output.contains("old-worker"));
+    assert!(!output.contains("run-old"));
+
+    let empty = format_members_for_run(&ctx, &members, Some("run-missing")).output;
+    assert_eq!(
+        empty,
+        "No agents found for run_id=run-missing (0/2 in current swarm)."
+    );
+}
+
+#[test]
+fn format_members_summarizes_run_groups_when_runs_are_mixed() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let members = vec![
+        AgentInfo {
+            session_id: "current-worker".to_string(),
+            friendly_name: Some("current".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(3),
+        },
+        AgentInfo {
+            session_id: "old-worker".to_string(),
+            friendly_name: Some("old".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-old".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(10),
+        },
+        AgentInfo {
+            session_id: "legacy-worker".to_string(),
+            friendly_name: Some("legacy".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: None,
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(60),
+        },
+    ];
+
+    let output = format_members(&ctx, &members).output;
+
+    assert!(
+        output.contains("Run groups: run-current=1, run-old=1, unscoped=1"),
+        "output was: {output}"
+    );
+    assert!(output.contains("swarm list run_id=<id>"));
+    assert!(output.contains("current"));
+    assert!(output.contains("old"));
+    assert!(output.contains("legacy"));
+}
+
+#[test]
+fn format_members_omits_run_group_summary_for_single_run() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let output = format_members(
+        &ctx,
+        &[AgentInfo {
+            session_id: "current-worker".to_string(),
+            friendly_name: Some("current".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(3),
+        }],
+    )
+    .output;
+
+    assert!(!output.contains("Run groups:"));
+    assert!(output.contains("run_id=run-current"));
+}
+
+#[test]
+fn format_members_summarizes_unscoped_legacy_members() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let output = format_members(
+        &ctx,
+        &[AgentInfo {
+            session_id: "legacy-worker".to_string(),
+            friendly_name: Some("legacy".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: None,
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(60),
+        }],
+    )
+    .output;
+
+    assert!(output.contains("Run groups: unscoped=1"));
+    assert!(output.contains("swarm list run_id=<id>"));
 }
 
 #[test]
@@ -222,11 +1241,13 @@ fn format_members_disambiguates_duplicate_friendly_names() {
                 session_id: "session_shark_1234567890_aaaaaaaaaaaa0001".to_string(),
                 friendly_name: Some("shark".to_string()),
                 files_touched: vec![],
+                working_dir: None,
                 status: Some("ready".to_string()),
                 detail: None,
                 role: Some("agent".to_string()),
                 is_headless: None,
                 report_back_to_session_id: None,
+                run_id: None,
                 latest_completion_report: None,
                 live_attachments: None,
                 status_age_secs: None,
@@ -235,11 +1256,13 @@ fn format_members_disambiguates_duplicate_friendly_names() {
                 session_id: "session_shark_1234567890_bbbbbbbbbbbb0002".to_string(),
                 friendly_name: Some("shark".to_string()),
                 files_touched: vec![],
+                working_dir: None,
                 status: Some("ready".to_string()),
                 detail: None,
                 role: Some("agent".to_string()),
                 is_headless: None,
                 report_back_to_session_id: None,
+                run_id: None,
                 latest_completion_report: None,
                 live_attachments: None,
                 status_age_secs: None,

@@ -1,6 +1,6 @@
 use super::{
     SharedContext, SwarmEvent, SwarmEventType, SwarmMember, fanout_session_event,
-    record_swarm_event,
+    record_swarm_event_for_session,
 };
 use crate::protocol::{AgentInfo, ContextEntry, NotificationType, ServerEvent};
 use std::collections::{HashMap, HashSet};
@@ -117,17 +117,16 @@ pub(super) async fn handle_comm_share(
             }
         }
 
-        record_swarm_event(
-            event_history,
-            event_counter,
-            swarm_event_tx,
-            req_session_id.clone(),
-            friendly_name.clone(),
-            Some(swarm_id.clone()),
+        record_swarm_event_for_session(
+            &req_session_id,
             SwarmEventType::ContextUpdate {
                 swarm_id: swarm_id.clone(),
                 key: key.clone(),
             },
+            swarm_members,
+            event_history,
+            event_counter,
+            swarm_event_tx,
         )
         .await;
 
@@ -225,11 +224,16 @@ pub(super) async fn handle_comm_list(
                         session_id: sid.clone(),
                         friendly_name: member.friendly_name.clone(),
                         files_touched: files,
+                        working_dir: member
+                            .working_dir
+                            .as_ref()
+                            .map(|path| path.display().to_string()),
                         status: Some(member.status.clone()),
                         detail: member.detail.clone(),
                         role: Some(member.role.clone()),
                         is_headless: Some(member.is_headless),
                         report_back_to_session_id: member.report_back_to_session_id.clone(),
+                        run_id: member.run_id.clone(),
                         latest_completion_report: member.latest_completion_report.clone(),
                         live_attachments: Some(member.event_txs.len()),
                         status_age_secs: Some(member.last_status_change.elapsed().as_secs()),

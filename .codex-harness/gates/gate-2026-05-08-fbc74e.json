@@ -1,0 +1,41 @@
+{
+  "id": "gate-2026-05-08-fbc74e",
+  "ts": "2026-05-08T13:13:34.805Z",
+  "contractId": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/tool/communicate.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate_tests/input_format.rs",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/state.json",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/traces/2026-05-08.jsonl",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "await_members without session_ids, target_session, or run_id infers the sole active owned run_id when exactly one non-terminal owned run has active workers.",
+    "await_members without explicit scope returns an actionable error when multiple active owned run_id values are present, instead of sending an unscoped request that waits across runs.",
+    "await_members keeps existing server fallback when there is no single active owned run_id and no mixed active runs.",
+    "Focused helper tests, cargo fmt/check, cargo check, git diff --check, selfdev build, and reload passed."
+  ],
+  "uncheckedConditions": [
+    "Focused helper tests, cargo fmt/check, git diff --check, selfdev build/reload, governance, commit, and push pass."
+  ],
+  "evidence": [
+    "src/tool/communicate.rs adds implicit_await_run_scope and uses it in the await_members branch before sending CommAwaitMembers when no explicit member scope or run_id is provided.",
+    "src/tool/communicate_tests/input_format.rs adds three regression tests covering sole active run inference, multiple active run rejection, and fallback preservation.",
+    "Initial verification task 8082575cwx failed only due to a test assertion type error and was fixed before rerun.",
+    "Verification task 859544br57 passed: cargo fmt, cargo fmt --check, focused implicit_await_run_scope tests, cargo check -p jcode --lib, and git diff --check.",
+    "Selfdev build task 910772w2im passed and the rebuilt binary reloaded successfully."
+  ],
+  "notes": "This is a tool-side safety guard only: explicit session_ids, target_session, or run_id still bypass inference, while ambiguous active owned run scopes now ask the coordinator to choose an explicit scope."
+}

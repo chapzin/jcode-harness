@@ -1,0 +1,40 @@
+{
+  "id": "gate-2026-05-08-3cd0e4",
+  "ts": "2026-05-08T13:05:39.518Z",
+  "contractId": "2026-05-08-make-spawn-operation-id-ignore-run-drift-e5c780",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/server/comm_session.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/comm_session_tests.rs",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/state.json",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/traces/2026-05-08.jsonl",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "When request_nonce/operation_id is present, spawn_mutation_key ignores payload drift including generated run_id drift.",
+    "Without request_nonce, spawn_mutation_key remains payload/run scoped to avoid merging independent default spawns.",
+    "Focused comm_session spawn mutation key regression test, cargo fmt/check, cargo check, git diff --check, selfdev build, and reload passed."
+  ],
+  "uncheckedConditions": [
+    "Focused comm_session spawn mutation key regression test, cargo fmt/check, git diff --check, and selfdev build pass.",
+    "Governance gate passes and the exact slice is committed and pushed."
+  ],
+  "evidence": [
+    "src/server/comm_session.rs now builds nonce-backed spawn mutation keys from only swarm_id and the trimmed nonce, so generated run_id drift does not split replays.",
+    "src/server/comm_session_tests.rs renamed and strengthened the regression test to assert identical nonce-backed keys across both payload and run_id drift, while retaining non-nonce drift inequality.",
+    "Verification task 4185264dnc passed: cargo fmt, cargo fmt --check, focused spawn mutation key test, cargo check -p jcode --lib, and git diff --check.",
+    "Selfdev build task 468339uarv passed and the rebuilt binary reloaded successfully."
+  ],
+  "notes": "This narrowly fixes explicit operation_id spawn retry semantics without changing how the first successful spawn stores run_id on the member, and without broadening default non-operation-id spawn key reuse."
+}

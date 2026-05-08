@@ -397,6 +397,271 @@ fn provider_add_subcommand_parses_agent_friendly_flags() {
 }
 
 #[test]
+fn skills_scope_subcommands_parse() {
+    let args = Args::try_parse_from([
+        "jcode",
+        "skills",
+        "scope",
+        "set",
+        "llmwiki-memory",
+        "--state",
+        "discoverable",
+        "--reason",
+        "only on memory tasks",
+        "--cwd",
+        "/tmp/project",
+        "--json",
+    ])
+    .unwrap();
+
+    match args.command {
+        Some(Command::Skills(SkillCommand::Scope {
+            command:
+                SkillScopeCommand::Set {
+                    name,
+                    state,
+                    reason,
+                    cwd,
+                    json,
+                },
+        })) => {
+            assert_eq!(name, "llmwiki-memory");
+            assert_eq!(state, SkillScopeStateArg::Discoverable);
+            assert_eq!(reason.as_deref(), Some("only on memory tasks"));
+            assert_eq!(cwd.as_deref(), Some("/tmp/project"));
+            assert!(json);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn skills_import_validate_match_and_bridge_parse() {
+    let args = Args::try_parse_from([
+        "jcode",
+        "skills",
+        "import",
+        "--from",
+        ".claude/skills",
+        "--scope",
+        "global",
+        "--apply",
+        "--force",
+        "--json",
+    ])
+    .unwrap();
+    match args.command {
+        Some(Command::Skills(SkillCommand::Import {
+            from,
+            scope,
+            apply,
+            force,
+            json,
+            ..
+        })) => {
+            assert_eq!(from, vec![std::path::PathBuf::from(".claude/skills")]);
+            assert_eq!(scope, SkillImportScopeArg::Global);
+            assert!(apply);
+            assert!(force);
+            assert!(json);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args =
+        Args::try_parse_from(["jcode", "skills", "validate", "--cwd", ".", "--json"]).unwrap();
+    match args.command {
+        Some(Command::Skills(SkillCommand::Validate { cwd, json })) => {
+            assert_eq!(cwd.as_deref(), Some("."));
+            assert!(json);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args = Args::try_parse_from([
+        "jcode",
+        "skills",
+        "match",
+        "fix this bug",
+        "--skills",
+        "always",
+        "--skill",
+        "custom",
+        "--json",
+    ])
+    .unwrap();
+    match args.command {
+        Some(Command::Skills(SkillCommand::Match {
+            goal,
+            skills,
+            skill,
+            json,
+            ..
+        })) => {
+            assert_eq!(goal, "fix this bug");
+            assert_eq!(skills, SkillModeArg::Always);
+            assert_eq!(skill, vec!["custom"]);
+            assert!(json);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args = Args::try_parse_from(["jcode", "skills", "llmwiki-bridge", "--json"]).unwrap();
+    match args.command {
+        Some(Command::Skills(SkillCommand::LlmwikiBridge { json })) => assert!(json),
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
+fn events_path_tail_and_export_parse() {
+    let args = Args::try_parse_from(["jcode", "events", "list", "--json"]).unwrap();
+    match args.command {
+        Some(Command::Events(EventCommand::List { json })) => assert!(json),
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args =
+        Args::try_parse_from(["jcode", "events", "show", "--run", "run_123", "--json"]).unwrap();
+    match args.command {
+        Some(Command::Events(EventCommand::Show { run, json })) => {
+            assert_eq!(run, "run_123");
+            assert!(json);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args = Args::try_parse_from([
+        "jcode",
+        "events",
+        "replay",
+        "--run",
+        "run_123",
+        "--json",
+        "--output",
+        "replay.json",
+    ])
+    .unwrap();
+    match args.command {
+        Some(Command::Events(EventCommand::Replay { run, json, output })) => {
+            assert_eq!(run, "run_123");
+            assert!(json);
+            assert_eq!(output, Some(std::path::PathBuf::from("replay.json")));
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args =
+        Args::try_parse_from(["jcode", "events", "path", "--run", "run_123", "--json"]).unwrap();
+    match args.command {
+        Some(Command::Events(EventCommand::Path { run, json })) => {
+            assert_eq!(run, "run_123");
+            assert!(json);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args = Args::try_parse_from([
+        "jcode", "events", "tail", "--run", "run_123", "--lines", "5", "--ndjson",
+    ])
+    .unwrap();
+    match args.command {
+        Some(Command::Events(EventCommand::Tail { run, lines, ndjson })) => {
+            assert_eq!(run, "run_123");
+            assert_eq!(lines, 5);
+            assert!(ndjson);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args = Args::try_parse_from([
+        "jcode",
+        "events",
+        "export",
+        "--run",
+        "run_123",
+        "--output",
+        "run.ndjson",
+        "--json",
+    ])
+    .unwrap();
+    match args.command {
+        Some(Command::Events(EventCommand::Export { run, output, json })) => {
+            assert_eq!(run, "run_123");
+            assert_eq!(output, Some(std::path::PathBuf::from("run.ndjson")));
+            assert!(json);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args = Args::try_parse_from([
+        "jcode",
+        "events",
+        "sse",
+        "--run",
+        "run_123",
+        "--last-event-id",
+        "hevt_1",
+        "--retry-ms",
+        "1500",
+        "--output",
+        "run.sse",
+    ])
+    .unwrap();
+    match args.command {
+        Some(Command::Events(EventCommand::Sse {
+            run,
+            last_event_id,
+            retry_ms,
+            output,
+        })) => {
+            assert_eq!(run, "run_123");
+            assert_eq!(last_event_id.as_deref(), Some("hevt_1"));
+            assert_eq!(retry_ms, 1500);
+            assert_eq!(output, Some(std::path::PathBuf::from("run.sse")));
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args = Args::try_parse_from([
+        "jcode",
+        "events",
+        "prune",
+        "--keep-logs",
+        "3",
+        "--max-total-bytes",
+        "4096",
+        "--apply",
+        "--json",
+    ])
+    .unwrap();
+    match args.command {
+        Some(Command::Events(EventCommand::Prune {
+            keep_logs,
+            max_total_bytes,
+            apply,
+            json,
+        })) => {
+            assert_eq!(keep_logs, Some(3));
+            assert_eq!(max_total_bytes, Some(4096));
+            assert!(apply);
+            assert!(json);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args =
+        Args::try_parse_from(["jcode", "events", "bench", "--events", "2500", "--json"]).unwrap();
+    match args.command {
+        Some(Command::Events(EventCommand::Bench { events, json })) => {
+            assert_eq!(events, 2500);
+            assert!(json);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+}
+
+#[test]
 fn restart_save_subcommand_parses() {
     let args = Args::try_parse_from(["jcode", "restart", "save"]).unwrap();
     match args.command {

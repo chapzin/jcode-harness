@@ -1184,14 +1184,22 @@ fn allows_insecure_http_host(host: &str) -> bool {
         .strip_prefix('[')
         .and_then(|s| s.strip_suffix(']'))
         .unwrap_or(host);
+    let host_lower = host.to_ascii_lowercase();
     if host.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+    if host_lower.ends_with(".local") || host_lower.ends_with(".local.") {
         return true;
     }
 
     if let Ok(ip) = host.parse::<std::net::IpAddr>() {
         return match ip {
             std::net::IpAddr::V4(v4) => {
-                v4.is_loopback() || v4.is_private() || v4.is_link_local() || v4.is_unspecified()
+                v4.is_loopback()
+                    || v4.is_private()
+                    || v4.is_link_local()
+                    || is_shared_ipv4(v4)
+                    || v4.is_unspecified()
             }
             std::net::IpAddr::V6(v6) => {
                 v6.is_loopback()
@@ -1203,6 +1211,11 @@ fn allows_insecure_http_host(host: &str) -> bool {
     }
 
     false
+}
+
+fn is_shared_ipv4(addr: std::net::Ipv4Addr) -> bool {
+    let octets = addr.octets();
+    octets[0] == 100 && (64..=127).contains(&octets[1])
 }
 
 fn normalize_provider_input(input: &str) -> Option<String> {
@@ -1249,6 +1262,18 @@ mod tests {
         assert_eq!(
             normalize_api_base("http://[fd00::1]:8080/v1").as_deref(),
             Some("http://[fd00::1]:8080/v1")
+        );
+        assert_eq!(
+            normalize_api_base("http://100.103.78.84:11434/v1").as_deref(),
+            Some("http://100.103.78.84:11434/v1")
+        );
+        assert_eq!(
+            normalize_api_base("http://hsv.local:11434/v1").as_deref(),
+            Some("http://hsv.local:11434/v1")
+        );
+        assert_eq!(
+            normalize_api_base("http://HSV.LOCAL.:11434/v1").as_deref(),
+            Some("http://HSV.LOCAL.:11434/v1")
         );
     }
 

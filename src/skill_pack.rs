@@ -29,6 +29,16 @@ pub const BUILTIN_SKILLS: &[BuiltinSkill] = &[
         relative_path: ".jcode/skills/llmwiki-memory/SKILL.md",
         content: include_str!("../.jcode/skills/llmwiki-memory/SKILL.md"),
     },
+    BuiltinSkill {
+        name: "init-bootstrap",
+        relative_path: ".jcode/skills/init-bootstrap/SKILL.md",
+        content: include_str!("../.jcode/skills/init-bootstrap/SKILL.md"),
+    },
+    BuiltinSkill {
+        name: "sequential-thinking",
+        relative_path: ".jcode/skills/sequential-thinking/SKILL.md",
+        content: include_str!("../.jcode/skills/sequential-thinking/SKILL.md"),
+    },
 ];
 
 pub fn builtin_skills() -> &'static [BuiltinSkill] {

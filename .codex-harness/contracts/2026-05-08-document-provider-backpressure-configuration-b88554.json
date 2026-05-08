@@ -1,0 +1,39 @@
+{
+  "id": "2026-05-08-document-provider-backpressure-configuration-b88554",
+  "title": "Document provider backpressure configuration",
+  "goal": "Document the provider concurrency backpressure environment variable so users can tune or disable the rate-limit governor behavior introduced in issue #27.",
+  "createdAt": "2026-05-08T16:33:01.130Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 5,
+    "maxMinutes": 20,
+    "maxToolCalls": 15
+  },
+  "permissions": [
+    "modify documentation",
+    "run lightweight checks",
+    "commit and push"
+  ],
+  "completionConditions": [
+    "A user-facing configuration document mentions JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL.",
+    "The documentation explains default behavior, how to disable the semaphore with 0, and the scope as per provider/model.",
+    "The change is verified with formatting/markdown-safe checks and git diff checks.",
+    "Governance passes before commit/push."
+  ],
+  "outputPaths": [
+    "README.md"
+  ],
+  "verificationCommands": [
+    "grep -R \"JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL\" README.md docs .context 2>/dev/null || true",
+    "git diff --check",
+    "selfdev build --target tui"
+  ],
+  "failureTaxonomy": [
+    "doc_missing",
+    "inaccurate_config_semantics",
+    "formatting_error",
+    "governance_failure"
+  ],
+  "notes": "Small docs-only follow-up after commit 30d43ae9. Prefer existing environment/config docs over creating a new doc if a suitable location exists."
+}

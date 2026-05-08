@@ -1,0 +1,60 @@
+{
+  "id": "gate-2026-05-08-7d76d7",
+  "ts": "2026-05-08T13:36:33.659Z",
+  "contractId": "2026-05-08-make-task-control-operation-id-idempotent-c45e22",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "crates/jcode-protocol/src/lib.rs",
+      "exists": true
+    },
+    {
+      "path": "crates/jcode-protocol/src/protocol_tests/comm_requests.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate_tests/input_format.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/client_lifecycle.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/comm_control.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/comm_control_tests/task_control.rs",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/state.json",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/traces/2026-05-08.jsonl",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "CommTaskControl accepts an optional request_nonce propagated from swarm operation_id for explicit retry idempotency.",
+    "When wake/start/resume task_control is called with request_nonce, duplicate calls replay the original TaskControl response instead of repeating side effects.",
+    "Task control behavior without operation_id remains unchanged so intentional repeated control calls still execute normally.",
+    "Existing retry/reassign/replace/salvage assign_task-backed control paths remain compatible with mutation replay.",
+    "Focused protocol/server/tool tests, cargo fmt/check, git diff --check, selfdev build/reload, governance, commit, and push pass."
+  ],
+  "uncheckedConditions": [],
+  "evidence": [
+    "crates/jcode-protocol/src/lib.rs adds optional request_nonce to CommTaskControl and protocol roundtrip coverage validates serialization.",
+    "src/tool/communicate.rs maps explicit task_control operation_id to an op-prefixed request_nonce; calls without operation_id continue sending None.",
+    "src/server/comm_control.rs wraps task_control in an outer mutation keyed by coordinator, swarm_id, action, and request_nonce, capturing and persisting final TaskControl/AssignTask/Error responses only after side effects finish.",
+    "src/server/comm_control_tests/task_control.rs proves duplicate wake with the same request_nonce replays the original response and leaves exactly one queued soft interrupt containing the original instructions.",
+    "Focused verification task 245919s0gj and selfdev build task 315745xdd2 passed; reload succeeded. Initial task 23259653xr was only a one-second wrapper timeout and was recorded separately."
+  ],
+  "notes": "The idempotency key is explicit-only: default repeated task_control calls remain non-idempotent, while retry/reassign/replace/salvage can replay captured assign_task-backed responses under the outer task_control nonce."
+}

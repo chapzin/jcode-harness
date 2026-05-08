@@ -1,0 +1,48 @@
+{
+  "id": "2026-05-08-share-retry-after-provider-handling-9940a8",
+  "title": "Share Retry-After provider handling",
+  "goal": "Extend provider rate-limit handling beyond OpenAI by sharing Retry-After parsing and using it for Anthropic and OpenRouter/OpenAI-compatible HTTP 429 responses.",
+  "createdAt": "2026-05-08T15:43:01.993Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 30
+  },
+  "permissions": [
+    "modify source",
+    "run focused tests",
+    "run selfdev build",
+    "commit and push"
+  ],
+  "completionConditions": [
+    "Shared provider Retry-After parser is reused instead of duplicating OpenAI-only parsing.",
+    "Anthropic HTTP 429 includes retry-after seconds in retryable error text when header is present.",
+    "OpenRouter/OpenAI-compatible HTTP 429 includes retry-after seconds and is classified retryable.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "outputPaths": [
+    "src/provider/routing.rs",
+    "src/provider/mod.rs",
+    "src/provider/openai_stream_runtime.rs",
+    "src/provider/openai.rs",
+    "src/provider/anthropic.rs",
+    "src/provider/openrouter_sse_stream.rs",
+    "src/provider/tests/fallback_failover.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode provider_retry_after --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build --target tui"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "retry_regression",
+    "provider_message_regression"
+  ],
+  "notes": "Second issue #27 implementation slice. Keep small: no adaptive limiter yet, only parse/format/classify Retry-After for existing retry loops."
+}

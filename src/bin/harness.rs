@@ -2,16 +2,18 @@ use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use jcode::cli::provider_init::ProviderChoice;
 use jcode::id::new_id;
-use jcode::message::{Message, StreamEvent, ToolDefinition};
+use jcode::message::{Message, Role, StreamEvent, ToolDefinition};
 use jcode::provider::{EventStream, Provider};
 use jcode::tool::{Registry, ToolContext, ToolExecutionMode};
+use jcode::tui::session_picker::{ResumeTarget, SessionInfo, SessionSource};
 use serde_json::json;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "jcode-harness")]
-#[command(about = "Standalone jcode harness utilities. With no command, starts interactive jcode.")]
+#[command(version = env!("JCODE_VERSION"))]
+#[command(about = "JCode Harness: local AI engineering loop and TUI.")]
 struct Args {
     #[command(subcommand)]
     command: Option<Command>,
@@ -21,11 +23,19 @@ struct Args {
 enum Command {
     /// Initialize a project for the full jcode-harness experience
     Init(InitArgs),
+    /// Preview and serve the Agent Client Protocol integration surface
+    Acp(AcpArgs),
     /// Create an isolated safe-evaluation profile for first-time local testing
     #[command(name = "safe-eval")]
     SafeEval(SafeEvalArgs),
     /// Run offline onboarding diagnostics without contacting providers
     Doctor(DoctorArgs),
+    /// Inspect and exercise local user-attention notification settings
+    Notify(NotifyArgs),
+    /// Print reproducible offline mock demos for README/product claims
+    Demo(DemoArgs),
+    /// Inspect local/headless session metadata without starting the TUI
+    Session(SessionArgs),
     /// Run the deterministic tool harness smoke test
     Smoke(SmokeArgs),
     /// Run a single goal by delegating to the jcode run path with skill routing
@@ -57,6 +67,34 @@ struct InitArgs {
 }
 
 #[derive(Parser)]
+struct AcpArgs {
+    #[command(subcommand)]
+    command: AcpCommand,
+}
+
+#[derive(Subcommand)]
+enum AcpCommand {
+    /// Print the preview ACP manifest and registry readiness checklist
+    Manifest {
+        /// Emit JSON report
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print a versioned offline ACP conformance fixture for external clients
+    Fixture {
+        /// Emit JSON report
+        #[arg(long)]
+        json: bool,
+    },
+    /// Serve the preview ACP JSON-RPC protocol over newline-delimited stdio
+    Serve {
+        /// Read JSON-RPC requests from stdin and write responses to stdout
+        #[arg(long)]
+        stdio: bool,
+    },
+}
+
+#[derive(Parser)]
 struct SafeEvalArgs {
     /// Project directory to configure (defaults to current directory)
     #[arg(long)]
@@ -83,6 +121,235 @@ struct DoctorArgs {
     /// Emit JSON report
     #[arg(long)]
     json: bool,
+}
+
+#[derive(Parser)]
+struct NotifyArgs {
+    #[command(subcommand)]
+    command: NotifyCommand,
+}
+
+#[derive(Subcommand)]
+enum NotifyCommand {
+    /// Run a local user-attention notification diagnostic
+    Test(NotifyTestArgs),
+}
+
+#[derive(Parser)]
+struct NotifyTestArgs {
+    /// Emit JSON report
+    #[arg(long)]
+    json: bool,
+    /// Report what would happen without emitting a terminal bell
+    #[arg(long)]
+    dry_run: bool,
+    /// Attention route to exercise
+    #[arg(long, value_enum, default_value_t = NotifyTestEventArg::Direct)]
+    event: NotifyTestEventArg,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
+enum NotifyTestEventArg {
+    /// Directly exercise the configured backend
+    Direct,
+    /// Simulate a human-intervention state such as a permission request
+    HumanIntervention,
+}
+
+impl NotifyTestEventArg {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Direct => "direct",
+            Self::HumanIntervention => "human_intervention",
+        }
+    }
+}
+
+#[derive(Parser)]
+struct DemoArgs {
+    #[command(subcommand)]
+    command: Option<DemoCommand>,
+    /// Project directory used in generated copy-paste commands
+    #[arg(long)]
+    cwd: Option<String>,
+    /// Emit JSON manifest
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Subcommand)]
+enum DemoCommand {
+    /// Execute one offline demo, or all non-writing demos by default
+    Run(DemoRunArgs),
+    /// Run the deterministic local gRPC control-plane prototype smoke
+    #[command(name = "grpc-control")]
+    GrpcControl(DemoGrpcControlArgs),
+}
+
+#[derive(Parser)]
+struct DemoGrpcControlArgs {
+    /// Emit JSON smoke report
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Parser)]
+struct DemoRunArgs {
+    /// Demo id from `jcode-harness demo --json`, or `all`
+    id: String,
+    /// Project directory used for commands that accept --cwd
+    #[arg(long)]
+    cwd: Option<String>,
+    /// Allow demos whose manifest declares project_writes=true
+    #[arg(long)]
+    allow_writes: bool,
+    /// Execute project-writing demos in a temporary sandbox instead of the requested cwd
+    #[arg(long)]
+    sandbox: bool,
+    /// Keep the sandbox directory after the run for manual inspection
+    #[arg(long, requires = "sandbox")]
+    keep_sandbox: bool,
+    /// Emit JSON run report
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Parser)]
+struct SessionArgs {
+    #[command(subcommand)]
+    command: SessionCommand,
+}
+
+#[derive(Subcommand)]
+enum SessionCommand {
+    /// List local and imported sessions discovered by the session picker
+    List(SessionListArgs),
+    /// Validate and print a safe new-session spawn plan without starting a provider
+    Spawn(SessionSpawnArgs),
+    /// Validate and print a safe attach plan without starting the TUI
+    Attach(SessionAttachArgs),
+    /// Show one local jcode session without starting the TUI
+    Show(SessionShowArgs),
+    /// Validate and print a safe resume plan without starting the TUI
+    Resume(SessionResumeArgs),
+    /// Validate and print an offline cancellation intent envelope without contacting providers
+    Cancel(SessionCancelArgs),
+}
+
+#[derive(Parser)]
+struct SessionListArgs {
+    /// Emit JSON report
+    #[arg(long)]
+    json: bool,
+    /// Restrict results by source
+    #[arg(long, value_enum, default_value = "all")]
+    source: HarnessSessionSourceFilter,
+    /// Include debug/test and canary sessions in the output
+    #[arg(long)]
+    include_test: bool,
+    /// Maximum number of sessions to print after filtering
+    #[arg(long)]
+    limit: Option<usize>,
+}
+
+#[derive(Parser)]
+struct SessionSpawnArgs {
+    /// Goal/message for the new jcode run envelope
+    goal: String,
+    /// Working directory for the spawned run envelope (defaults to current directory)
+    #[arg(long)]
+    cwd: Option<String>,
+    /// Provider to request when the returned envelope is executed
+    #[arg(long, conflicts_with = "provider_profile")]
+    provider: Option<String>,
+    /// Named OpenAI-compatible provider profile for the returned envelope
+    #[arg(long, conflicts_with = "provider")]
+    provider_profile: Option<String>,
+    /// Model to request when the returned envelope is executed
+    #[arg(long)]
+    model: Option<String>,
+    /// Validate and print the spawn plan without executing it
+    #[arg(long)]
+    dry_run: bool,
+    /// Emit JSON report
+    #[arg(long, conflicts_with = "ndjson")]
+    json: bool,
+    /// Emit newline-delimited JSON events for the dry-run envelope
+    #[arg(long, conflicts_with = "json")]
+    ndjson: bool,
+}
+
+#[derive(Parser)]
+struct SessionAttachArgs {
+    /// Local jcode session id from `jcode-harness session list --source jcode --json`
+    id: String,
+    /// Validate and print the attach plan without executing it
+    #[arg(long)]
+    dry_run: bool,
+    /// Emit JSON report
+    #[arg(long, conflicts_with = "ndjson")]
+    json: bool,
+    /// Emit newline-delimited JSON events for the dry-run envelope
+    #[arg(long, conflicts_with = "json")]
+    ndjson: bool,
+}
+
+#[derive(Parser)]
+struct SessionShowArgs {
+    /// Local jcode session id from `jcode-harness session list --source jcode --json`
+    id: String,
+    /// Emit JSON report
+    #[arg(long)]
+    json: bool,
+    /// Include the last N rendered visible messages as a bounded preview
+    #[arg(long, default_value_t = 0)]
+    preview: usize,
+}
+
+#[derive(Parser)]
+struct SessionResumeArgs {
+    /// Local jcode session id from `jcode-harness session list --source jcode --json`
+    id: String,
+    /// Validate and print the resume plan without executing it
+    #[arg(long)]
+    dry_run: bool,
+    /// Emit JSON report
+    #[arg(long, conflicts_with = "ndjson")]
+    json: bool,
+    /// Emit newline-delimited JSON events for the dry-run envelope
+    #[arg(long, conflicts_with = "json")]
+    ndjson: bool,
+}
+
+#[derive(Parser)]
+struct SessionCancelArgs {
+    /// Local jcode session id to cancel or acknowledge offline
+    id: String,
+    /// Validate and print the cancellation plan without contacting live sessions/providers
+    #[arg(long)]
+    dry_run: bool,
+    /// Optional upstream JSON-RPC or orchestration request id to echo in the envelope
+    #[arg(long)]
+    request_id: Option<String>,
+    /// Human-readable cancellation reason for operators and external orchestrators
+    #[arg(long)]
+    reason: Option<String>,
+    /// Emit JSON report
+    #[arg(long, conflicts_with = "ndjson")]
+    json: bool,
+    /// Emit newline-delimited JSON events for the dry-run envelope
+    #[arg(long, conflicts_with = "json")]
+    ndjson: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum HarnessSessionSourceFilter {
+    All,
+    Jcode,
+    ClaudeCode,
+    Codex,
+    Pi,
+    Opencode,
 }
 
 #[derive(Parser, Clone)]
@@ -438,8 +705,12 @@ async fn main() -> Result<()> {
     match args.command {
         None => jcode::run().await,
         Some(Command::Init(args)) => run_init(args),
+        Some(Command::Acp(args)) => run_acp(args),
         Some(Command::SafeEval(args)) => run_safe_eval(args),
         Some(Command::Doctor(args)) => run_doctor(args),
+        Some(Command::Notify(args)) => run_notify(args),
+        Some(Command::Demo(args)) => run_demo(args),
+        Some(Command::Session(args)) => run_session(args),
         Some(Command::Smoke(args)) => run_smoke(args).await,
         Some(Command::Run(args)) => run_goal(args).await,
         Some(Command::Skills(args)) => run_skills(args),
@@ -496,6 +767,562 @@ fn run_init(args: InitArgs) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn run_acp(args: AcpArgs) -> Result<()> {
+    match args.command {
+        AcpCommand::Manifest { json } => run_acp_manifest(json),
+        AcpCommand::Fixture { json } => run_acp_fixture(json),
+        AcpCommand::Serve { stdio } => run_acp_serve(stdio),
+    }
+}
+
+fn acp_manifest_json() -> serde_json::Value {
+    json!({
+        "status": "ok",
+        "command": "acp manifest",
+        "offline": true,
+        "read_only": true,
+        "protocol": {
+            "id": "acp",
+            "name": "Agent Client Protocol",
+            "jsonrpc": "2.0",
+            "transport": ["stdio"],
+            "framing": "newline-delimited-json",
+            "status": "preview"
+        },
+        "implementation": {
+            "name": "jcode-harness",
+            "version": env!("CARGO_PKG_VERSION"),
+            "repository": "https://github.com/chapzin/jcode-harness"
+        },
+        "capabilities": acp_capabilities_json(),
+        "conformance": {
+            "fixture": {
+                "status": "available",
+                "version": 2,
+                "command": "jcode-harness acp fixture --json"
+            }
+        },
+        "methods": [
+            {"name": "initialize", "kind": "request", "status": "implemented"},
+            {"name": "shutdown", "kind": "request", "status": "implemented"},
+            {"name": "initialized", "kind": "notification", "status": "implemented_noop"},
+            {"name": "jcode/session.list", "kind": "request", "status": "implemented_offline"},
+            {"name": "jcode/session.show", "kind": "request", "status": "implemented_offline_metadata_preview_opt_in"},
+            {"name": "jcode/session.spawn", "kind": "request", "status": "implemented_offline_dry_run_envelope"},
+            {"name": "jcode/session.attach", "kind": "request", "status": "implemented_offline_dry_run_envelope"},
+            {"name": "jcode/session.resume", "kind": "request", "status": "implemented_offline_dry_run_envelope"},
+            {"name": "jcode/session.cancel", "kind": "request", "status": "implemented_offline_control_envelope"},
+            {"name": "$/cancelRequest", "kind": "notification", "status": "implemented_offline_noop"}
+        ],
+        "registry": {
+            "ready": false,
+            "status": "preview_not_registry_ready",
+            "missing": [
+                "live session execution/streaming handlers",
+                "tool event streaming contract",
+                "live provider/session cancellation execution"
+            ]
+        },
+        "safety": {
+            "starts_tui": false,
+            "starts_provider": false,
+            "starts_tools": false,
+            "network_required": false,
+            "credentials_required": false
+        }
+    })
+}
+
+fn acp_capabilities_json() -> serde_json::Value {
+    json!({
+        "initialize": true,
+        "shutdown": true,
+        "session": {
+            "list": {"status": "implemented_offline", "method": "jcode/session.list", "command": "jcode-harness session list --json"},
+            "spawn": {"status": "implemented_offline_dry_run", "method": "jcode/session.spawn", "command": "jcode-harness session spawn <goal> --dry-run --json|--ndjson"},
+            "attach": {"status": "implemented_offline_dry_run", "method": "jcode/session.attach", "command": "jcode-harness session attach <id> --dry-run --json|--ndjson"},
+            "show": {"status": "implemented_offline", "method": "jcode/session.show", "command": "jcode-harness session show <id> --json"},
+            "resume": {"status": "implemented_offline_dry_run", "method": "jcode/session.resume", "command": "jcode-harness session resume <id> --dry-run --json|--ndjson"},
+            "cancel": {"status": "implemented_offline_control", "method": "jcode/session.cancel", "command": "jcode-harness session cancel <id> --dry-run --json|--ndjson"}
+        },
+        "control": {
+            "cancel_request_notification": {"status": "implemented_offline_noop", "method": "$/cancelRequest"},
+            "session_cancel_request": {"status": "implemented_offline_control", "method": "jcode/session.cancel"}
+        },
+        "events": {
+            "session_envelopes_ndjson": true,
+            "session_updates": false,
+            "tool_events": false
+        },
+        "conformance": {"fixture": true, "fixture_version": 2},
+        "cancellation": {
+            "supported": true,
+            "mode": "offline_control_only",
+            "notification": "$/cancelRequest",
+            "request": "jcode/session.cancel",
+            "live_provider_cancel": false
+        },
+        "registry_submission": {"ready": false}
+    })
+}
+
+fn acp_fixture_json() -> serde_json::Value {
+    json!({
+        "status": "ok",
+        "command": "acp fixture",
+        "offline": true,
+        "read_only": true,
+        "fixture": {
+            "id": "jcode-harness-acp-stdio-preview",
+            "version": 2,
+            "protocol": "acp",
+            "jsonrpc": "2.0",
+            "transport": "stdio",
+            "framing": "newline-delimited-json"
+        },
+        "safety": {
+            "starts_tui": false,
+            "starts_provider": false,
+            "starts_tools": false,
+            "network_required": false,
+            "credentials_required": false,
+            "project_writes": false
+        },
+        "fixture_home_files": [
+            {
+                "path": "sessions/session_acp_fixture.json",
+                "content": {
+                    "id": "session_acp_fixture",
+                    "title": "ACP fixture local session",
+                    "created_at": "2026-05-07T22:00:00Z",
+                    "updated_at": "2026-05-07T22:01:00Z",
+                    "last_active_at": "2026-05-07T22:02:00Z",
+                    "working_dir": ".",
+                    "short_name": "acp-fixture",
+                    "provider_key": "test",
+                    "model": "fixture-model",
+                    "status": "Closed",
+                    "messages": [
+                        {"id": "fixture-user", "role": "user", "content": [{"type": "text", "text": "fixture prompt content"}]},
+                        {"id": "fixture-assistant", "role": "assistant", "content": [{"type": "text", "text": "fixture assistant preview"}]}
+                    ],
+                    "env_snapshots": [],
+                    "memory_injections": [],
+                    "replay_events": []
+                }
+            }
+        ],
+        "steps": [
+            {
+                "name": "initialize",
+                "request": {"jsonrpc": "2.0", "id": "initialize", "method": "initialize", "params": {"clientInfo": {"name": "acp-fixture-client"}}},
+                "expect_response": true,
+                "expect": {"/result/protocol": "acp", "/result/serverInfo/name": "jcode-harness"}
+            },
+            {
+                "name": "initialized_notification",
+                "request": {"jsonrpc": "2.0", "method": "initialized"},
+                "expect_response": false
+            },
+            {
+                "name": "session_list",
+                "request": {"jsonrpc": "2.0", "id": "session_list", "method": "jcode/session.list", "params": {"source": "jcode", "includeTest": true, "limit": 5}},
+                "expect_response": true,
+                "expect": {"/result/status": "ok", "/result/command": "session list", "/result/offline": true, "/result/read_only": true}
+            },
+            {
+                "name": "session_spawn",
+                "request": {"jsonrpc": "2.0", "id": "session_spawn", "method": "jcode/session.spawn", "params": {"goal": "fixture spawn goal", "cwd": ".", "provider": "openai", "model": "fixture-model", "outputMode": "json"}},
+                "expect_response": true,
+                "expect": {"/result/status": "ok", "/result/command": "session spawn", "/result/dry_run": true, "/result/executed": false, "/result/spawn/output_mode": "json"}
+            },
+            {
+                "name": "session_show",
+                "requires_fixture_home_files": true,
+                "request": {"jsonrpc": "2.0", "id": "session_show", "method": "jcode/session.show", "params": {"id": "session_acp_fixture", "preview": 1}},
+                "expect_response": true,
+                "expect": {"/result/status": "ok", "/result/command": "session show", "/result/preview/returned": 1}
+            },
+            {
+                "name": "session_attach",
+                "requires_fixture_home_files": true,
+                "request": {"jsonrpc": "2.0", "id": "session_attach", "method": "jcode/session.attach", "params": {"id": "session_acp_fixture"}},
+                "expect_response": true,
+                "expect": {"/result/status": "ok", "/result/command": "session attach", "/result/dry_run": true, "/result/executed": false}
+            },
+            {
+                "name": "session_resume",
+                "requires_fixture_home_files": true,
+                "request": {"jsonrpc": "2.0", "id": "session_resume", "method": "jcode/session.resume", "params": {"id": "session_acp_fixture"}},
+                "expect_response": true,
+                "expect": {"/result/status": "ok", "/result/command": "session resume", "/result/dry_run": true, "/result/executed": false}
+            },
+            {
+                "name": "cancel_request_notification",
+                "request": {"jsonrpc": "2.0", "method": "$/cancelRequest", "params": {"id": "session_resume"}},
+                "expect_response": false
+            },
+            {
+                "name": "session_cancel_unknown",
+                "request": {"jsonrpc": "2.0", "id": "session_cancel_unknown", "method": "jcode/session.cancel", "params": {"id": "session_missing_fixture", "requestId": "session_resume", "reason": "fixture offline cancel"}},
+                "expect_response": true,
+                "expect": {"/result/status": "ok", "/result/command": "session cancel", "/result/offline": true, "/result/session_exists": false, "/result/cancel/cancelled": false, "/result/cancel/outcome": "unknown_session_offline_acknowledged"}
+            },
+            {
+                "name": "invalid_params",
+                "request": {"jsonrpc": "2.0", "id": "invalid_params", "method": "jcode/session.show", "params": {}},
+                "expect_response": true,
+                "expect_error": {"code": -32602, "message": "invalid params"}
+            },
+            {
+                "name": "unknown_method",
+                "request": {"jsonrpc": "2.0", "id": "unknown_method", "method": "jcode/unknown"},
+                "expect_response": true,
+                "expect_error": {"code": -32601, "message": "method not found"}
+            },
+            {
+                "name": "shutdown",
+                "request": {"jsonrpc": "2.0", "id": "shutdown", "method": "shutdown"},
+                "expect_response": true,
+                "expect": {"/result/shutdown": true}
+            }
+        ],
+        "runner_notes": [
+            "Create a temporary JCODE_HOME and write fixture_home_files before running fixture steps that require a local session.",
+            "Send each request as one newline-delimited JSON object to `jcode-harness acp serve --stdio`.",
+            "Steps with expect_response=false are notifications and must not produce a JSON-RPC response."
+        ]
+    })
+}
+
+fn run_acp_manifest(json_output: bool) -> Result<()> {
+    let manifest = acp_manifest_json();
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(&manifest)?);
+    } else {
+        println!("jcode-harness ACP manifest: preview");
+        println!("Transport: stdio JSON-RPC 2.0");
+        println!(
+            "Implemented methods: initialize, initialized, shutdown, jcode/session.* offline, $/cancelRequest notification"
+        );
+        println!("Registry ready: false");
+    }
+    Ok(())
+}
+
+fn run_acp_fixture(json_output: bool) -> Result<()> {
+    let fixture = acp_fixture_json();
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(&fixture)?);
+    } else {
+        println!("jcode-harness ACP fixture: version 2");
+        println!("Offline: true");
+        println!("Read only: true");
+        println!("Transport: stdio JSON-RPC 2.0");
+        println!(
+            "Steps: {}",
+            fixture["steps"].as_array().map(Vec::len).unwrap_or(0)
+        );
+        println!(
+            "Use --json for machine-readable requests, expected responses, and fixture session files."
+        );
+    }
+    Ok(())
+}
+
+fn run_acp_serve(stdio: bool) -> Result<()> {
+    if !stdio {
+        anyhow::bail!(
+            "ACP serve currently supports only --stdio newline-delimited JSON-RPC preview mode"
+        );
+    }
+
+    use std::io::{self, BufRead};
+
+    let stdin = io::stdin();
+    for line in stdin.lock().lines() {
+        let line = line?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let response = match serde_json::from_str::<serde_json::Value>(trimmed) {
+            Ok(request) => acp_handle_jsonrpc_request(&request),
+            Err(error) => Some(acp_jsonrpc_error(
+                serde_json::Value::Null,
+                -32700,
+                "parse error",
+                Some(json!({"detail": error.to_string()})),
+            )),
+        };
+        if let Some(response) = response {
+            println!("{}", serde_json::to_string(&response)?);
+            if response
+                .get("result")
+                .and_then(|result| result.get("shutdown"))
+                .and_then(serde_json::Value::as_bool)
+                == Some(true)
+            {
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn acp_handle_jsonrpc_request(request: &serde_json::Value) -> Option<serde_json::Value> {
+    let id = request.get("id").cloned();
+    let method = request
+        .get("method")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+
+    if method.is_empty()
+        || request.get("jsonrpc").and_then(serde_json::Value::as_str) != Some("2.0")
+    {
+        return Some(acp_jsonrpc_error(
+            id.unwrap_or(serde_json::Value::Null),
+            -32600,
+            "invalid request",
+            None,
+        ));
+    }
+
+    if id.is_none() {
+        return None;
+    }
+    let id = id.unwrap_or(serde_json::Value::Null);
+
+    match method {
+        "initialize" => Some(json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "protocol": "acp",
+                "serverInfo": {
+                    "name": "jcode-harness",
+                    "version": env!("CARGO_PKG_VERSION")
+                },
+                "capabilities": acp_capabilities_json(),
+                "manifest": acp_manifest_json(),
+            }
+        })),
+        "shutdown" => Some(json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {"shutdown": true}
+        })),
+        "jcode/session.list" => Some(acp_jsonrpc_result(id, acp_session_list_result(request))),
+        "jcode/session.show" => Some(acp_jsonrpc_result(id, acp_session_show_result(request))),
+        "jcode/session.spawn" => Some(acp_jsonrpc_result(id, acp_session_spawn_result(request))),
+        "jcode/session.attach" => Some(acp_jsonrpc_result(id, acp_session_attach_result(request))),
+        "jcode/session.resume" => Some(acp_jsonrpc_result(id, acp_session_resume_result(request))),
+        "jcode/session.cancel" => Some(acp_jsonrpc_result(id, acp_session_cancel_result(request))),
+        "initialized" | "$/cancelRequest" => None,
+        _ => Some(acp_jsonrpc_error(id, -32601, "method not found", None)),
+    }
+}
+
+fn acp_jsonrpc_result(
+    id: serde_json::Value,
+    result: Result<serde_json::Value>,
+) -> serde_json::Value {
+    match result {
+        Ok(result) => json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": result,
+        }),
+        Err(error) => acp_jsonrpc_error(
+            id,
+            -32602,
+            "invalid params",
+            Some(json!({"detail": error.to_string()})),
+        ),
+    }
+}
+
+fn acp_request_params(
+    request: &serde_json::Value,
+) -> Result<Option<&serde_json::Map<String, serde_json::Value>>> {
+    match request.get("params") {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::Object(params)) => Ok(Some(params)),
+        Some(_) => anyhow::bail!("params must be a JSON object when present"),
+    }
+}
+
+fn acp_param_value<'a>(
+    params: Option<&'a serde_json::Map<String, serde_json::Value>>,
+    names: &[&str],
+) -> Option<&'a serde_json::Value> {
+    let params = params?;
+    names.iter().find_map(|name| params.get(*name))
+}
+
+fn acp_optional_str<'a>(
+    params: Option<&'a serde_json::Map<String, serde_json::Value>>,
+    names: &[&str],
+) -> Result<Option<&'a str>> {
+    match acp_param_value(params, names) {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(value) => value
+            .as_str()
+            .map(Some)
+            .ok_or_else(|| anyhow::anyhow!("{} must be a string", names[0])),
+    }
+}
+
+fn acp_required_str<'a>(
+    params: Option<&'a serde_json::Map<String, serde_json::Value>>,
+    name: &str,
+) -> Result<&'a str> {
+    acp_optional_str(params, &[name])?
+        .ok_or_else(|| anyhow::anyhow!("missing required param {name}"))
+}
+
+fn acp_required_str_any<'a>(
+    params: Option<&'a serde_json::Map<String, serde_json::Value>>,
+    names: &[&str],
+) -> Result<&'a str> {
+    acp_optional_str(params, names)?.ok_or_else(|| {
+        anyhow::anyhow!(
+            "missing required param {}",
+            names.first().copied().unwrap_or("<unknown>")
+        )
+    })
+}
+
+fn acp_optional_bool(
+    params: Option<&serde_json::Map<String, serde_json::Value>>,
+    names: &[&str],
+) -> Result<Option<bool>> {
+    match acp_param_value(params, names) {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(value) => value
+            .as_bool()
+            .map(Some)
+            .ok_or_else(|| anyhow::anyhow!("{} must be a boolean", names[0])),
+    }
+}
+
+fn acp_optional_usize(
+    params: Option<&serde_json::Map<String, serde_json::Value>>,
+    names: &[&str],
+) -> Result<Option<usize>> {
+    match acp_param_value(params, names) {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(value) => {
+            let number = value
+                .as_u64()
+                .ok_or_else(|| anyhow::anyhow!("{} must be a non-negative integer", names[0]))?;
+            usize::try_from(number)
+                .map(Some)
+                .map_err(|_| anyhow::anyhow!("{} is too large", names[0]))
+        }
+    }
+}
+
+fn acp_session_source_filter(value: Option<&str>) -> Result<HarnessSessionSourceFilter> {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(HarnessSessionSourceFilter::All);
+    };
+    match value.to_ascii_lowercase().replace('-', "_").as_str() {
+        "all" => Ok(HarnessSessionSourceFilter::All),
+        "jcode" => Ok(HarnessSessionSourceFilter::Jcode),
+        "claude" | "claude_code" | "claudecode" => Ok(HarnessSessionSourceFilter::ClaudeCode),
+        "codex" => Ok(HarnessSessionSourceFilter::Codex),
+        "pi" => Ok(HarnessSessionSourceFilter::Pi),
+        "opencode" | "open_code" => Ok(HarnessSessionSourceFilter::Opencode),
+        _ => anyhow::bail!("unsupported session source '{value}'"),
+    }
+}
+
+fn acp_output_mode(value: Option<&str>) -> Result<SessionEnvelopeOutputMode> {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(SessionEnvelopeOutputMode::Json);
+    };
+    match value.to_ascii_lowercase().replace('-', "_").as_str() {
+        "text" => Ok(SessionEnvelopeOutputMode::Text),
+        "json" => Ok(SessionEnvelopeOutputMode::Json),
+        "ndjson" | "jsonl" => Ok(SessionEnvelopeOutputMode::Ndjson),
+        _ => anyhow::bail!("unsupported outputMode '{value}'"),
+    }
+}
+
+fn acp_session_list_result(request: &serde_json::Value) -> Result<serde_json::Value> {
+    let params = acp_request_params(request)?;
+    let source = acp_session_source_filter(acp_optional_str(params, &["source"])?)?;
+    let include_test =
+        acp_optional_bool(params, &["includeTest", "include_test"])?.unwrap_or(false);
+    let limit = acp_optional_usize(params, &["limit"])?;
+    session_list_report(source, include_test, limit)
+}
+
+fn acp_session_show_result(request: &serde_json::Value) -> Result<serde_json::Value> {
+    let params = acp_request_params(request)?;
+    let id = acp_required_str(params, "id")?;
+    let preview = acp_optional_usize(params, &["preview"])?.unwrap_or(0);
+    session_show_report(id, preview)
+}
+
+fn acp_session_spawn_result(request: &serde_json::Value) -> Result<serde_json::Value> {
+    let params = acp_request_params(request)?;
+    let goal = acp_required_str(params, "goal")?;
+    let output_mode = acp_output_mode(acp_optional_str(params, &["outputMode", "output_mode"])?)?;
+    session_spawn_report(
+        goal,
+        acp_optional_str(params, &["cwd"])?,
+        acp_optional_str(params, &["provider"])?,
+        acp_optional_str(params, &["providerProfile", "provider_profile"])?,
+        acp_optional_str(params, &["model"])?,
+        output_mode,
+    )
+}
+
+fn acp_session_attach_result(request: &serde_json::Value) -> Result<serde_json::Value> {
+    let params = acp_request_params(request)?;
+    let id = acp_required_str(params, "id")?;
+    session_attach_report(id)
+}
+
+fn acp_session_resume_result(request: &serde_json::Value) -> Result<serde_json::Value> {
+    let params = acp_request_params(request)?;
+    let id = acp_required_str(params, "id")?;
+    session_resume_report(id)
+}
+
+fn acp_session_cancel_result(request: &serde_json::Value) -> Result<serde_json::Value> {
+    let params = acp_request_params(request)?;
+    let id = acp_required_str_any(params, &["id", "sessionId", "session_id"])?;
+    let request_id = acp_param_value(
+        params,
+        &["requestId", "request_id", "jsonrpcId", "jsonrpc_id"],
+    )
+    .cloned();
+    let reason = acp_optional_str(params, &["reason"])?;
+    session_cancel_report(id, request_id, reason)
+}
+
+fn acp_jsonrpc_error(
+    id: serde_json::Value,
+    code: i64,
+    message: &str,
+    data: Option<serde_json::Value>,
+) -> serde_json::Value {
+    let mut error = serde_json::Map::new();
+    error.insert("code".to_string(), json!(code));
+    error.insert("message".to_string(), json!(message));
+    if let Some(data) = data {
+        error.insert("data".to_string(), data);
+    }
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": error,
+    })
 }
 
 fn run_safe_eval(args: SafeEvalArgs) -> Result<()> {
@@ -785,6 +1612,889 @@ fn harden_private_dir(_path: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
+fn run_session(args: SessionArgs) -> Result<()> {
+    match args.command {
+        SessionCommand::List(args) => run_session_list(args),
+        SessionCommand::Spawn(args) => run_session_spawn(args),
+        SessionCommand::Attach(args) => run_session_attach(args),
+        SessionCommand::Show(args) => run_session_show(args),
+        SessionCommand::Resume(args) => run_session_resume(args),
+        SessionCommand::Cancel(args) => run_session_cancel(args),
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SessionEnvelopeOutputMode {
+    Text,
+    Json,
+    Ndjson,
+}
+
+impl SessionEnvelopeOutputMode {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Text => "text",
+            Self::Json => "json",
+            Self::Ndjson => "ndjson",
+        }
+    }
+
+    fn argv_flag(self) -> Option<&'static str> {
+        match self {
+            Self::Text => None,
+            Self::Json => Some("--json"),
+            Self::Ndjson => Some("--ndjson"),
+        }
+    }
+}
+
+fn print_session_dry_run_report(
+    report: &serde_json::Value,
+    json_output: bool,
+    ndjson_output: bool,
+) -> Result<bool> {
+    if ndjson_output {
+        let command = report
+            .get("command")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("session");
+        for event in [
+            json!({
+                "type": "start",
+                "command": command,
+                "offline": true,
+                "read_only": true,
+                "dry_run": true,
+            }),
+            json!({
+                "type": "envelope",
+                "command": command,
+                "envelope": report,
+            }),
+            json!({
+                "type": "done",
+                "command": command,
+                "status": "ok",
+                "executed": false,
+            }),
+        ] {
+            println!("{}", serde_json::to_string(&event)?);
+        }
+        return Ok(true);
+    }
+
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(report)?);
+        return Ok(true);
+    }
+
+    Ok(false)
+}
+
+fn run_session_spawn(args: SessionSpawnArgs) -> Result<()> {
+    if !args.dry_run {
+        anyhow::bail!(
+            "session spawn execution is not supported by jcode-harness yet; rerun with --dry-run to inspect the safe spawn envelope"
+        );
+    }
+    let output_mode = if args.json {
+        SessionEnvelopeOutputMode::Json
+    } else if args.ndjson {
+        SessionEnvelopeOutputMode::Ndjson
+    } else {
+        SessionEnvelopeOutputMode::Text
+    };
+    let report = session_spawn_report(
+        &args.goal,
+        args.cwd.as_deref(),
+        args.provider.as_deref(),
+        args.provider_profile.as_deref(),
+        args.model.as_deref(),
+        output_mode,
+    )?;
+
+    if print_session_dry_run_report(&report, args.json, args.ndjson)? {
+        return Ok(());
+    }
+
+    let command_display = report["spawn"]["command_display"]
+        .as_str()
+        .unwrap_or("jcode run <goal>");
+    let working_dir = report["spawn"]["cwd"].as_str().unwrap_or("<unknown>");
+
+    println!("jcode-harness session spawn dry-run");
+    println!("Offline: true");
+    println!("Read only: true");
+    println!("Executed: false");
+    println!("Command: {command_display}");
+    println!("Working directory: {working_dir}");
+
+    Ok(())
+}
+
+fn session_spawn_report(
+    goal: &str,
+    cwd: Option<&str>,
+    provider: Option<&str>,
+    provider_profile: Option<&str>,
+    model: Option<&str>,
+    output_mode: SessionEnvelopeOutputMode,
+) -> Result<serde_json::Value> {
+    if goal.trim().is_empty() {
+        anyhow::bail!("session spawn goal must not be empty");
+    }
+
+    let provider = provider.map(str::trim).filter(|value| !value.is_empty());
+    let provider_profile = provider_profile
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if provider.is_some() && provider_profile.is_some() {
+        anyhow::bail!("session spawn provider and provider_profile are mutually exclusive");
+    }
+    if let Some(provider) = provider {
+        ProviderChoice::from_str(provider, true)
+            .map_err(|err| anyhow::anyhow!("invalid provider '{}': {}", provider, err))?;
+    }
+
+    let cwd = cwd.map(str::trim).filter(|value| !value.is_empty());
+    let root = resolve_existing_root(cwd, "session spawn")?;
+    let working_dir = root.to_string_lossy().to_string();
+    let working_dir_source = if cwd.is_some() {
+        "argument"
+    } else {
+        "current_dir"
+    };
+    let provider = provider.unwrap_or("auto");
+    let model = model.map(str::trim).filter(|value| !value.is_empty());
+
+    let mut argv = vec!["jcode".to_string(), "-C".to_string(), working_dir.clone()];
+    if let Some(profile) = provider_profile {
+        argv.push("--provider-profile".to_string());
+        argv.push(profile.to_string());
+    } else if provider != "auto" {
+        argv.push("-p".to_string());
+        argv.push(provider.to_string());
+    }
+    if let Some(model) = model {
+        argv.push("-m".to_string());
+        argv.push(model.to_string());
+    }
+    argv.push("run".to_string());
+    if let Some(flag) = output_mode.argv_flag() {
+        argv.push(flag.to_string());
+    }
+    argv.push(goal.to_string());
+    let command_display = argv
+        .iter()
+        .map(|arg| shell_quote(arg))
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    Ok(json!({
+        "status": "ok",
+        "command": "session spawn",
+        "offline": true,
+        "read_only": true,
+        "dry_run": true,
+        "executed": false,
+        "source": "jcode",
+        "goal": goal,
+        "spawn": {
+            "supported_by": "jcode-cli-run",
+            "execution_supported_by_harness": false,
+            "creates_new_session": true,
+            "requires_terminal": false,
+            "starts_tui": false,
+            "starts_provider": "on_execution",
+            "program": "jcode",
+            "argv": argv,
+            "command_display": command_display,
+            "cwd": &working_dir,
+            "cwd_source": working_dir_source,
+            "output_mode": output_mode.label(),
+            "provider": provider,
+            "provider_profile": provider_profile,
+            "model": model,
+        },
+        "safety": {
+            "executed": false,
+            "writes": false,
+            "network_required_for_dry_run": false,
+            "credentials_required_for_dry_run": false,
+            "note": "Use the returned argv/cwd outside dry-run only after choosing an execution surface."
+        },
+    }))
+}
+
+fn run_session_attach(args: SessionAttachArgs) -> Result<()> {
+    if !args.dry_run {
+        anyhow::bail!(
+            "session attach execution is not supported by jcode-harness yet; rerun with --dry-run to inspect the safe attach envelope"
+        );
+    }
+    let report = session_attach_report(&args.id)?;
+
+    if print_session_dry_run_report(&report, args.json, args.ndjson)? {
+        return Ok(());
+    }
+
+    let session_id = report["id"].as_str().unwrap_or(&args.id);
+    let command_display = report["attach"]["command_display"]
+        .as_str()
+        .unwrap_or("jcode --resume <id>");
+    let working_dir = report["attach"]["cwd"].as_str().unwrap_or("<unknown>");
+
+    println!("jcode-harness session attach dry-run: {session_id}");
+    println!("Offline: true");
+    println!("Read only: true");
+    println!("Executed: false");
+    println!("Command: {command_display}");
+    println!("Working directory: {working_dir}");
+
+    Ok(())
+}
+
+fn session_attach_report(id: &str) -> Result<serde_json::Value> {
+    if id.contains(':') {
+        anyhow::bail!(
+            "session attach currently supports local jcode session ids only; use `session list --source jcode --json`"
+        );
+    }
+
+    let session_path = jcode::session::session_path(id)?;
+    let journal_path = jcode::session::session_journal_path(id)?;
+    let session = jcode::session::Session::load(id)?;
+    let fallback_cwd = std::env::current_dir()?.to_string_lossy().to_string();
+    let working_dir = session
+        .working_dir
+        .as_deref()
+        .filter(|dir| !dir.trim().is_empty())
+        .unwrap_or(&fallback_cwd);
+    let working_dir_source = if session
+        .working_dir
+        .as_deref()
+        .filter(|dir| !dir.trim().is_empty())
+        .is_some()
+    {
+        "session"
+    } else {
+        "current_dir"
+    };
+    let argv = vec![
+        "jcode".to_string(),
+        "--resume".to_string(),
+        session.id.clone(),
+    ];
+    let command_display = argv
+        .iter()
+        .map(|arg| shell_quote(arg))
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    Ok(json!({
+        "status": "ok",
+        "command": "session attach",
+        "offline": true,
+        "read_only": true,
+        "dry_run": true,
+        "executed": false,
+        "source": "jcode",
+        "id": &session.id,
+        "session_path": &session_path,
+        "session_exists": session_path.exists(),
+        "journal_path": &journal_path,
+        "journal_exists": journal_path.exists(),
+        "metadata": session_metadata_json(&session),
+        "attach": {
+            "supported_by": "jcode-cli-resume",
+            "execution_supported_by_harness": false,
+            "attach_mode": "local_session_resume_surface",
+            "requires_terminal": true,
+            "starts_tui": true,
+            "starts_provider": "on_interaction_or_resume_flow",
+            "program": "jcode",
+            "argv": argv,
+            "command_display": command_display,
+            "cwd": working_dir,
+            "cwd_source": working_dir_source,
+            "live_session_detection": "not_attempted_offline_dry_run",
+        },
+        "safety": {
+            "executed": false,
+            "writes": false,
+            "network_required_for_dry_run": false,
+            "credentials_required_for_dry_run": false,
+            "note": "Use the returned argv/cwd outside dry-run only after choosing an execution surface."
+        },
+    }))
+}
+
+fn run_session_resume(args: SessionResumeArgs) -> Result<()> {
+    if !args.dry_run {
+        anyhow::bail!(
+            "session resume execution is not supported by jcode-harness yet; rerun with --dry-run to inspect the safe resume envelope"
+        );
+    }
+    let report = session_resume_report(&args.id)?;
+
+    if print_session_dry_run_report(&report, args.json, args.ndjson)? {
+        return Ok(());
+    }
+
+    let session_id = report["id"].as_str().unwrap_or(&args.id);
+    let command_display = report["resume"]["command_display"]
+        .as_str()
+        .unwrap_or("jcode --resume <id>");
+    let working_dir = report["resume"]["cwd"].as_str().unwrap_or("<unknown>");
+
+    println!("jcode-harness session resume dry-run: {session_id}");
+    println!("Offline: true");
+    println!("Read only: true");
+    println!("Executed: false");
+    println!("Command: {command_display}");
+    println!("Working directory: {working_dir}");
+
+    Ok(())
+}
+
+fn session_resume_report(id: &str) -> Result<serde_json::Value> {
+    if id.contains(':') {
+        anyhow::bail!(
+            "session resume currently supports local jcode session ids only; use `session list --source jcode --json`"
+        );
+    }
+
+    let session_path = jcode::session::session_path(id)?;
+    let journal_path = jcode::session::session_journal_path(id)?;
+    let session = jcode::session::Session::load(id)?;
+    let fallback_cwd = std::env::current_dir()?.to_string_lossy().to_string();
+    let working_dir = session
+        .working_dir
+        .as_deref()
+        .filter(|dir| !dir.trim().is_empty())
+        .unwrap_or(&fallback_cwd);
+    let working_dir_source = if session
+        .working_dir
+        .as_deref()
+        .filter(|dir| !dir.trim().is_empty())
+        .is_some()
+    {
+        "session"
+    } else {
+        "current_dir"
+    };
+    let argv = vec![
+        "jcode".to_string(),
+        "--resume".to_string(),
+        session.id.clone(),
+    ];
+    let command_display = argv
+        .iter()
+        .map(|arg| shell_quote(arg))
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    Ok(json!({
+        "status": "ok",
+        "command": "session resume",
+        "offline": true,
+        "read_only": true,
+        "dry_run": true,
+        "executed": false,
+        "source": "jcode",
+        "id": &session.id,
+        "session_path": &session_path,
+        "session_exists": session_path.exists(),
+        "journal_path": &journal_path,
+        "journal_exists": journal_path.exists(),
+        "metadata": session_metadata_json(&session),
+        "resume": {
+            "supported_by": "jcode-cli",
+            "execution_supported_by_harness": false,
+            "requires_terminal": true,
+            "starts_tui": true,
+            "starts_provider": "on_interaction_or_resume_flow",
+            "program": "jcode",
+            "argv": argv,
+            "command_display": command_display,
+            "cwd": working_dir,
+            "cwd_source": working_dir_source,
+        },
+        "safety": {
+            "executed": false,
+            "writes": false,
+            "network_required_for_dry_run": false,
+            "credentials_required_for_dry_run": false,
+            "note": "Use the returned argv/cwd outside dry-run only after choosing an execution surface."
+        },
+    }))
+}
+
+fn run_session_cancel(args: SessionCancelArgs) -> Result<()> {
+    if !args.dry_run {
+        anyhow::bail!(
+            "session cancel execution is not supported by jcode-harness yet; rerun with --dry-run to inspect the offline cancellation envelope"
+        );
+    }
+
+    let request_id = args
+        .request_id
+        .as_deref()
+        .map(|value| json!(value.trim()))
+        .filter(|value| !value.as_str().unwrap_or_default().is_empty());
+    let report = session_cancel_report(&args.id, request_id, args.reason.as_deref())?;
+
+    if print_session_dry_run_report(&report, args.json, args.ndjson)? {
+        return Ok(());
+    }
+
+    let session_id = report["id"].as_str().unwrap_or(&args.id);
+    let outcome = report["cancel"]["outcome"]
+        .as_str()
+        .unwrap_or("offline_session_acknowledged");
+
+    println!("jcode-harness session cancel dry-run: {session_id}");
+    println!("Offline: true");
+    println!("Read only: true");
+    println!("Executed: false");
+    println!("Outcome: {outcome}");
+    println!("Live provider cancel attempted: false");
+
+    Ok(())
+}
+
+fn session_cancel_report(
+    id: &str,
+    request_id: Option<serde_json::Value>,
+    reason: Option<&str>,
+) -> Result<serde_json::Value> {
+    let id = id.trim();
+    if id.is_empty() {
+        anyhow::bail!("session cancel id must not be empty");
+    }
+
+    let session_path = jcode::session::session_path(id)?;
+    let journal_path = jcode::session::session_journal_path(id)?;
+    let session_exists = session_path.exists();
+    let journal_exists = journal_path.exists();
+    let mut metadata = serde_json::Value::Null;
+    let mut metadata_error = serde_json::Value::Null;
+
+    if session_exists {
+        match jcode::session::Session::load(id) {
+            Ok(session) => {
+                metadata = session_metadata_json(&session);
+            }
+            Err(error) => {
+                metadata_error = json!(error.to_string());
+            }
+        }
+    }
+
+    let outcome = if session_exists {
+        "offline_session_acknowledged"
+    } else {
+        "unknown_session_offline_acknowledged"
+    };
+
+    Ok(json!({
+        "status": "ok",
+        "command": "session cancel",
+        "offline": true,
+        "read_only": true,
+        "dry_run": true,
+        "executed": false,
+        "source": "jcode",
+        "id": id,
+        "session_path": &session_path,
+        "session_exists": session_exists,
+        "journal_path": &journal_path,
+        "journal_exists": journal_exists,
+        "metadata": metadata,
+        "metadata_error": metadata_error,
+        "cancel": {
+            "requested": true,
+            "accepted": true,
+            "cancelled": false,
+            "outcome": outcome,
+            "mode": "offline_control_envelope",
+            "request_id": request_id.unwrap_or(serde_json::Value::Null),
+            "reason": reason,
+            "notification_method": "$/cancelRequest",
+            "request_method": "jcode/session.cancel",
+            "live_session_detection": "not_attempted_offline_control",
+            "execution_supported_by_harness": false,
+            "provider_cancel_attempted": false,
+            "provider_cancelled": false,
+        },
+        "safety": {
+            "executed": false,
+            "writes": false,
+            "starts_tui": false,
+            "starts_provider": false,
+            "network_required_for_dry_run": false,
+            "credentials_required_for_dry_run": false,
+            "note": "Offline cancellation preview records cancellation intent only; no provider, session process, tools, network, or TUI are contacted."
+        },
+    }))
+}
+
+fn run_session_show(args: SessionShowArgs) -> Result<()> {
+    let report = session_show_report(&args.id, args.preview)?;
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        println!(
+            "jcode-harness session show: {}",
+            report["id"].as_str().unwrap_or(&args.id)
+        );
+        println!("Offline: true");
+        println!("Read only: true");
+        println!(
+            "Title: {}",
+            report["metadata"]["title"].as_str().unwrap_or("Untitled")
+        );
+        println!(
+            "Status: {}",
+            report["metadata"]["status"].as_str().unwrap_or("unknown")
+        );
+        println!(
+            "Messages stored: {}",
+            report["metadata"]["stored_message_count"]
+                .as_u64()
+                .unwrap_or(0)
+        );
+        if args.preview == 0 {
+            println!("Preview: disabled (use --preview N)");
+        } else {
+            println!("Preview: last {} rendered messages", args.preview);
+            for message in report["preview"]["messages"]
+                .as_array()
+                .into_iter()
+                .flatten()
+            {
+                println!(
+                    "- [{}] {}",
+                    message["role"].as_str().unwrap_or("unknown"),
+                    message["content"].as_str().unwrap_or_default()
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn session_show_report(id: &str, preview: usize) -> Result<serde_json::Value> {
+    if id.contains(':') {
+        anyhow::bail!(
+            "session show currently supports local jcode session ids only; use `session list --source jcode --json`"
+        );
+    }
+
+    let session_path = jcode::session::session_path(id)?;
+    let journal_path = jcode::session::session_journal_path(id)?;
+    let session = jcode::session::Session::load(id)?;
+    let preview_messages = session_preview_json(&session, preview);
+    Ok(json!({
+        "status": "ok",
+        "command": "session show",
+        "offline": true,
+        "read_only": true,
+        "source": "jcode",
+        "id": &session.id,
+        "session_path": &session_path,
+        "session_exists": session_path.exists(),
+        "journal_path": &journal_path,
+        "journal_exists": journal_path.exists(),
+        "metadata": session_metadata_json(&session),
+        "preview": {
+            "requested": preview,
+            "returned": preview_messages.len(),
+            "content_truncated_to_chars": SESSION_SHOW_PREVIEW_CONTENT_CHARS,
+            "messages": preview_messages,
+        },
+    }))
+}
+
+fn run_session_list(args: SessionListArgs) -> Result<()> {
+    let report = session_list_report(args.source, args.include_test, args.limit)?;
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        let sessions = report["sessions"].as_array().cloned().unwrap_or_default();
+        let hidden_test_count = report["hidden_test_count"].as_u64().unwrap_or(0);
+        println!("jcode-harness session list: {} sessions", sessions.len());
+        println!("Offline: true");
+        println!("Read only: true");
+        if !args.include_test && hidden_test_count > 0 {
+            println!("Hidden test/canary sessions: {hidden_test_count} (use --include-test)");
+        }
+        for session in &sessions {
+            println!(
+                "- {} [{}] {} ({}, {} messages)",
+                session["short_name"].as_str().unwrap_or("unknown"),
+                session["source"].as_str().unwrap_or("unknown"),
+                session["title"].as_str().unwrap_or("Untitled"),
+                session["status"].as_str().unwrap_or("unknown"),
+                session["message_count"].as_u64().unwrap_or(0)
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn session_list_report(
+    source: HarnessSessionSourceFilter,
+    include_test: bool,
+    limit: Option<usize>,
+) -> Result<serde_json::Value> {
+    let mut sessions = jcode::tui::session_picker::load_sessions()?;
+    let loaded_count = sessions.len();
+
+    if source != HarnessSessionSourceFilter::All {
+        sessions.retain(|session| session_matches_source_filter(session, source));
+    }
+
+    let discovered_count = sessions.len();
+    let hidden_test_count = sessions
+        .iter()
+        .filter(|session| session.is_debug || session.is_canary)
+        .count();
+
+    if !include_test {
+        sessions.retain(|session| !session.is_debug && !session.is_canary);
+    }
+
+    if let Some(limit) = limit {
+        sessions.truncate(limit);
+    }
+
+    let sessions_dir = jcode::storage::jcode_dir()?.join("sessions");
+    Ok(json!({
+        "status": "ok",
+        "command": "session list",
+        "offline": true,
+        "read_only": true,
+        "sessions_dir": sessions_dir,
+        "loaded_count": loaded_count,
+        "session_count": sessions.len(),
+        "discovered_count": discovered_count,
+        "hidden_test_count": if include_test { 0 } else { hidden_test_count },
+        "include_test": include_test,
+        "source": session_source_filter_label(source),
+        "limit": limit,
+        "sessions": sessions.iter().map(session_info_json).collect::<Vec<_>>(),
+    }))
+}
+
+const SESSION_SHOW_PREVIEW_CONTENT_CHARS: usize = 4000;
+
+fn session_metadata_json(session: &jcode::session::Session) -> serde_json::Value {
+    let user_message_count = session
+        .messages
+        .iter()
+        .filter(|message| message.display_role.is_none() && message.role == Role::User)
+        .count();
+    let assistant_message_count = session
+        .messages
+        .iter()
+        .filter(|message| message.display_role.is_none() && message.role == Role::Assistant)
+        .count();
+    let total_tokens: u64 = session
+        .messages
+        .iter()
+        .filter_map(|message| message.token_usage.as_ref())
+        .map(|usage| {
+            usage.input_tokens
+                + usage.output_tokens
+                + usage.cache_read_input_tokens.unwrap_or(0)
+                + usage.cache_creation_input_tokens.unwrap_or(0)
+        })
+        .sum();
+
+    json!({
+        "id": &session.id,
+        "parent_id": &session.parent_id,
+        "short_name": &session.short_name,
+        "display_name": session.display_name(),
+        "title": &session.title,
+        "created_at": session.created_at.to_rfc3339(),
+        "updated_at": session.updated_at.to_rfc3339(),
+        "last_active_at": session.last_active_at.map(|time| time.to_rfc3339()),
+        "working_dir": &session.working_dir,
+        "model": &session.model,
+        "provider_key": &session.provider_key,
+        "provider_session_id": &session.provider_session_id,
+        "reasoning_effort": &session.reasoning_effort,
+        "status": session.status.display(),
+        "status_detail": session.status.detail(),
+        "stored_message_count": session.messages.len(),
+        "user_message_count": user_message_count,
+        "assistant_message_count": assistant_message_count,
+        "env_snapshot_count": session.env_snapshots.len(),
+        "memory_injection_count": session.memory_injections.len(),
+        "replay_event_count": session.replay_events.len(),
+        "estimated_total_tokens": total_tokens,
+        "is_canary": session.is_canary,
+        "testing_build": &session.testing_build,
+        "is_debug": session.is_debug,
+        "saved": session.saved,
+        "save_label": &session.save_label,
+        "last_pid": session.last_pid,
+        "has_compaction": session.compaction.is_some(),
+        "compaction": session.compaction.as_ref().map(|state| json!({
+            "covers_up_to_turn": state.covers_up_to_turn,
+            "original_turn_count": state.original_turn_count,
+            "compacted_count": state.compacted_count,
+            "has_summary": !state.summary_text.trim().is_empty(),
+            "has_openai_encrypted_content": state.openai_encrypted_content.is_some(),
+        })),
+    })
+}
+
+fn session_preview_json(
+    session: &jcode::session::Session,
+    preview_limit: usize,
+) -> Vec<serde_json::Value> {
+    if preview_limit == 0 {
+        return Vec::new();
+    }
+
+    let rendered = jcode::session::render_messages(session);
+    let start_index = rendered.len().saturating_sub(preview_limit);
+    rendered
+        .into_iter()
+        .enumerate()
+        .skip(start_index)
+        .map(|(index, message)| {
+            let truncated =
+                jcode::util::truncate_str(&message.content, SESSION_SHOW_PREVIEW_CONTENT_CHARS);
+            let content = truncated.to_string();
+            let is_truncated = content.len() < message.content.len();
+            json!({
+                "index": index,
+                "role": message.role,
+                "content": content,
+                "truncated": is_truncated,
+                "tool_calls": message.tool_calls,
+                "tool": message.tool_data.as_ref().map(|tool| json!({
+                    "id": &tool.id,
+                    "name": &tool.name,
+                    "intent": &tool.intent,
+                })),
+            })
+        })
+        .collect()
+}
+
+fn session_matches_source_filter(
+    session: &SessionInfo,
+    filter: HarnessSessionSourceFilter,
+) -> bool {
+    match filter {
+        HarnessSessionSourceFilter::All => true,
+        HarnessSessionSourceFilter::Jcode => session.source == SessionSource::Jcode,
+        HarnessSessionSourceFilter::ClaudeCode => session.source == SessionSource::ClaudeCode,
+        HarnessSessionSourceFilter::Codex => session.source == SessionSource::Codex,
+        HarnessSessionSourceFilter::Pi => session.source == SessionSource::Pi,
+        HarnessSessionSourceFilter::Opencode => session.source == SessionSource::OpenCode,
+    }
+}
+
+fn session_source_filter_label(filter: HarnessSessionSourceFilter) -> &'static str {
+    match filter {
+        HarnessSessionSourceFilter::All => "all",
+        HarnessSessionSourceFilter::Jcode => "jcode",
+        HarnessSessionSourceFilter::ClaudeCode => "claude_code",
+        HarnessSessionSourceFilter::Codex => "codex",
+        HarnessSessionSourceFilter::Pi => "pi",
+        HarnessSessionSourceFilter::Opencode => "opencode",
+    }
+}
+
+fn session_info_json(session: &SessionInfo) -> serde_json::Value {
+    json!({
+        "id": &session.id,
+        "parent_id": &session.parent_id,
+        "source": session_source_label(session.source),
+        "short_name": &session.short_name,
+        "icon": &session.icon,
+        "title": &session.title,
+        "message_count": session.message_count,
+        "user_message_count": session.user_message_count,
+        "assistant_message_count": session.assistant_message_count,
+        "created_at": session.created_at.to_rfc3339(),
+        "last_message_time": session.last_message_time.to_rfc3339(),
+        "last_active_at": session.last_active_at.map(|time| time.to_rfc3339()),
+        "working_dir": &session.working_dir,
+        "model": &session.model,
+        "provider_key": &session.provider_key,
+        "status": session.status.display(),
+        "status_detail": session.status.detail(),
+        "needs_catchup": session.needs_catchup,
+        "estimated_tokens": session.estimated_tokens,
+        "is_canary": session.is_canary,
+        "is_debug": session.is_debug,
+        "saved": session.saved,
+        "save_label": &session.save_label,
+        "server_name": &session.server_name,
+        "server_icon": &session.server_icon,
+        "resume_target": resume_target_json(&session.resume_target),
+        "external_path": &session.external_path,
+    })
+}
+
+fn session_source_label(source: SessionSource) -> &'static str {
+    match source {
+        SessionSource::Jcode => "jcode",
+        SessionSource::ClaudeCode => "claude_code",
+        SessionSource::Codex => "codex",
+        SessionSource::Pi => "pi",
+        SessionSource::OpenCode => "opencode",
+    }
+}
+
+fn resume_target_json(target: &ResumeTarget) -> serde_json::Value {
+    match target {
+        ResumeTarget::JcodeSession { session_id } => {
+            json!({ "kind": "jcode_session", "id": session_id })
+        }
+        ResumeTarget::ClaudeCodeSession {
+            session_id,
+            session_path,
+        } => json!({
+            "kind": "claude_code_session",
+            "id": session_id,
+            "path": session_path,
+        }),
+        ResumeTarget::CodexSession {
+            session_id,
+            session_path,
+        } => json!({
+            "kind": "codex_session",
+            "id": session_id,
+            "path": session_path,
+        }),
+        ResumeTarget::PiSession { session_path } => json!({
+            "kind": "pi_session",
+            "id": session_path,
+            "path": session_path,
+        }),
+        ResumeTarget::OpenCodeSession {
+            session_id,
+            session_path,
+        } => json!({
+            "kind": "opencode_session",
+            "id": session_id,
+            "path": session_path,
+        }),
+    }
+}
+
 fn run_doctor(args: DoctorArgs) -> Result<()> {
     let root = args
         .cwd
@@ -807,6 +2517,7 @@ fn run_doctor(args: DoctorArgs) -> Result<()> {
     let safe_eval = build_safe_eval_doctor(&root, &jcode_home);
     let privacy = build_privacy_doctor();
     let features = build_feature_env_doctor();
+    let user_attention = jcode::user_attention::UserAttentionConfig::from_env().diagnostic();
     let skills = build_skill_doctor_summary(&root);
     let mcp_configs = build_mcp_doctor_configs(&root, &jcode_home);
     let mut recommendations = Vec::new();
@@ -861,6 +2572,7 @@ fn run_doctor(args: DoctorArgs) -> Result<()> {
         "safe_eval": safe_eval,
         "privacy": privacy,
         "features": features,
+        "user_attention": user_attention,
         "skills": skills,
         "mcp": {
             "configs": mcp_configs,
@@ -897,6 +2609,19 @@ fn run_doctor(args: DoctorArgs) -> Result<()> {
             .unwrap_or(false)
     );
     println!(
+        "User attention: {} via {} (source: {})",
+        report["user_attention"]["mode"].as_str().unwrap_or("off"),
+        report["user_attention"]["backend"]
+            .as_str()
+            .unwrap_or("none"),
+        report["user_attention"]["source"]
+            .as_str()
+            .unwrap_or("unknown")
+    );
+    if let Some(warning) = report["user_attention"]["warning"].as_str() {
+        println!("User attention warning: {warning}");
+    }
+    println!(
         "Skills: {} loaded, built-ins {} ({})",
         report["skills"]["loaded"].as_u64().unwrap_or(0),
         report["skills"]["builtins"].as_u64().unwrap_or(0),
@@ -921,6 +2646,540 @@ fn run_doctor(args: DoctorArgs) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn run_notify(args: NotifyArgs) -> Result<()> {
+    match args.command {
+        NotifyCommand::Test(args) => run_notify_test(args),
+    }
+}
+
+fn run_notify_test(args: NotifyTestArgs) -> Result<()> {
+    let config = jcode::user_attention::UserAttentionConfig::from_env();
+    let diagnostic = config.diagnostic();
+    let delivery = if args.dry_run {
+        config.dry_run_delivery()
+    } else {
+        let mut stderr = std::io::stderr().lock();
+        match args.event {
+            NotifyTestEventArg::Direct => config.notify_with_writer(&mut stderr)?,
+            NotifyTestEventArg::HumanIntervention => {
+                config.notify_human_intervention_with_writer(&mut stderr)?
+            }
+        }
+    };
+
+    let report = json!({
+        "status": "ok",
+        "offline": true,
+        "event": args.event.as_str(),
+        "config": diagnostic,
+        "delivery": delivery,
+    });
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+
+    println!(
+        "jcode-harness notify test: {}",
+        report["config"]["mode"].as_str().unwrap_or("off")
+    );
+    println!("Offline: true");
+    println!(
+        "Backend: {}",
+        report["config"]["backend"].as_str().unwrap_or("none")
+    );
+    println!(
+        "Source: {}",
+        report["config"]["source"].as_str().unwrap_or("unknown")
+    );
+    println!(
+        "Dry run: {}",
+        report["delivery"]["dry_run"].as_bool().unwrap_or(false)
+    );
+    println!(
+        "Delivered: {}",
+        report["delivery"]["delivered"].as_bool().unwrap_or(false)
+    );
+    if let Some(warning) = report["config"]["warning"].as_str() {
+        println!("Warning: {warning}");
+    }
+    Ok(())
+}
+
+fn run_demo(args: DemoArgs) -> Result<()> {
+    if let Some(command) = args.command {
+        return match command {
+            DemoCommand::Run(run_args) => run_demo_run(run_args),
+            DemoCommand::GrpcControl(grpc_args) => run_demo_grpc_control(grpc_args),
+        };
+    }
+
+    let root = resolve_existing_root(args.cwd.as_deref(), "demo")?;
+    let root = root.canonicalize().unwrap_or(root);
+    let manifest = build_demo_manifest(&root);
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&manifest)?);
+        return Ok(());
+    }
+
+    println!(
+        "jcode-harness demo: {}",
+        manifest["status"].as_str().unwrap_or("ok")
+    );
+    println!("Offline: true");
+    println!("Network required: false");
+    println!("Credentials required: false");
+    println!("Root: {}", manifest["root"].as_str().unwrap_or("<unknown>"));
+    println!("\nReproducible demos:");
+    if let Some(demos) = manifest["demos"].as_array() {
+        for demo in demos {
+            println!(
+                "- [{}] {}: {}",
+                demo["surface"].as_str().unwrap_or("unknown"),
+                demo["id"].as_str().unwrap_or("unknown"),
+                demo["title"].as_str().unwrap_or("")
+            );
+            println!("  $ {}", demo["command"].as_str().unwrap_or(""));
+        }
+    }
+    println!("\nRecommended flow:");
+    if let Some(flow) = manifest["recommended_flow"].as_array() {
+        for (idx, step) in flow.iter().enumerate() {
+            println!("{}. {}", idx + 1, step.as_str().unwrap_or(""));
+        }
+    }
+    Ok(())
+}
+
+fn run_demo_grpc_control(args: DemoGrpcControlArgs) -> Result<()> {
+    let report = jcode::harness_events::harness_grpc_local_prototype_smoke_report()?;
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+
+    println!(
+        "jcode-harness demo grpc-control: {}",
+        report["status"].as_str().unwrap_or("ok")
+    );
+    println!("Offline: {}", report["offline"].as_bool().unwrap_or(true));
+    println!(
+        "Protocol: {}",
+        report["protocol"]
+            .as_str()
+            .unwrap_or("jcode.harness_events.v1")
+    );
+    println!(
+        "Task: {}",
+        report["task_assignment"]["task_id"]
+            .as_str()
+            .unwrap_or("task-grpc-demo")
+    );
+    println!(
+        "Command: {}",
+        report["control_command"]["command_name"]
+            .as_str()
+            .unwrap_or("cancel_run")
+    );
+    println!(
+        "Reconnect: {}",
+        report["reconnect"]["reconnected"]
+            .as_bool()
+            .unwrap_or(false)
+    );
+    Ok(())
+}
+
+fn run_demo_run(args: DemoRunArgs) -> Result<()> {
+    let root = resolve_existing_root(args.cwd.as_deref(), "demo run")?;
+    let root = root.canonicalize().unwrap_or(root);
+    let sandbox_root = if args.sandbox {
+        Some(create_demo_sandbox_root()?)
+    } else {
+        None
+    };
+    let execution_root = sandbox_root.as_deref().unwrap_or(&root);
+    let manifest = build_demo_manifest(execution_root);
+    let demos = manifest["demos"]
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("demo manifest missing demos array"))?;
+
+    let requested = args.id.trim();
+    let mut results = Vec::new();
+    if requested == "all" {
+        for demo in demos {
+            if demo["project_writes"].as_bool().unwrap_or(false)
+                && !args.allow_writes
+                && !args.sandbox
+            {
+                results.push(blocked_demo_result(
+                    execution_root,
+                    demo,
+                    "project_writes=true; pass --allow-writes or --sandbox to execute this demo",
+                ));
+                continue;
+            }
+            results.push(execute_demo_entry(execution_root, demo)?);
+        }
+    } else if let Some(demo) = demos
+        .iter()
+        .find(|demo| demo["id"].as_str() == Some(requested))
+    {
+        if demo["project_writes"].as_bool().unwrap_or(false) && !args.allow_writes && !args.sandbox
+        {
+            results.push(blocked_demo_result(
+                execution_root,
+                demo,
+                "project_writes=true; pass --allow-writes or --sandbox to execute this demo",
+            ));
+        } else {
+            results.push(execute_demo_entry(execution_root, demo)?);
+        }
+    } else {
+        let known = demos
+            .iter()
+            .filter_map(|demo| demo["id"].as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        anyhow::bail!("unknown demo id '{requested}'. Known demos: {known}");
+    }
+
+    let has_fail = results.iter().any(|result| result["status"] == "fail");
+    let has_blocked = results.iter().any(|result| result["status"] == "blocked");
+    let status = if has_fail {
+        "error"
+    } else if has_blocked && requested != "all" {
+        "blocked"
+    } else if has_blocked {
+        "warn"
+    } else {
+        "ok"
+    };
+    let sandbox = sandbox_root
+        .as_ref()
+        .map(|path| {
+            json!({
+                "enabled": true,
+                "path": path,
+                "retained": args.keep_sandbox,
+                "cleanup": if args.keep_sandbox { "kept" } else { "removed_after_run" },
+            })
+        })
+        .unwrap_or_else(|| {
+            json!({
+                "enabled": false,
+                "path": null,
+                "retained": false,
+                "cleanup": "none",
+            })
+        });
+    let report = json!({
+        "status": status,
+        "offline": true,
+        "network_required": false,
+        "credentials_required": false,
+        "root": root,
+        "execution_root": execution_root,
+        "sandbox": sandbox,
+        "requested": requested,
+        "allow_writes": args.allow_writes,
+        "results": results,
+    });
+
+    let rendered_json = if args.json {
+        Some(serde_json::to_string_pretty(&report)?)
+    } else {
+        None
+    };
+    if let Some(path) = &sandbox_root
+        && !args.keep_sandbox
+    {
+        std::fs::remove_dir_all(path)?;
+    }
+
+    if args.json {
+        println!("{}", rendered_json.unwrap());
+    } else {
+        print_demo_run_report(&report);
+    }
+
+    if has_fail {
+        anyhow::bail!("one or more demo runs failed");
+    }
+    if status == "blocked" {
+        anyhow::bail!("demo run blocked by project write safety policy");
+    }
+    Ok(())
+}
+
+fn create_demo_sandbox_root() -> Result<PathBuf> {
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let path =
+        std::env::temp_dir().join(format!("jcode-harness-demo-{}-{stamp}", std::process::id()));
+    std::fs::create_dir_all(&path)?;
+    Ok(path)
+}
+
+fn execute_demo_entry(
+    root: &std::path::Path,
+    demo: &serde_json::Value,
+) -> Result<serde_json::Value> {
+    let argv = demo["argv"]
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("demo entry missing argv array"))?
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .map(ToOwned::to_owned)
+                .ok_or_else(|| anyhow::anyhow!("demo argv contains non-string value"))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    if argv.is_empty() {
+        anyhow::bail!("demo entry has empty argv");
+    }
+
+    let exe = std::env::current_exe()?;
+    let output = std::process::Command::new(exe)
+        .args(argv.iter().skip(1))
+        .current_dir(root)
+        .output()?;
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    let expects_json = argv.iter().any(|arg| arg == "--json");
+    let json_parseable = if expects_json {
+        serde_json::from_str::<serde_json::Value>(&stdout).is_ok()
+    } else {
+        false
+    };
+    let pass = output.status.success() && (!expects_json || json_parseable);
+
+    Ok(json!({
+        "id": demo["id"],
+        "surface": demo["surface"],
+        "status": if pass { "pass" } else { "fail" },
+        "exit_code": output.status.code(),
+        "executed_root": root,
+        "project_writes": demo["project_writes"].as_bool().unwrap_or(false),
+        "command": demo["command"],
+        "json_parseable": json_parseable,
+        "stdout": stdout,
+        "stderr": stderr,
+    }))
+}
+
+fn blocked_demo_result(
+    root: &std::path::Path,
+    demo: &serde_json::Value,
+    reason: &str,
+) -> serde_json::Value {
+    json!({
+        "id": demo["id"],
+        "surface": demo["surface"],
+        "status": "blocked",
+        "exit_code": null,
+        "executed_root": root,
+        "project_writes": demo["project_writes"].as_bool().unwrap_or(false),
+        "command": demo["command"],
+        "json_parseable": false,
+        "stdout": "",
+        "stderr": "",
+        "reason": reason,
+    })
+}
+
+fn print_demo_run_report(report: &serde_json::Value) {
+    println!(
+        "jcode-harness demo run: {}",
+        report["status"].as_str().unwrap_or("unknown")
+    );
+    println!("Offline: true");
+    println!("Requested: {}", report["requested"].as_str().unwrap_or(""));
+    if report["sandbox"]["enabled"].as_bool().unwrap_or(false) {
+        println!(
+            "Sandbox: {} ({})",
+            report["sandbox"]["path"].as_str().unwrap_or("<unknown>"),
+            report["sandbox"]["cleanup"].as_str().unwrap_or("unknown")
+        );
+    }
+    if let Some(results) = report["results"].as_array() {
+        for result in results {
+            println!(
+                "- {}: {}",
+                result["id"].as_str().unwrap_or("unknown"),
+                result["status"].as_str().unwrap_or("unknown")
+            );
+            if let Some(reason) = result["reason"].as_str() {
+                println!("  reason: {reason}");
+            }
+            if result["json_parseable"].as_bool().unwrap_or(false) {
+                println!("  json: parseable");
+            }
+        }
+    }
+}
+
+fn build_demo_manifest(root: &std::path::Path) -> serde_json::Value {
+    let root_arg = root.display().to_string();
+    let demo_workspace = root.join(".jcode").join("demo").join("smoke");
+    json!({
+        "status": "ok",
+        "offline": true,
+        "network_required": false,
+        "credentials_required": false,
+        "root": root,
+        "demos": [
+            demo_manifest_entry(
+                "safe-eval-profile",
+                "safe-eval",
+                "Create an isolated trust-center profile for first evaluation.",
+                "Safe evaluation can be reproduced without importing existing credentials or long-lived state.",
+                vec!["jcode-harness", "safe-eval", "--cwd", &root_arg, "--json"],
+                true,
+                vec!["profile is safe-eval", "disabled_surfaces includes telemetry and external credential auto-trust", "activation files are written or skipped deterministically"],
+                "Writes only under .jcode/safe-eval unless --home points elsewhere."
+            ),
+            demo_manifest_entry(
+                "mock-provider-run-json",
+                "mock-provider",
+                "Exercise the real Agent runtime with a deterministic provider response.",
+                "The run JSON contract can be parsed without network, model credentials, or quota.",
+                vec!["jcode-harness", "run", "review this diff", "--json", "--mock-response", "mocked harness response"],
+                false,
+                vec!["provider is harness-mock", "model is harness-mock-model", "usage token counts are deterministic"],
+                "May write normal session metadata under JCODE_HOME, but does not write project files."
+            ),
+            demo_manifest_entry(
+                "memory-llmwiki-bridge",
+                "memory",
+                "Preview the local llmwiki memory bridge contract.",
+                "Memory integration has explicit read/write boundaries before any MCP tool is invoked.",
+                vec!["jcode-harness", "skills", "llmwiki-bridge", "--json"],
+                false,
+                vec!["offline is true", "network_required is false", "commands include wiki_query, wiki_search, wiki_sync, wiki_lint"],
+                "This command only prints a contract; it does not call MCP tools."
+            ),
+            demo_manifest_entry(
+                "plan-init-scaffold",
+                "plan",
+                "Generate deterministic project planning scaffolds.",
+                "Plan-first onboarding can be inspected as local files before any model/provider turn.",
+                vec!["jcode-harness", "init", "--cwd", &root_arg, "--yes", "--no-memory-wiki", "--json"],
+                true,
+                vec!["files_written/files_skipped report scaffold changes", "detected_stack is derived from local files", "next_steps are machine-readable"],
+                "Use a temporary checkout or safe-eval workspace if you do not want scaffold files in the repo."
+            ),
+            demo_manifest_entry(
+                "swarm-analysis-plan-scaffold",
+                "swarm",
+                "Create the local init swarm analysis plan artifact.",
+                "The swarm bootstrap claim has a reviewable local plan artifact before interactive execution.",
+                vec!["jcode-harness", "init", "--cwd", &root_arg, "--yes", "--json"],
+                true,
+                vec![".jcode/init/SWARM_ANALYSIS_PLAN.md is produced", "no provider is initialized by the CLI scaffold", "operator review happens before execution"],
+                "This is the deterministic scaffold side of the interactive /init swarm flow."
+            ),
+            demo_manifest_entry(
+                "browser-safety-doctor",
+                "browser",
+                "Inspect browser-adjacent safety without opening a browser.",
+                "Onboarding diagnostics can report platform/config risk without launching auth or browser integrations.",
+                vec!["jcode-harness", "doctor", "--cwd", &root_arg, "--json"],
+                false,
+                vec!["offline is true", "platform os/arch are reported", "mcp configs are review-only findings"],
+                "No browser window is opened; future browser demos should remain opt-in."
+            ),
+            demo_manifest_entry(
+                "skills-router-match",
+                "skills",
+                "Preview skill routing and scope-policy decisions.",
+                "Skill selection is explainable before a model prompt is sent.",
+                vec!["jcode-harness", "skills", "match", "fix this Rust bug", "--cwd", &root_arg, "--json"],
+                false,
+                vec!["selected preserves router order", "policy records selected/skipped decisions", "entries include origin and allowed_tools"],
+                "The command only reads skill metadata from built-in and local skill origins."
+            ),
+            demo_manifest_entry(
+                "grpc-control-plane-local",
+                "grpc",
+                "Exercise the local gRPC control-plane prototype transcript.",
+                "The distributed-agent contract can exchange task, event, command, cancel, and reconnect messages offline before a network server is enabled.",
+                vec!["jcode-harness", "demo", "grpc-control", "--json"],
+                false,
+                vec!["registration succeeds", "task assignment is delivered", "event upload is redacted", "cancel_run command round-trips", "worker reconnects"],
+                "This command runs the dependency-free local semantics harness; future tonic transport should preserve the same frames."
+            ),
+            demo_manifest_entry(
+                "release-gate-smoke",
+                "release-gates",
+                "Run the deterministic offline harness smoke gate.",
+                "Release claims can include a local tool-execution smoke without providers or network.",
+                vec!["jcode-harness", "smoke", "--cwd", &demo_workspace.display().to_string()],
+                true,
+                vec!["write/read/edit/patch/todo/batch cases pass", "network-backed cases are skipped by default", "deterministic artifacts are created under the demo workspace"],
+                "Use a disposable --cwd path because the smoke gate intentionally writes sample artifacts."
+            )
+        ],
+        "recommended_flow": [
+            "Run safe-eval first in unfamiliar repositories.",
+            "Use mock-provider run JSON/NDJSON demos for README screenshots and CI parser checks.",
+            "Use init/smoke demos in a disposable workspace when you need file-system evidence.",
+            "Treat browser, memory, and swarm demos as preview contracts until explicit opt-in execution is added."
+        ]
+    })
+}
+
+fn demo_manifest_entry(
+    id: &str,
+    surface: &str,
+    title: &str,
+    claim: &str,
+    argv: Vec<&str>,
+    project_writes: bool,
+    expected_evidence: Vec<&str>,
+    notes: &str,
+) -> serde_json::Value {
+    let argv = argv.into_iter().map(ToOwned::to_owned).collect::<Vec<_>>();
+    json!({
+        "id": id,
+        "surface": surface,
+        "title": title,
+        "claim": claim,
+        "command": shell_command(&argv),
+        "argv": argv,
+        "offline": true,
+        "network_required": false,
+        "credentials_required": false,
+        "project_writes": project_writes,
+        "expected_evidence": expected_evidence,
+        "notes": notes,
+    })
+}
+
+fn shell_command(argv: &[String]) -> String {
+    argv.iter()
+        .map(|part| shell_word(part))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn shell_word(value: &str) -> String {
+    if !value.is_empty()
+        && value.chars().all(|ch| {
+            ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '/' | ':' | '=' | '@')
+        })
+    {
+        value.to_string()
+    } else {
+        shell_quote(value)
+    }
 }
 
 fn build_safe_eval_doctor(

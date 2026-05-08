@@ -50,9 +50,21 @@ pub use route_builders::{
     build_openrouter_fallback_provider_route, is_listable_model_name,
     listable_model_names_from_routes, openrouter_catalog_model_id,
 };
+#[cfg(test)]
 pub(crate) use routing::{
+    DEFAULT_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS, clear_provider_concurrency_limiters,
+    clear_provider_rate_limit_cooldown, parse_retry_after_secs,
+    provider_rate_limit_cooldown_cap_ms, provider_rate_limit_cooldown_delay_ms_for_error,
+    retry_after_delay_ms_from_error, retry_backoff_delay_ms_for_nonce, retry_backoff_max_delay_ms,
+};
+pub(crate) use routing::{
+    DEFAULT_RETRY_BACKOFF_CAP_MS, acquire_provider_concurrency_permit,
     anthropic_api_key_route_availability, anthropic_oauth_route_availability,
-    is_transient_transport_error, should_eager_detect_copilot_tier,
+    is_transient_transport_error, provider_concurrency_backpressure_limit,
+    provider_rate_limit_cooldown_remaining_ms, provider_runtime_state_revision,
+    provider_wait_status_duration, record_provider_rate_limit_cooldown_for_retry,
+    retry_after_secs_from_headers, retry_after_suffix, retry_backoff_delay_ms,
+    retry_delay_ms_for_error, should_eager_detect_copilot_tier,
 };
 
 pub fn set_model_with_auth_refresh(provider: &dyn Provider, model: &str) -> Result<()> {
@@ -1136,7 +1148,7 @@ impl Provider for MultiProvider {
             ));
         }
 
-        dedupe_model_routes(routes)
+        apply_provider_runtime_state_to_routes(dedupe_model_routes(routes))
     }
 
     async fn prefetch_models(&self) -> Result<()> {
@@ -1868,6 +1880,57 @@ impl Provider for MultiProvider {
         self.auto_select_multi_account_for_provider(target);
         Ok(())
     }
+}
+
+pub(crate) fn apply_provider_runtime_state_to_routes(routes: Vec<ModelRoute>) -> Vec<ModelRoute> {
+    routes
+        .into_iter()
+        .map(apply_provider_runtime_state_to_route)
+        .collect()
+}
+
+fn apply_provider_runtime_state_to_route(mut route: ModelRoute) -> ModelRoute {
+    let Some(provider) = provider_cooldown_scope_for_route(&route) else {
+        return route;
+    };
+
+    let cooldown_detail =
+        provider_rate_limit_cooldown_remaining_ms(provider, &route.model).map(|delay_ms| {
+            route.available = false;
+            format!(
+                "rate-limit cooldown {}",
+                provider_wait_status_duration(delay_ms)
+            )
+        });
+
+    let backpressure_detail = provider_concurrency_backpressure_limit(provider, &route.model)
+        .map(|limit| format!("provider backpressure limit={limit}"));
+
+    if cooldown_detail.is_none() && backpressure_detail.is_none() {
+        return route;
+    }
+
+    let existing_detail = route.detail.trim().to_string();
+    route.detail = cooldown_detail
+        .into_iter()
+        .chain(backpressure_detail)
+        .chain((!existing_detail.is_empty()).then_some(existing_detail))
+        .collect::<Vec<_>>()
+        .join("; ");
+    route
+}
+
+fn provider_cooldown_scope_for_route(route: &ModelRoute) -> Option<&'static str> {
+    if route.api_method == "openrouter" {
+        return Some("openrouter");
+    }
+    if route.provider.eq_ignore_ascii_case("openai") {
+        return Some("openai");
+    }
+    if route.provider.eq_ignore_ascii_case("anthropic") {
+        return Some("anthropic");
+    }
+    None
 }
 
 #[cfg(test)]

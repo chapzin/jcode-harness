@@ -236,6 +236,10 @@ pub(crate) enum Command {
     #[command(subcommand)]
     Skills(SkillCommand),
 
+    /// Harness event log helpers
+    #[command(subcommand)]
+    Events(EventCommand),
+
     /// Clean Code Guardian quality gate
     #[command(name = "clean-code", subcommand)]
     CleanCode(CleanCodeCommand),
@@ -393,6 +397,132 @@ pub(crate) enum Command {
 }
 
 #[derive(Subcommand, Debug)]
+pub(crate) enum EventCommand {
+    /// List local harness event logs
+    List {
+        /// Emit JSON instead of a human-readable table
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Show summary metadata for one local harness event log
+    Show {
+        /// Harness run id
+        #[arg(long)]
+        run: String,
+
+        /// Emit JSON instead of human-readable text
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Reconstruct a local harness event timeline as Markdown or JSON
+    Replay {
+        /// Harness run id
+        #[arg(long)]
+        run: String,
+
+        /// Emit JSON with summary and events instead of Markdown
+        #[arg(long)]
+        json: bool,
+
+        /// Write replay output to a file instead of stdout
+        #[arg(long)]
+        output: Option<std::path::PathBuf>,
+    },
+
+    /// Print the default local NDJSON log path for a run id
+    Path {
+        /// Harness run id
+        #[arg(long)]
+        run: String,
+
+        /// Emit JSON instead of a plain path
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Print recent events from a run's local NDJSON log
+    Tail {
+        /// Harness run id
+        #[arg(long)]
+        run: String,
+
+        /// Maximum events to print from the end of the log
+        #[arg(long, default_value_t = 100)]
+        lines: usize,
+
+        /// Emit raw event NDJSON instead of a human-readable table
+        #[arg(long)]
+        ndjson: bool,
+    },
+
+    /// Export a run's local NDJSON log to stdout or a file
+    Export {
+        /// Harness run id
+        #[arg(long)]
+        run: String,
+
+        /// Output file. If omitted, NDJSON is written to stdout.
+        #[arg(long)]
+        output: Option<std::path::PathBuf>,
+
+        /// Emit a JSON summary after writing --output
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Export a run's local event log as Server-Sent Events frames
+    Sse {
+        /// Harness run id
+        #[arg(long)]
+        run: String,
+
+        /// Resume after this SSE Last-Event-ID value when it exists in the log
+        #[arg(long)]
+        last_event_id: Option<String>,
+
+        /// EventSource retry delay in milliseconds
+        #[arg(long, default_value_t = 2_000)]
+        retry_ms: u64,
+
+        /// Output file. If omitted, SSE frames are written to stdout.
+        #[arg(long)]
+        output: Option<std::path::PathBuf>,
+    },
+
+    /// Prune local harness event logs using safe retention limits
+    Prune {
+        /// Keep at most this many newest local event logs
+        #[arg(long)]
+        keep_logs: Option<usize>,
+
+        /// Keep at most this many bytes of newest local event logs
+        #[arg(long)]
+        max_total_bytes: Option<u64>,
+
+        /// Actually delete prunable logs. Without this flag the command is a dry-run.
+        #[arg(long)]
+        apply: bool,
+
+        /// Emit JSON instead of human-readable text
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Run a synthetic harness-events overhead baseline benchmark
+    Bench {
+        /// Number of synthetic events to emit and process
+        #[arg(long, default_value_t = 10_000)]
+        events: usize,
+
+        /// Emit JSON instead of human-readable text
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
 pub(crate) enum SkillCommand {
     /// List loaded skills and their origins
     List {
@@ -419,6 +549,156 @@ pub(crate) enum SkillCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Manage project-local skill scope policy states
+    Scope {
+        #[command(subcommand)]
+        command: SkillScopeCommand,
+    },
+    /// Preview or apply imports from other local skill ecosystems into jcode skills
+    Import {
+        /// Project directory for resolving default sources and project target
+        #[arg(long)]
+        cwd: Option<String>,
+        /// Source skills directory. Repeat to import from multiple dirs. Defaults to .agents/.claude/.codex/.jcode skills.
+        #[arg(long = "from", value_name = "DIR")]
+        from: Vec<std::path::PathBuf>,
+        /// Destination skill scope
+        #[arg(long, value_enum, default_value = "project")]
+        scope: SkillImportScopeArg,
+        /// Preview only. This is also the default unless --apply is passed.
+        #[arg(long, conflicts_with = "apply")]
+        dry_run: bool,
+        /// Actually copy planned skills into the destination scope
+        #[arg(long, conflicts_with = "dry_run")]
+        apply: bool,
+        /// Allow apply mode to overwrite files for existing target skills
+        #[arg(long)]
+        force: bool,
+        /// Emit JSON report
+        #[arg(long)]
+        json: bool,
+    },
+    /// Validate skill files, precedence, and risky prompt/tool patterns without invoking providers
+    Validate {
+        /// Project directory for resolving repo-local skills
+        #[arg(long)]
+        cwd: Option<String>,
+        /// Emit JSON report
+        #[arg(long)]
+        json: bool,
+    },
+    /// Preview task-scoped skill selection for a goal without invoking a model
+    Match {
+        goal: String,
+        /// Project directory for resolving repo-local skills
+        #[arg(long)]
+        cwd: Option<String>,
+        /// Automatic skill routing mode
+        #[arg(long, value_enum, default_value = "auto")]
+        skills: SkillModeArg,
+        /// Explicit task-level skill to include before automatic matches
+        #[arg(long = "skill")]
+        skill: Vec<String>,
+        /// Emit JSON report
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print the permission-reviewed local LLM wiki MCP bridge contract
+    LlmwikiBridge {
+        /// Emit JSON contract for automation
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum SkillScopeCommand {
+    /// Create `.jcode/skills.scope.json` if it does not exist
+    Init {
+        /// Project directory for the policy file
+        #[arg(long)]
+        cwd: Option<String>,
+        /// Overwrite an existing policy file with an empty default policy
+        #[arg(long)]
+        force: bool,
+        /// Emit JSON report
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print the current project-local skill scope policy
+    List {
+        /// Project directory for the policy file
+        #[arg(long)]
+        cwd: Option<String>,
+        /// Emit JSON report
+        #[arg(long)]
+        json: bool,
+    },
+    /// Set one skill to visible, discoverable, or blocked
+    Set {
+        name: String,
+        /// Skill state in this repository
+        #[arg(long, value_enum)]
+        state: SkillScopeStateArg,
+        /// Human-readable policy reason
+        #[arg(long)]
+        reason: Option<String>,
+        /// Project directory for the policy file
+        #[arg(long)]
+        cwd: Option<String>,
+        /// Emit JSON report
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
+pub(crate) enum SkillScopeStateArg {
+    Visible,
+    Discoverable,
+    Blocked,
+}
+
+impl From<SkillScopeStateArg> for crate::skill_scope::SkillScopeState {
+    fn from(value: SkillScopeStateArg) -> Self {
+        match value {
+            SkillScopeStateArg::Visible => Self::Visible,
+            SkillScopeStateArg::Discoverable => Self::Discoverable,
+            SkillScopeStateArg::Blocked => Self::Blocked,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
+pub(crate) enum SkillImportScopeArg {
+    Project,
+    Global,
+}
+
+impl From<SkillImportScopeArg> for crate::skill_import::SkillImportScope {
+    fn from(value: SkillImportScopeArg) -> Self {
+        match value {
+            SkillImportScopeArg::Project => Self::Project,
+            SkillImportScopeArg::Global => Self::Global,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
+pub(crate) enum SkillModeArg {
+    Auto,
+    Off,
+    Always,
+}
+
+impl From<SkillModeArg> for crate::skill_router::SkillMode {
+    fn from(value: SkillModeArg) -> Self {
+        match value {
+            SkillModeArg::Auto => Self::Auto,
+            SkillModeArg::Off => Self::Off,
+            SkillModeArg::Always => Self::Always,
+        }
+    }
 }
 
 #[derive(Subcommand, Debug)]

@@ -20,10 +20,39 @@ fn stderr_text(output: &std::process::Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
 }
 
+fn parse_ndjson(output: &std::process::Output) -> Result<Vec<Value>> {
+    stdout_text(output)
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| serde_json::from_str(line).map_err(Into::into))
+        .collect()
+}
+
 fn harness_command_with_piped_stdout(home: &std::path::Path, cwd: &std::path::Path) -> Command {
     let mut cmd = harness_command(home, cwd);
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
     cmd
+}
+
+#[test]
+fn harness_version_prints_build_version_without_starting_runtime() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-version-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd).arg("--version").output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    assert!(stdout.contains("jcode-harness"), "stdout: {stdout}");
+    assert!(stdout.contains(env!("JCODE_VERSION")), "stdout: {stdout}");
+    assert!(stderr_text(&output).is_empty());
+
+    Ok(())
 }
 
 fn write_skill(root: &std::path::Path, scope: &str, name: &str, description: &str) -> Result<()> {
@@ -33,6 +62,545 @@ fn write_skill(root: &std::path::Path, scope: &str, name: &str, description: &st
         dir.join("SKILL.md"),
         format!("---\nname: {name}\ndescription: {description}\n---\n\nUse {name}.\n"),
     )?;
+    Ok(())
+}
+
+#[test]
+fn harness_init_json_reports_scaffold_and_detected_stack_offline() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-init-json-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+    std::fs::write(
+        cwd.join("Cargo.toml"),
+        "[package]\nname = \"schema-smoke\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )?;
+
+    let output = harness_command(&home, &cwd)
+        .args(["init", "--cwd"])
+        .arg(&cwd)
+        .args(["--yes", "--no-memory-wiki", "--json"])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(
+        report["root"].as_str(),
+        Some(cwd.canonicalize()?.to_string_lossy().as_ref())
+    );
+
+    let files_written = report["files_written"].as_array().expect("files_written");
+    for expected_suffix in [
+        "AGENTS.md",
+        ".jcode/INIT_REPORT.md",
+        ".jcode/init/SWARM_ANALYSIS_PLAN.md",
+        ".jcode/mcp.json",
+    ] {
+        assert!(
+            files_written.iter().any(|path| path
+                .as_str()
+                .is_some_and(|path| path.ends_with(expected_suffix))),
+            "missing {expected_suffix}. stdout: {stdout}"
+        );
+    }
+    assert_eq!(report["files_skipped"].as_array().map(Vec::len), Some(0));
+    assert!(
+        report["detected_stack"]
+            .as_array()
+            .expect("detected_stack")
+            .iter()
+            .any(|stack| stack == "Rust"),
+        "stdout: {stdout}"
+    );
+    assert!(
+        report["next_steps"]
+            .as_array()
+            .expect("next_steps")
+            .iter()
+            .any(|step| step
+                .as_str()
+                .is_some_and(|step| step.contains("jcode-harness skills doctor"))),
+        "stdout: {stdout}"
+    );
+    assert!(cwd.join("AGENTS.md").exists());
+    assert!(cwd.join(".jcode/mcp.json").exists());
+    assert!(!cwd.join(".jcode/memory_wiki").exists());
+
+    Ok(())
+}
+
+#[test]
+fn harness_doctor_json_reports_user_attention_default_off() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-doctor-attention-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .env_remove("JCODE_USER_ATTENTION")
+        .env_remove("JCODE_NOTIFY_SOUND")
+        .args(["doctor", "--cwd"])
+        .arg(&cwd)
+        .arg("--json")
+        .output()?;
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout_text(&output))?;
+    assert_eq!(report["user_attention"]["enabled"], false);
+    assert_eq!(report["user_attention"]["mode"], "off");
+    assert_eq!(report["user_attention"]["backend"], Value::Null);
+    assert_eq!(report["user_attention"]["source"], "default");
+
+    Ok(())
+}
+
+#[test]
+fn harness_notify_test_json_dry_run_reports_bell_without_emitting_bel() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-notify-test-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .env("JCODE_USER_ATTENTION", "bell")
+        .env_remove("JCODE_NOTIFY_SOUND")
+        .args(["notify", "test", "--json", "--dry-run"])
+        .output()?;
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    assert!(!output.stdout.contains(&b'\x07'), "stdout contained BEL");
+    assert!(!output.stderr.contains(&b'\x07'), "stderr contained BEL");
+
+    let report: Value = serde_json::from_str(&stdout_text(&output))?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["config"]["enabled"], true);
+    assert_eq!(report["config"]["mode"], "bell");
+    assert_eq!(report["config"]["backend"], "terminal_bell");
+    assert_eq!(report["config"]["source"], "JCODE_USER_ATTENTION");
+    assert_eq!(report["delivery"]["dry_run"], true);
+    assert_eq!(report["delivery"]["would_emit"], true);
+    assert_eq!(report["delivery"]["attempted"], false);
+    assert_eq!(report["delivery"]["delivered"], false);
+    assert_eq!(report["delivery"]["bytes_written"], 0);
+
+    Ok(())
+}
+
+#[test]
+fn harness_notify_test_human_intervention_dry_run_reports_route() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-notify-human-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .env("JCODE_USER_ATTENTION", "bell")
+        .args([
+            "notify",
+            "test",
+            "--json",
+            "--dry-run",
+            "--event",
+            "human-intervention",
+        ])
+        .output()?;
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    assert!(!output.stdout.contains(&b'\x07'), "stdout contained BEL");
+    assert!(!output.stderr.contains(&b'\x07'), "stderr contained BEL");
+
+    let report: Value = serde_json::from_str(&stdout_text(&output))?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["event"], "human_intervention");
+    assert_eq!(report["config"]["mode"], "bell");
+    assert_eq!(report["delivery"]["dry_run"], true);
+    assert_eq!(report["delivery"]["would_emit"], true);
+    assert_eq!(report["delivery"]["attempted"], false);
+
+    Ok(())
+}
+
+#[test]
+fn harness_acp_stdio_initialize_shutdown() -> Result<()> {
+    use std::io::Write;
+
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-acp-stdio-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let manifest_output = harness_command(&home, &cwd)
+        .args(["acp", "manifest", "--json"])
+        .output()?;
+    assert!(
+        manifest_output.status.success(),
+        "stderr: {}",
+        stderr_text(&manifest_output)
+    );
+    let manifest: Value = serde_json::from_str(&stdout_text(&manifest_output))?;
+    assert_eq!(manifest["status"], "ok");
+    assert_eq!(manifest["protocol"]["id"], "acp");
+    assert_eq!(manifest["protocol"]["jsonrpc"], "2.0");
+    assert_eq!(manifest["protocol"]["transport"][0], "stdio");
+    assert_eq!(manifest["capabilities"]["cancellation"]["supported"], true);
+    assert_eq!(
+        manifest["capabilities"]["cancellation"]["request"],
+        "jcode/session.cancel"
+    );
+    assert_eq!(
+        manifest["capabilities"]["cancellation"]["notification"],
+        "$/cancelRequest"
+    );
+    assert_eq!(manifest["registry"]["ready"], false);
+    assert_eq!(manifest["safety"]["starts_provider"], false);
+
+    let mut child = harness_command(&home, &cwd)
+        .args(["acp", "serve", "--stdio"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin");
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"fixture"}}})
+        )?;
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":2,"method":"jcode/session.list"})
+        )?;
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","method":"initialized"})
+        )?;
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":3,"method":"shutdown"})
+        )?;
+    }
+    let output = child.wait_with_output()?;
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let responses = parse_ndjson(&output)?;
+    assert_eq!(responses.len(), 3, "stdout: {}", stdout_text(&output));
+    assert_eq!(responses[0]["jsonrpc"], "2.0");
+    assert_eq!(responses[0]["id"], 1);
+    assert_eq!(responses[0]["result"]["protocol"], "acp");
+    assert_eq!(
+        responses[0]["result"]["serverInfo"]["name"],
+        "jcode-harness"
+    );
+    assert_eq!(
+        responses[0]["result"]["capabilities"]["session"]["spawn"]["status"],
+        "implemented_offline_dry_run"
+    );
+    assert_eq!(responses[1]["id"], 2);
+    assert_eq!(responses[1]["result"]["command"], "session list");
+    assert_eq!(responses[1]["result"]["offline"], true);
+    assert_eq!(responses[1]["result"]["read_only"], true);
+    assert_eq!(responses[2]["id"], 3);
+    assert_eq!(responses[2]["result"]["shutdown"], true);
+
+    Ok(())
+}
+
+#[test]
+fn harness_acp_stdio_session_methods_return_offline_envelopes() -> Result<()> {
+    use std::io::Write;
+
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-acp-session-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    let sessions_dir = home.join("sessions");
+    std::fs::create_dir_all(&sessions_dir)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    std::fs::write(
+        sessions_dir.join("session_acp.json"),
+        serde_json::json!({
+            "id": "session_acp",
+            "title": "ACP local session",
+            "created_at": "2026-05-07T21:10:00Z",
+            "updated_at": "2026-05-07T21:15:00Z",
+            "last_active_at": "2026-05-07T21:16:00Z",
+            "working_dir": cwd,
+            "short_name": "acper",
+            "provider_key": "openai",
+            "model": "gpt-test",
+            "status": "Closed",
+            "messages": [
+                {"id": "m1", "role": "user", "content": [{"type": "text", "text": "acp hidden prompt"}]},
+                {"id": "m2", "role": "assistant", "content": [{"type": "text", "text": "acp visible preview"}]}
+            ]
+        })
+        .to_string(),
+    )?;
+
+    let mut child = harness_command(&home, &cwd)
+        .args(["acp", "serve", "--stdio"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin");
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":"list","method":"jcode/session.list","params":{"source":"jcode","includeTest":true,"limit":5}})
+        )?;
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":"show","method":"jcode/session.show","params":{"id":"session_acp","preview":1}})
+        )?;
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":"spawn","method":"jcode/session.spawn","params":{"goal":"ship acp envelope","cwd":cwd,"provider":"openai","model":"gpt-test","outputMode":"ndjson"}})
+        )?;
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":"attach","method":"jcode/session.attach","params":{"id":"session_acp"}})
+        )?;
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":"resume","method":"jcode/session.resume","params":{"id":"session_acp"}})
+        )?;
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","method":"$/cancelRequest","params":{"id":"resume"}})
+        )?;
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":"cancel_unknown","method":"jcode/session.cancel","params":{"id":"missing_acp_session","requestId":"resume","reason":"test offline cancel"}})
+        )?;
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":"bad","method":"jcode/session.show","params":{}})
+        )?;
+        writeln!(
+            stdin,
+            "{}",
+            serde_json::json!({"jsonrpc":"2.0","id":"shutdown","method":"shutdown"})
+        )?;
+    }
+
+    let output = child.wait_with_output()?;
+    let stdout = stdout_text(&output);
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    assert!(
+        !stdout.contains("acp hidden prompt"),
+        "ACP session methods must not leak hidden transcript content by default: {stdout}"
+    );
+    let responses = parse_ndjson(&output)?;
+    assert_eq!(responses.len(), 8, "stdout: {stdout}");
+
+    assert_eq!(responses[0]["id"], "list");
+    assert_eq!(responses[0]["result"]["command"], "session list");
+    assert!(
+        responses[0]["result"]["sessions"]
+            .as_array()
+            .expect("sessions")
+            .iter()
+            .any(|session| session["id"] == "session_acp")
+    );
+
+    assert_eq!(responses[1]["id"], "show");
+    assert_eq!(responses[1]["result"]["preview"]["returned"], 1);
+    assert_eq!(
+        responses[1]["result"]["preview"]["messages"][0]["content"],
+        "acp visible preview"
+    );
+
+    assert_eq!(responses[2]["id"], "spawn");
+    assert_eq!(responses[2]["result"]["command"], "session spawn");
+    assert_eq!(responses[2]["result"]["spawn"]["output_mode"], "ndjson");
+    assert!(
+        responses[2]["result"]["spawn"]["argv"]
+            .as_array()
+            .expect("spawn argv")
+            .iter()
+            .any(|arg| arg == "--ndjson")
+    );
+    assert_eq!(responses[2]["result"]["safety"]["executed"], false);
+
+    assert_eq!(responses[3]["id"], "attach");
+    assert_eq!(responses[3]["result"]["attach"]["argv"][2], "session_acp");
+    assert_eq!(responses[4]["id"], "resume");
+    assert_eq!(responses[4]["result"]["resume"]["argv"][2], "session_acp");
+
+    assert_eq!(responses[5]["id"], "cancel_unknown");
+    assert_eq!(responses[5]["result"]["command"], "session cancel");
+    assert_eq!(responses[5]["result"]["offline"], true);
+    assert_eq!(responses[5]["result"]["session_exists"], false);
+    assert_eq!(responses[5]["result"]["cancel"]["request_id"], "resume");
+    assert_eq!(responses[5]["result"]["cancel"]["cancelled"], false);
+    assert_eq!(
+        responses[5]["result"]["cancel"]["outcome"],
+        "unknown_session_offline_acknowledged"
+    );
+    assert_eq!(responses[5]["result"]["safety"]["starts_provider"], false);
+
+    assert_eq!(responses[6]["id"], "bad");
+    assert_eq!(responses[6]["error"]["code"], -32602);
+    assert!(
+        responses[6]["error"]["data"]["detail"]
+            .as_str()
+            .is_some_and(|detail| detail.contains("missing required param id"))
+    );
+    assert_eq!(responses[7]["result"]["shutdown"], true);
+
+    Ok(())
+}
+
+#[test]
+fn harness_acp_fixture_json_is_runnable_against_stdio_server() -> Result<()> {
+    use std::io::Write;
+
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-acp-fixture-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let fixture_output = harness_command(&home, &cwd)
+        .args(["acp", "fixture", "--json"])
+        .output()?;
+    let fixture_stdout = stdout_text(&fixture_output);
+    assert!(
+        fixture_output.status.success(),
+        "stderr: {}",
+        stderr_text(&fixture_output)
+    );
+    let fixture: Value = serde_json::from_str(&fixture_stdout)?;
+    assert_eq!(fixture["status"], "ok");
+    assert_eq!(fixture["command"], "acp fixture");
+    assert_eq!(fixture["offline"], true);
+    assert_eq!(fixture["read_only"], true);
+    assert_eq!(fixture["fixture"]["version"], 2);
+    assert_eq!(fixture["safety"]["starts_provider"], false);
+
+    for file in fixture["fixture_home_files"]
+        .as_array()
+        .expect("fixture_home_files")
+    {
+        let relative = file["path"].as_str().expect("fixture file path");
+        assert!(
+            !relative.starts_with('/') && !relative.contains(".."),
+            "fixture file path must stay relative: {relative}"
+        );
+        let path = home.join(relative);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&path, serde_json::to_string(&file["content"])?)?;
+    }
+
+    let mut child = harness_command(&home, &cwd)
+        .args(["acp", "serve", "--stdio"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin");
+        for step in fixture["steps"].as_array().expect("fixture steps") {
+            writeln!(stdin, "{}", step["request"])?;
+        }
+    }
+    let output = child.wait_with_output()?;
+    let stdout = stdout_text(&output);
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    assert!(
+        !stdout.contains("fixture prompt content"),
+        "fixture should not leak non-preview transcript content: {stdout}"
+    );
+    let responses = parse_ndjson(&output)?;
+    let expected_response_count = fixture["steps"]
+        .as_array()
+        .expect("fixture steps")
+        .iter()
+        .filter(|step| step["expect_response"].as_bool().unwrap_or(true))
+        .count();
+    assert_eq!(responses.len(), expected_response_count, "stdout: {stdout}");
+
+    let by_id = |id: &str| -> &Value {
+        responses
+            .iter()
+            .find(|response| response["id"] == id)
+            .unwrap_or_else(|| panic!("missing response id {id}. stdout: {stdout}"))
+    };
+    assert_eq!(by_id("initialize")["result"]["protocol"], "acp");
+    assert_eq!(by_id("session_list")["result"]["command"], "session list");
+    assert!(
+        by_id("session_list")["result"]["sessions"]
+            .as_array()
+            .expect("sessions")
+            .iter()
+            .any(|session| session["id"] == "session_acp_fixture")
+    );
+    assert_eq!(by_id("session_spawn")["result"]["command"], "session spawn");
+    assert_eq!(by_id("session_spawn")["result"]["dry_run"], true);
+    assert_eq!(by_id("session_show")["result"]["preview"]["returned"], 1);
+    assert_eq!(
+        by_id("session_show")["result"]["preview"]["messages"][0]["content"],
+        "fixture assistant preview"
+    );
+    assert_eq!(
+        by_id("session_attach")["result"]["command"],
+        "session attach"
+    );
+    assert_eq!(
+        by_id("session_resume")["result"]["command"],
+        "session resume"
+    );
+    assert_eq!(
+        by_id("session_cancel_unknown")["result"]["command"],
+        "session cancel"
+    );
+    assert_eq!(
+        by_id("session_cancel_unknown")["result"]["session_exists"],
+        false
+    );
+    assert_eq!(
+        by_id("session_cancel_unknown")["result"]["cancel"]["outcome"],
+        "unknown_session_offline_acknowledged"
+    );
+    assert_eq!(by_id("invalid_params")["error"]["code"], -32602);
+    assert_eq!(by_id("unknown_method")["error"]["code"], -32601);
+    assert_eq!(by_id("shutdown")["result"]["shutdown"], true);
+
     Ok(())
 }
 
@@ -147,6 +715,8 @@ fn harness_run_dry_run_always_includes_all_builtin_harness_skills() -> Result<()
         "clean-code-guardian",
         "optimization",
         "llmwiki-memory",
+        "init-bootstrap",
+        "sequential-thinking",
     ] {
         assert!(
             stdout.contains(&format!("## Skill: {skill}")),
@@ -223,6 +793,1069 @@ fn harness_run_ndjson_uses_mock_provider_without_network() -> Result<()> {
     assert_eq!(lines[1]["text"], "mocked ndjson response");
     assert_eq!(lines[1]["usage"]["input_tokens"], 1);
     assert_eq!(lines[1]["usage"]["output_tokens"], 1);
+
+    Ok(())
+}
+
+#[test]
+fn harness_demo_json_lists_offline_claim_demos_without_credentials() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-demo-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .args(["demo", "--cwd"])
+        .arg(&cwd)
+        .arg("--json")
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["network_required"], false);
+    assert_eq!(report["credentials_required"], false);
+
+    let demos = report["demos"].as_array().expect("demos");
+    for surface in [
+        "safe-eval",
+        "mock-provider",
+        "memory",
+        "plan",
+        "swarm",
+        "browser",
+        "skills",
+        "grpc",
+        "release-gates",
+    ] {
+        assert!(
+            demos.iter().any(|demo| demo["surface"] == surface),
+            "missing surface {surface}. stdout: {stdout}"
+        );
+    }
+    for demo in demos {
+        assert_eq!(demo["offline"], true, "demo: {demo:?}");
+        assert_eq!(demo["network_required"], false, "demo: {demo:?}");
+        assert_eq!(demo["credentials_required"], false, "demo: {demo:?}");
+        assert!(demo["argv"].as_array().is_some_and(|argv| !argv.is_empty()));
+        assert!(
+            demo["expected_evidence"]
+                .as_array()
+                .is_some_and(|evidence| !evidence.is_empty())
+        );
+    }
+    assert!(demos.iter().any(|demo| {
+        demo["id"] == "mock-provider-run-json"
+            && demo["command"]
+                .as_str()
+                .is_some_and(|command| command.contains("--mock-response"))
+    }));
+    assert!(
+        demos
+            .iter()
+            .any(|demo| demo["id"] == "release-gate-smoke" && demo["project_writes"] == true)
+    );
+
+    let human_output = harness_command(&home, &cwd)
+        .args(["demo", "--cwd"])
+        .arg(&cwd)
+        .output()?;
+    let human_stdout = stdout_text(&human_output);
+    assert!(
+        human_output.status.success(),
+        "stderr: {}",
+        stderr_text(&human_output)
+    );
+    assert!(human_stdout.contains("Reproducible demos:"));
+    assert!(human_stdout.contains("memory-llmwiki-bridge"));
+    assert!(human_stdout.contains("jcode-harness smoke"));
+
+    Ok(())
+}
+
+#[test]
+fn harness_demo_run_executes_non_writing_demo_and_blocks_project_writes() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-demo-run-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .args(["demo", "run", "mock-provider-run-json", "--cwd"])
+        .arg(&cwd)
+        .arg("--json")
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["requested"], "mock-provider-run-json");
+    let result = &report["results"].as_array().expect("results")[0];
+    assert_eq!(result["status"], "pass");
+    assert_eq!(result["project_writes"], false);
+    assert_eq!(result["json_parseable"], true);
+    assert!(
+        result["stdout"]
+            .as_str()
+            .is_some_and(|stdout| stdout.contains("harness-mock"))
+    );
+
+    let blocked = harness_command(&home, &cwd)
+        .args(["demo", "run", "release-gate-smoke", "--cwd"])
+        .arg(&cwd)
+        .arg("--json")
+        .output()?;
+    let blocked_stdout = stdout_text(&blocked);
+    assert!(
+        !blocked.status.success(),
+        "project-writing demo should be blocked without --allow-writes"
+    );
+    let blocked_report: Value = serde_json::from_str(&blocked_stdout)?;
+    assert_eq!(blocked_report["status"], "blocked");
+    let blocked_result = &blocked_report["results"].as_array().expect("results")[0];
+    assert_eq!(blocked_result["status"], "blocked");
+    assert_eq!(blocked_result["project_writes"], true);
+    assert!(
+        blocked_result["reason"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("--allow-writes"))
+    );
+    assert!(!cwd.join(".jcode/demo/smoke/sample.txt").exists());
+
+    Ok(())
+}
+
+#[test]
+fn harness_demo_run_sandbox_executes_project_writes_without_mutating_cwd() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-demo-sandbox-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .args(["demo", "run", "all", "--cwd"])
+        .arg(&cwd)
+        .args(["--sandbox", "--json"])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["sandbox"]["enabled"], true);
+    assert_eq!(report["sandbox"]["retained"], false);
+    assert_eq!(report["sandbox"]["cleanup"], "removed_after_run");
+    let sandbox_path = report["sandbox"]["path"].as_str().expect("sandbox path");
+    assert!(
+        !std::path::Path::new(sandbox_path).exists(),
+        "sandbox should be removed by default: {sandbox_path}"
+    );
+    assert_eq!(report["results"].as_array().map(Vec::len), Some(9));
+    for result in report["results"].as_array().expect("results") {
+        assert_eq!(result["status"], "pass", "result: {result:?}");
+        assert_eq!(result["executed_root"], sandbox_path);
+    }
+    assert!(report["results"].as_array().unwrap().iter().any(|result| {
+        result["id"] == "release-gate-smoke" && result["project_writes"] == true
+    }));
+    assert!(
+        !cwd.join(".jcode").exists(),
+        "sandboxed demo run must not write into requested cwd"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn harness_demo_grpc_control_runs_as_child_process_smoke() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-demo-grpc-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let direct = harness_command(&home, &cwd)
+        .args(["demo", "grpc-control", "--json"])
+        .output()?;
+    assert!(direct.status.success(), "stderr: {}", stderr_text(&direct));
+    let direct_report: Value = serde_json::from_str(&stdout_text(&direct))?;
+    assert_eq!(direct_report["status"], "ok");
+    assert_eq!(
+        direct_report["control_command"]["command_name"],
+        "cancel_run"
+    );
+    assert_eq!(direct_report["event_upload"]["redacted"], true);
+
+    let output = harness_command(&home, &cwd)
+        .args(["demo", "run", "grpc-control-plane-local", "--cwd"])
+        .arg(&cwd)
+        .arg("--json")
+        .output()?;
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout_text(&output))?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["requested"], "grpc-control-plane-local");
+    let result = &report["results"].as_array().expect("results")[0];
+    assert_eq!(result["status"], "pass");
+    assert_eq!(result["project_writes"], false);
+    assert_eq!(result["json_parseable"], true);
+    let child_report: Value = serde_json::from_str(result["stdout"].as_str().unwrap_or(""))?;
+    assert_eq!(
+        child_report["registration"]["agent_id"],
+        "agent-demo-worker"
+    );
+    assert_eq!(child_report["reconnect"]["reconnected"], true);
+
+    Ok(())
+}
+
+#[test]
+fn harness_session_list_json_reports_local_sessions_without_tui() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-session-list-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    let sessions_dir = home.join("sessions");
+    std::fs::create_dir_all(&sessions_dir)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    std::fs::write(
+        sessions_dir.join("session_visible.json"),
+        serde_json::json!({
+            "id": "session_visible",
+            "title": "Visible local session",
+            "created_at": "2026-05-07T20:00:00Z",
+            "updated_at": "2026-05-07T20:05:00Z",
+            "last_active_at": "2026-05-07T20:06:00Z",
+            "working_dir": cwd,
+            "short_name": "visible",
+            "provider_key": "openai",
+            "model": "gpt-test",
+            "saved": true,
+            "save_label": "fixture",
+            "status": "Closed",
+            "messages": [
+                {"role": "user", "content": [{"type": "text", "text": "hello"}]},
+                {"role": "assistant", "content": [{"type": "text", "text": "hi"}]}
+            ]
+        })
+        .to_string(),
+    )?;
+    std::fs::write(
+        sessions_dir.join("session_debug.json"),
+        serde_json::json!({
+            "id": "session_debug",
+            "title": "Debug local session",
+            "created_at": "2026-05-07T19:00:00Z",
+            "updated_at": "2026-05-07T19:05:00Z",
+            "short_name": "debug",
+            "is_debug": true,
+            "status": "Closed",
+            "messages": [
+                {"role": "user", "content": [{"type": "text", "text": "hidden"}]}
+            ]
+        })
+        .to_string(),
+    )?;
+
+    let output = harness_command(&home, &cwd)
+        .args(["session", "list", "--source", "jcode", "--json"])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["command"], "session list");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["read_only"], true);
+    assert_eq!(report["source"], "jcode");
+    assert_eq!(report["discovered_count"], 2);
+    assert_eq!(report["session_count"], 1);
+    assert_eq!(report["hidden_test_count"], 1);
+    let sessions = report["sessions"].as_array().expect("sessions array");
+    assert_eq!(sessions.len(), 1, "stdout: {stdout}");
+    let session = &sessions[0];
+    assert_eq!(session["id"], "session_visible");
+    assert_eq!(session["source"], "jcode");
+    assert_eq!(session["short_name"], "visible");
+    assert_eq!(session["title"], "Visible local session");
+    assert_eq!(session["status"], "closed");
+    assert_eq!(session["message_count"], 2);
+    assert_eq!(session["user_message_count"], 1);
+    assert_eq!(session["assistant_message_count"], 1);
+    assert_eq!(session["saved"], true);
+    assert_eq!(session["save_label"], "fixture");
+    assert_eq!(session["resume_target"]["kind"], "jcode_session");
+    assert_eq!(session["resume_target"]["id"], "session_visible");
+
+    let include_test = harness_command(&home, &cwd)
+        .args([
+            "session",
+            "list",
+            "--source",
+            "jcode",
+            "--include-test",
+            "--json",
+        ])
+        .output()?;
+    let include_stdout = stdout_text(&include_test);
+    assert!(
+        include_test.status.success(),
+        "stderr: {}",
+        stderr_text(&include_test)
+    );
+    let include_report: Value = serde_json::from_str(&include_stdout)?;
+    assert_eq!(include_report["session_count"], 2);
+    assert!(
+        include_report["sessions"]
+            .as_array()
+            .expect("sessions")
+            .iter()
+            .any(|session| session["id"] == "session_debug" && session["is_debug"] == true),
+        "stdout: {include_stdout}"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn harness_session_spawn_dry_run_json_returns_safe_envelope() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-session-spawn-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let blocked = harness_command(&home, &cwd)
+        .args(["session", "spawn", "draft the release plan", "--json"])
+        .output()?;
+    assert!(
+        !blocked.status.success(),
+        "spawn execution should require --dry-run"
+    );
+    assert!(
+        stderr_text(&blocked).contains("--dry-run"),
+        "stderr: {}",
+        stderr_text(&blocked)
+    );
+
+    let output = harness_command(&home, &cwd)
+        .args(["session", "spawn", "draft the release plan", "--cwd"])
+        .arg(&cwd)
+        .args([
+            "--provider",
+            "openai",
+            "--model",
+            "gpt-test",
+            "--dry-run",
+            "--json",
+        ])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["command"], "session spawn");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["read_only"], true);
+    assert_eq!(report["dry_run"], true);
+    assert_eq!(report["executed"], false);
+    assert_eq!(report["source"], "jcode");
+    assert_eq!(report["goal"], "draft the release plan");
+    assert_eq!(report["spawn"]["supported_by"], "jcode-cli-run");
+    assert_eq!(report["spawn"]["execution_supported_by_harness"], false);
+    assert_eq!(report["spawn"]["creates_new_session"], true);
+    assert_eq!(report["spawn"]["requires_terminal"], false);
+    assert_eq!(report["spawn"]["starts_tui"], false);
+    assert_eq!(report["spawn"]["starts_provider"], "on_execution");
+    assert_eq!(report["spawn"]["program"], "jcode");
+    assert_eq!(report["spawn"]["cwd"], cwd.to_string_lossy().as_ref());
+    assert_eq!(report["spawn"]["cwd_source"], "argument");
+    assert_eq!(report["spawn"]["output_mode"], "json");
+    assert_eq!(report["spawn"]["provider"], "openai");
+    assert_eq!(report["spawn"]["provider_profile"], Value::Null);
+    assert_eq!(report["spawn"]["model"], "gpt-test");
+    let argv = report["spawn"]["argv"].as_array().expect("argv array");
+    assert_eq!(
+        argv,
+        &vec![
+            "jcode",
+            "-C",
+            cwd.to_string_lossy().as_ref(),
+            "-p",
+            "openai",
+            "-m",
+            "gpt-test",
+            "run",
+            "--json",
+            "draft the release plan",
+        ]
+    );
+    assert_eq!(report["safety"]["executed"], false);
+    assert_eq!(report["safety"]["writes"], false);
+    assert_eq!(report["safety"]["network_required_for_dry_run"], false);
+    assert_eq!(report["safety"]["credentials_required_for_dry_run"], false);
+
+    Ok(())
+}
+
+#[test]
+fn harness_session_attach_dry_run_json_returns_safe_envelope() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-session-attach-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    let sessions_dir = home.join("sessions");
+    std::fs::create_dir_all(&sessions_dir)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    std::fs::write(
+        sessions_dir.join("session_attach.json"),
+        serde_json::json!({
+            "id": "session_attach",
+            "title": "Attach local session",
+            "created_at": "2026-05-07T20:50:00Z",
+            "updated_at": "2026-05-07T20:55:00Z",
+            "last_active_at": "2026-05-07T20:56:00Z",
+            "working_dir": cwd,
+            "short_name": "attacher",
+            "provider_key": "openai",
+            "model": "gpt-test",
+            "status": "Closed",
+            "messages": [
+                {"id": "m1", "role": "user", "content": [{"type": "text", "text": "attach transcript should stay hidden"}]},
+                {"id": "m2", "role": "assistant", "content": [{"type": "text", "text": "attach answer should stay hidden"}]}
+            ]
+        })
+        .to_string(),
+    )?;
+
+    let blocked = harness_command(&home, &cwd)
+        .args(["session", "attach", "session_attach", "--json"])
+        .output()?;
+    assert!(
+        !blocked.status.success(),
+        "attach execution should require --dry-run"
+    );
+    assert!(
+        stderr_text(&blocked).contains("--dry-run"),
+        "stderr: {}",
+        stderr_text(&blocked)
+    );
+
+    let output = harness_command(&home, &cwd)
+        .args(["session", "attach", "session_attach", "--dry-run", "--json"])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    assert!(
+        !stdout.contains("attach transcript should stay hidden")
+            && !stdout.contains("attach answer should stay hidden"),
+        "attach dry-run must not emit transcript content. stdout: {stdout}"
+    );
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["command"], "session attach");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["read_only"], true);
+    assert_eq!(report["dry_run"], true);
+    assert_eq!(report["executed"], false);
+    assert_eq!(report["source"], "jcode");
+    assert_eq!(report["id"], "session_attach");
+    assert_eq!(report["metadata"]["display_name"], "attacher");
+    assert_eq!(report["metadata"]["status"], "closed");
+    assert_eq!(report["attach"]["supported_by"], "jcode-cli-resume");
+    assert_eq!(report["attach"]["execution_supported_by_harness"], false);
+    assert_eq!(
+        report["attach"]["attach_mode"],
+        "local_session_resume_surface"
+    );
+    assert_eq!(report["attach"]["requires_terminal"], true);
+    assert_eq!(report["attach"]["starts_tui"], true);
+    assert_eq!(report["attach"]["program"], "jcode");
+    assert_eq!(report["attach"]["cwd_source"], "session");
+    assert_eq!(
+        report["attach"]["live_session_detection"],
+        "not_attempted_offline_dry_run"
+    );
+    let argv = report["attach"]["argv"].as_array().expect("argv array");
+    assert_eq!(argv, &vec!["jcode", "--resume", "session_attach"]);
+    assert_eq!(report["safety"]["executed"], false);
+    assert_eq!(report["safety"]["writes"], false);
+    assert_eq!(report["safety"]["network_required_for_dry_run"], false);
+    assert_eq!(report["safety"]["credentials_required_for_dry_run"], false);
+
+    Ok(())
+}
+
+#[test]
+fn harness_session_dry_run_ndjson_envelopes() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-session-ndjson-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    let sessions_dir = home.join("sessions");
+    std::fs::create_dir_all(&sessions_dir)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    std::fs::write(
+        sessions_dir.join("session_ndjson.json"),
+        serde_json::json!({
+            "id": "session_ndjson",
+            "title": "NDJSON local session",
+            "created_at": "2026-05-07T21:00:00Z",
+            "updated_at": "2026-05-07T21:05:00Z",
+            "working_dir": cwd,
+            "short_name": "ndjsoner",
+            "provider_key": "openai",
+            "model": "gpt-test",
+            "status": "Closed",
+            "messages": [
+                {"id": "m1", "role": "user", "content": [{"type": "text", "text": "ndjson transcript should stay hidden"}]}
+            ]
+        })
+        .to_string(),
+    )?;
+
+    let conflict = harness_command(&home, &cwd)
+        .args([
+            "session",
+            "spawn",
+            "ndjson goal",
+            "--dry-run",
+            "--json",
+            "--ndjson",
+        ])
+        .output()?;
+    assert!(
+        !conflict.status.success(),
+        "--json and --ndjson should conflict"
+    );
+
+    let spawn_output = harness_command(&home, &cwd)
+        .args(["session", "spawn", "ndjson goal", "--dry-run", "--ndjson"])
+        .output()?;
+    assert!(
+        spawn_output.status.success(),
+        "stderr: {}",
+        stderr_text(&spawn_output)
+    );
+    let spawn_events = parse_ndjson(&spawn_output)?;
+    assert_eq!(spawn_events.len(), 3);
+    assert_eq!(spawn_events[0]["type"], "start");
+    assert_eq!(spawn_events[0]["command"], "session spawn");
+    assert_eq!(spawn_events[1]["type"], "envelope");
+    assert_eq!(spawn_events[1]["envelope"]["command"], "session spawn");
+    assert_eq!(
+        spawn_events[1]["envelope"]["spawn"]["output_mode"],
+        "ndjson"
+    );
+    assert!(
+        spawn_events[1]["envelope"]["spawn"]["argv"]
+            .as_array()
+            .expect("spawn argv")
+            .iter()
+            .any(|arg| arg == "--ndjson")
+    );
+    assert_eq!(spawn_events[2]["type"], "done");
+    assert_eq!(spawn_events[2]["executed"], false);
+
+    let attach_output = harness_command(&home, &cwd)
+        .args([
+            "session",
+            "attach",
+            "session_ndjson",
+            "--dry-run",
+            "--ndjson",
+        ])
+        .output()?;
+    let attach_stdout = stdout_text(&attach_output);
+    assert!(
+        attach_output.status.success(),
+        "stderr: {}",
+        stderr_text(&attach_output)
+    );
+    assert!(
+        !attach_stdout.contains("ndjson transcript should stay hidden"),
+        "attach ndjson must not emit transcript content: {attach_stdout}"
+    );
+    let attach_events = parse_ndjson(&attach_output)?;
+    assert_eq!(attach_events.len(), 3);
+    assert_eq!(attach_events[1]["envelope"]["command"], "session attach");
+    assert_eq!(
+        attach_events[1]["envelope"]["attach"]["argv"]
+            .as_array()
+            .expect("attach argv"),
+        &vec!["jcode", "--resume", "session_ndjson"]
+    );
+
+    let resume_output = harness_command(&home, &cwd)
+        .args([
+            "session",
+            "resume",
+            "session_ndjson",
+            "--dry-run",
+            "--ndjson",
+        ])
+        .output()?;
+    let resume_stdout = stdout_text(&resume_output);
+    assert!(
+        resume_output.status.success(),
+        "stderr: {}",
+        stderr_text(&resume_output)
+    );
+    assert!(
+        !resume_stdout.contains("ndjson transcript should stay hidden"),
+        "resume ndjson must not emit transcript content: {resume_stdout}"
+    );
+    let resume_events = parse_ndjson(&resume_output)?;
+    assert_eq!(resume_events.len(), 3);
+    assert_eq!(resume_events[1]["envelope"]["command"], "session resume");
+    assert_eq!(
+        resume_events[1]["envelope"]["resume"]["argv"]
+            .as_array()
+            .expect("resume argv"),
+        &vec!["jcode", "--resume", "session_ndjson"]
+    );
+
+    let cancel_output = harness_command(&home, &cwd)
+        .args([
+            "session",
+            "cancel",
+            "session_ndjson",
+            "--request-id",
+            "req-ndjson",
+            "--reason",
+            "operator requested stop",
+            "--dry-run",
+            "--ndjson",
+        ])
+        .output()?;
+    let cancel_stdout = stdout_text(&cancel_output);
+    assert!(
+        cancel_output.status.success(),
+        "stderr: {}",
+        stderr_text(&cancel_output)
+    );
+    assert!(
+        !cancel_stdout.contains("ndjson transcript should stay hidden"),
+        "cancel ndjson must not emit transcript content: {cancel_stdout}"
+    );
+    let cancel_events = parse_ndjson(&cancel_output)?;
+    assert_eq!(cancel_events.len(), 3);
+    assert_eq!(cancel_events[1]["envelope"]["command"], "session cancel");
+    assert_eq!(cancel_events[1]["envelope"]["cancel"]["requested"], true);
+    assert_eq!(
+        cancel_events[1]["envelope"]["cancel"]["request_id"],
+        "req-ndjson"
+    );
+    assert_eq!(
+        cancel_events[1]["envelope"]["cancel"]["provider_cancel_attempted"],
+        false
+    );
+
+    Ok(())
+}
+
+#[test]
+fn harness_session_show_json_reports_metadata_and_opt_in_preview() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-session-show-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    let sessions_dir = home.join("sessions");
+    std::fs::create_dir_all(&sessions_dir)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    std::fs::write(
+        sessions_dir.join("session_show.json"),
+        serde_json::json!({
+            "id": "session_show",
+            "title": "Show local session",
+            "created_at": "2026-05-07T20:10:00Z",
+            "updated_at": "2026-05-07T20:20:00Z",
+            "last_active_at": "2026-05-07T20:21:00Z",
+            "working_dir": cwd,
+            "short_name": "showcase",
+            "provider_key": "openai",
+            "provider_session_id": "provider-fixture",
+            "model": "gpt-test",
+            "reasoning_effort": "medium",
+            "saved": true,
+            "save_label": "show-fixture",
+            "status": "Closed",
+            "messages": [
+                {
+                    "id": "m0",
+                    "role": "user",
+                    "display_role": "system",
+                    "content": [{"type": "text", "text": "<system-reminder>hidden default transcript secret</system-reminder>"}]
+                },
+                {"id": "m1", "role": "user", "content": [{"type": "text", "text": "first visible prompt"}]},
+                {"id": "m2", "role": "assistant", "content": [{"type": "text", "text": "second visible answer"}]},
+                {"id": "m3", "role": "user", "content": [{"type": "text", "text": "third visible follow-up"}]}
+            ],
+            "env_snapshots": [],
+            "memory_injections": [],
+            "replay_events": []
+        })
+        .to_string(),
+    )?;
+
+    let output = harness_command(&home, &cwd)
+        .args(["session", "show", "session_show", "--json"])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    assert!(
+        !stdout.contains("first visible prompt")
+            && !stdout.contains("second visible answer")
+            && !stdout.contains("hidden default transcript secret"),
+        "default show output must not include transcript content. stdout: {stdout}"
+    );
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["command"], "session show");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["read_only"], true);
+    assert_eq!(report["source"], "jcode");
+    assert_eq!(report["id"], "session_show");
+    assert_eq!(report["metadata"]["display_name"], "showcase");
+    assert_eq!(report["metadata"]["status"], "closed");
+    assert_eq!(report["metadata"]["stored_message_count"], 4);
+    assert_eq!(report["metadata"]["user_message_count"], 2);
+    assert_eq!(report["metadata"]["assistant_message_count"], 1);
+    assert_eq!(
+        report["metadata"]["provider_session_id"],
+        "provider-fixture"
+    );
+    assert_eq!(report["metadata"]["reasoning_effort"], "medium");
+    assert_eq!(report["preview"]["requested"], 0);
+    assert_eq!(report["preview"]["returned"], 0);
+    assert_eq!(
+        report["preview"]["messages"].as_array().map(Vec::len),
+        Some(0)
+    );
+
+    let preview_output = harness_command(&home, &cwd)
+        .args([
+            "session",
+            "show",
+            "session_show",
+            "--preview",
+            "2",
+            "--json",
+        ])
+        .output()?;
+    let preview_stdout = stdout_text(&preview_output);
+    assert!(
+        preview_output.status.success(),
+        "stderr: {}",
+        stderr_text(&preview_output)
+    );
+    let preview_report: Value = serde_json::from_str(&preview_stdout)?;
+    assert_eq!(preview_report["preview"]["requested"], 2);
+    assert_eq!(preview_report["preview"]["returned"], 2);
+    let messages = preview_report["preview"]["messages"]
+        .as_array()
+        .expect("preview messages");
+    assert_eq!(messages[0]["role"], "assistant");
+    assert_eq!(messages[0]["content"], "second visible answer");
+    assert_eq!(messages[1]["role"], "user");
+    assert_eq!(messages[1]["content"], "third visible follow-up");
+    assert!(
+        !preview_stdout.contains("hidden default transcript secret"),
+        "system reminder should remain hidden. stdout: {preview_stdout}"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn harness_session_resume_dry_run_json_returns_safe_envelope() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-session-resume-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    let sessions_dir = home.join("sessions");
+    std::fs::create_dir_all(&sessions_dir)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    std::fs::write(
+        sessions_dir.join("session_resume.json"),
+        serde_json::json!({
+            "id": "session_resume",
+            "title": "Resume local session",
+            "created_at": "2026-05-07T20:30:00Z",
+            "updated_at": "2026-05-07T20:40:00Z",
+            "last_active_at": "2026-05-07T20:41:00Z",
+            "working_dir": cwd,
+            "short_name": "resumer",
+            "provider_key": "openai",
+            "model": "gpt-test",
+            "status": "Closed",
+            "messages": [
+                {"id": "m1", "role": "user", "content": [{"type": "text", "text": "resume transcript should stay hidden"}]},
+                {"id": "m2", "role": "assistant", "content": [{"type": "text", "text": "resume answer should stay hidden"}]}
+            ]
+        })
+        .to_string(),
+    )?;
+
+    let blocked = harness_command(&home, &cwd)
+        .args(["session", "resume", "session_resume", "--json"])
+        .output()?;
+    assert!(
+        !blocked.status.success(),
+        "resume execution should require --dry-run"
+    );
+    assert!(
+        stderr_text(&blocked).contains("--dry-run"),
+        "stderr: {}",
+        stderr_text(&blocked)
+    );
+
+    let output = harness_command(&home, &cwd)
+        .args(["session", "resume", "session_resume", "--dry-run", "--json"])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    assert!(
+        !stdout.contains("resume transcript should stay hidden")
+            && !stdout.contains("resume answer should stay hidden"),
+        "resume dry-run must not emit transcript content. stdout: {stdout}"
+    );
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["command"], "session resume");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["read_only"], true);
+    assert_eq!(report["dry_run"], true);
+    assert_eq!(report["executed"], false);
+    assert_eq!(report["source"], "jcode");
+    assert_eq!(report["id"], "session_resume");
+    assert_eq!(report["metadata"]["display_name"], "resumer");
+    assert_eq!(report["metadata"]["status"], "closed");
+    assert_eq!(report["resume"]["supported_by"], "jcode-cli");
+    assert_eq!(report["resume"]["execution_supported_by_harness"], false);
+    assert_eq!(report["resume"]["requires_terminal"], true);
+    assert_eq!(report["resume"]["starts_tui"], true);
+    assert_eq!(report["resume"]["program"], "jcode");
+    assert_eq!(report["resume"]["cwd_source"], "session");
+    let argv = report["resume"]["argv"].as_array().expect("argv array");
+    assert_eq!(argv, &vec!["jcode", "--resume", "session_resume"]);
+    assert_eq!(report["safety"]["executed"], false);
+    assert_eq!(report["safety"]["writes"], false);
+    assert_eq!(report["safety"]["network_required_for_dry_run"], false);
+    assert_eq!(report["safety"]["credentials_required_for_dry_run"], false);
+
+    Ok(())
+}
+
+#[test]
+fn harness_session_cancel_dry_run_json_returns_offline_control_envelope() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-session-cancel-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    let sessions_dir = home.join("sessions");
+    std::fs::create_dir_all(&sessions_dir)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    std::fs::write(
+        sessions_dir.join("session_cancel.json"),
+        serde_json::json!({
+            "id": "session_cancel",
+            "title": "Cancel local session",
+            "created_at": "2026-05-07T21:30:00Z",
+            "updated_at": "2026-05-07T21:35:00Z",
+            "last_active_at": "2026-05-07T21:36:00Z",
+            "working_dir": cwd,
+            "short_name": "canceller",
+            "provider_key": "openai",
+            "model": "gpt-test",
+            "status": "Active",
+            "messages": [
+                {"id": "m1", "role": "user", "content": [{"type": "text", "text": "cancel transcript should stay hidden"}]},
+                {"id": "m2", "role": "assistant", "content": [{"type": "text", "text": "cancel answer should stay hidden"}]}
+            ]
+        })
+        .to_string(),
+    )?;
+
+    let blocked = harness_command(&home, &cwd)
+        .args(["session", "cancel", "session_cancel", "--json"])
+        .output()?;
+    assert!(
+        !blocked.status.success(),
+        "cancel execution should require --dry-run"
+    );
+    assert!(
+        stderr_text(&blocked).contains("--dry-run"),
+        "stderr: {}",
+        stderr_text(&blocked)
+    );
+
+    let output = harness_command(&home, &cwd)
+        .args([
+            "session",
+            "cancel",
+            "session_cancel",
+            "--request-id",
+            "req-42",
+            "--reason",
+            "operator requested stop",
+            "--dry-run",
+            "--json",
+        ])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    assert!(
+        !stdout.contains("cancel transcript should stay hidden")
+            && !stdout.contains("cancel answer should stay hidden"),
+        "cancel dry-run must not emit transcript content. stdout: {stdout}"
+    );
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["command"], "session cancel");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["read_only"], true);
+    assert_eq!(report["dry_run"], true);
+    assert_eq!(report["executed"], false);
+    assert_eq!(report["source"], "jcode");
+    assert_eq!(report["id"], "session_cancel");
+    assert_eq!(report["session_exists"], true);
+    assert_eq!(report["metadata"]["display_name"], "canceller");
+    assert_eq!(report["metadata"]["status"], "active");
+    assert_eq!(report["cancel"]["requested"], true);
+    assert_eq!(report["cancel"]["accepted"], true);
+    assert_eq!(report["cancel"]["cancelled"], false);
+    assert_eq!(report["cancel"]["outcome"], "offline_session_acknowledged");
+    assert_eq!(report["cancel"]["mode"], "offline_control_envelope");
+    assert_eq!(report["cancel"]["request_id"], "req-42");
+    assert_eq!(report["cancel"]["reason"], "operator requested stop");
+    assert_eq!(report["cancel"]["request_method"], "jcode/session.cancel");
+    assert_eq!(report["cancel"]["provider_cancel_attempted"], false);
+    assert_eq!(report["cancel"]["provider_cancelled"], false);
+    assert_eq!(report["safety"]["executed"], false);
+    assert_eq!(report["safety"]["writes"], false);
+    assert_eq!(report["safety"]["starts_tui"], false);
+    assert_eq!(report["safety"]["starts_provider"], false);
+    assert_eq!(report["safety"]["network_required_for_dry_run"], false);
+    assert_eq!(report["safety"]["credentials_required_for_dry_run"], false);
+
+    let unknown = harness_command(&home, &cwd)
+        .args([
+            "session",
+            "cancel",
+            "session_missing",
+            "--dry-run",
+            "--json",
+        ])
+        .output()?;
+    assert!(
+        unknown.status.success(),
+        "stderr: {}",
+        stderr_text(&unknown)
+    );
+    let unknown_report: Value = serde_json::from_str(&stdout_text(&unknown))?;
+    assert_eq!(unknown_report["session_exists"], false);
+    assert_eq!(
+        unknown_report["cancel"]["outcome"],
+        "unknown_session_offline_acknowledged"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn harness_smoke_runs_offline_tool_cases_with_deterministic_artifacts() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-smoke-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command_with_piped_stdout(&home, &cwd)
+        .args(["smoke", "--cwd"])
+        .arg(&cwd)
+        .output()?;
+    let stdout = stdout_text(&output);
+    let stderr = stderr_text(&output);
+
+    assert!(output.status.success(), "stderr: {stderr}");
+    assert!(
+        stderr.contains(&format!("Harness workspace: {}", cwd.display())),
+        "stderr: {stderr}"
+    );
+
+    for expected in [
+        "== write (write sample.txt) ==",
+        "== read (read sample.txt) ==",
+        "== edit (edit sample.txt (alpha -> alpha1)) ==",
+        "== multiedit (multiedit sample.txt) ==",
+        "== patch (patch sample.txt) ==",
+        "== apply_patch (apply_patch add file) ==",
+        "== ls (ls .) ==",
+        "== glob (glob *.txt) ==",
+        "== grep (grep gamma) ==",
+        "== bash (bash pwd) ==",
+        "== invalid (invalid tool call) ==",
+        "== todo (todo write) ==",
+        "== todo (todo read) ==",
+        "== batch (batch ls + read) ==",
+        "Completed: 2 succeeded, 0 failed",
+    ] {
+        assert!(
+            stdout.contains(expected),
+            "missing {expected}. stdout: {stdout}"
+        );
+    }
+
+    for network_case in ["== webfetch", "== websearch", "== codesearch"] {
+        assert!(
+            !stdout.contains(network_case),
+            "default smoke should not run network-backed case {network_case}. stdout: {stdout}"
+        );
+    }
+
+    assert_eq!(
+        std::fs::read_to_string(cwd.join("sample.txt"))?,
+        "alpha2\nbeta1\ngamma\n"
+    );
+    assert_eq!(std::fs::read_to_string(cwd.join("added.txt"))?, "added\n");
 
     Ok(())
 }
@@ -837,6 +2470,8 @@ fn skills_list_and_sync_expose_builtin_harness_skills() -> Result<()> {
         "clean-code-guardian",
         "optimization",
         "llmwiki-memory",
+        "init-bootstrap",
+        "sequential-thinking",
     ] {
         assert!(
             list_stdout.contains(&format!("{skill}\tbuilt-in")),
@@ -858,6 +2493,8 @@ fn skills_list_and_sync_expose_builtin_harness_skills() -> Result<()> {
         "clean-code-guardian",
         "optimization",
         "llmwiki-memory",
+        "init-bootstrap",
+        "sequential-thinking",
     ] {
         let synced = home.join("skills").join(skill).join("SKILL.md");
         assert!(synced.exists(), "missing synced file: {}", synced.display());
@@ -953,6 +2590,18 @@ fn skills_json_commands_are_machine_readable() -> Result<()> {
     assert!(
         skills
             .iter()
+            .any(|skill| skill["name"] == "init-bootstrap" && skill["origin"] == "built-in"),
+        "stdout: {list_stdout}"
+    );
+    assert!(
+        skills
+            .iter()
+            .any(|skill| skill["name"] == "sequential-thinking" && skill["origin"] == "built-in"),
+        "stdout: {list_stdout}"
+    );
+    assert!(
+        skills
+            .iter()
             .any(|skill| skill["name"] == "json-shared" && skill["origin"] == "global"),
         "global skill should win over claude compat. stdout: {list_stdout}"
     );
@@ -994,6 +2643,14 @@ fn skills_json_commands_are_machine_readable() -> Result<()> {
             .expect("builtins array")
             .iter()
             .any(|builtin| builtin["name"] == "llmwiki-memory" && builtin["status"] == "ok"),
+        "stdout: {doctor_stdout}"
+    );
+    assert!(
+        doctor_json["builtins"]
+            .as_array()
+            .expect("builtins array")
+            .iter()
+            .any(|builtin| builtin["name"] == "sequential-thinking" && builtin["status"] == "ok"),
         "stdout: {doctor_stdout}"
     );
     assert!(
@@ -1051,6 +2708,37 @@ fn skills_match_json_reports_task_and_repo_scoped_selection() -> Result<()> {
                 && skill["description"] == "Project-specific clean code policy"),
         "stdout: {stdout}"
     );
+
+    Ok(())
+}
+
+#[test]
+fn skills_match_json_routes_init_and_sequential_thinking() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-cli-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .args([
+            "skills",
+            "match",
+            "use /init and sequential thinking for project analysis",
+            "--json",
+        ])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    let report: Value = serde_json::from_str(&stdout)?;
+    let selected = report["selected"].as_array().expect("selected array");
+    assert_eq!(selected[0]["name"], "init-bootstrap");
+    assert_eq!(selected[0]["origin"], "built-in");
+    assert_eq!(selected[1]["name"], "sequential-thinking");
+    assert_eq!(selected[1]["origin"], "built-in");
 
     Ok(())
 }

@@ -1,0 +1,47 @@
+{
+  "id": "2026-05-08-use-resolved-stop-mutation-identity-6fcfb0",
+  "title": "Use resolved stop mutation identity",
+  "goal": "Harden the stop idempotency slice by using resolved target identity for live stop mutations while retaining exact-session replay after the member is already removed.",
+  "createdAt": "2026-05-08T12:16:04.123Z",
+  "status": "active",
+  "requiredInputs": [
+    "Existing stop side-effect idempotency implementation",
+    "Potential stale alias replay risk from raw target mutation keys"
+  ],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 35
+  },
+  "permissions": [
+    "Modify swarm stop handler and tests",
+    "Run cargo fmt/check/test and selfdev build",
+    "Commit and push"
+  ],
+  "completionConditions": [
+    "Completed stop replay still happens before target resolution when the caller repeats an exact session-id stop after the member has already been removed.",
+    "Live stop requests use the resolved target session id for the mutation key, so friendly-name/prefix/suffix aliases do not replay a prior stop if a new current member matches the same alias.",
+    "Duplicate concurrent alias stops still share the same resolved-target mutation and do not emit duplicate `SessionCloseRequested` side effects.",
+    "Focused stop replay tests, cargo fmt/check, git diff check, and selfdev build pass."
+  ],
+  "outputPaths": [
+    "src/server/comm_session.rs",
+    "src/server/comm_session_tests.rs",
+    ".codex-harness/state.json",
+    ".codex-harness/traces/2026-05-08.jsonl"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode comm_session::comm_session_tests::stop_ --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check"
+  ],
+  "failureTaxonomy": [
+    "Breaking exact session-id stop replay after member removal",
+    "Reintroducing duplicate close requests for concurrent alias retries",
+    "Replaying stale stop results for a newly matched friendly name",
+    "Changing stop authorization or force behavior",
+    "Over-expanding into cleanup or stop protocol redesign"
+  ],
+  "notes": "This is a follow-up to commit 891d44e5. Keep it limited to stop mutation key selection and regression tests."
+}

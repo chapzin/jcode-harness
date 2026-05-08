@@ -1,0 +1,45 @@
+{
+  "id": "2026-05-08-improve-openai-retry-after-handling-833992",
+  "title": "Improve OpenAI Retry-After handling",
+  "goal": "Improve OpenAI provider rate-limit handling by parsing Retry-After more completely and classifying rate-limit messages as retryable.",
+  "createdAt": "2026-05-08T15:35:25.905Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 30
+  },
+  "permissions": [
+    "modify source",
+    "run focused tests",
+    "run selfdev build",
+    "commit and push"
+  ],
+  "completionConditions": [
+    "OpenAI Retry-After parser accepts both delay-seconds and HTTP-date values.",
+    "OpenAI retry classifier explicitly treats 429/rate limit/too many requests as retryable.",
+    "Rate limit error text preserves retry-after seconds when available.",
+    "Focused tests and cargo check pass.",
+    "selfdev build/reload, governance, commit and push pass."
+  ],
+  "outputPaths": [
+    "src/provider/openai_stream_runtime.rs",
+    "src/provider/openai_tests/transport_runtime.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode openai_retry_after --lib -- --test-threads=1 --nocapture",
+    "cargo test -p jcode openai_rate_limit_retryable --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build --target tui"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "retry_regression",
+    "rate_limit_message_regression"
+  ],
+  "notes": "First implementation slice from issue #27. No new dependencies unless already available; prefer small helpers in OpenAI runtime with unit tests."
+}
