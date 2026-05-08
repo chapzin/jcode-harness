@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Run scoped await no-candidates guidance",
+  "focus": "Improve OpenAI Retry-After handling",
   "status": "done",
-  "activeContractId": "2026-05-08-run-scoped-await-no-candidates-guidance-bbd166",
+  "activeContractId": "2026-05-08-improve-openai-retry-after-handling-833992",
   "counters": {
-    "contracts": 43,
-    "traces": 66,
-    "gates": 42,
-    "verifications": 54,
+    "contracts": 44,
+    "traces": 68,
+    "gates": 43,
+    "verifications": 56,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -135,36 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T11:55:13.996Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-make-swarm-messages-idempotent-9554bf",
-      "summary": "Make swarm messages idempotent"
-    },
-    {
-      "ts": "2026-05-08T12:02:24.975Z",
-      "type": "trace_recorded",
-      "traceId": "trace-2026-05-08-4f9d8872",
-      "contractId": "2026-05-08-make-swarm-messages-idempotent-9554bf",
-      "kind": "failure",
-      "summary": "Initial verification failed due to test-only import path after refactor"
-    },
-    {
-      "ts": "2026-05-08T12:02:31.673Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-abd0c9f5",
-      "contractId": "2026-05-08-make-swarm-messages-idempotent-9554bf",
-      "status": "pass",
-      "summary": "Focused tests, formatting, cargo check, and diff whitespace verification passed for idempotent swarm messages"
-    },
-    {
-      "ts": "2026-05-08T12:02:39.717Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-3d273a54",
-      "contractId": "2026-05-08-make-swarm-messages-idempotent-9554bf",
-      "status": "pass",
-      "summary": "Coordinated self-dev build passed for idempotent swarm messages"
-    },
     {
       "ts": "2026-05-08T12:02:48.201Z",
       "type": "gate_evaluated",
@@ -728,6 +698,35 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-08-run-scoped-await-no-candidates-guidance-bbd166",
       "gateId": "gate-2026-05-08-8492de",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T15:35:25.907Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-improve-openai-retry-after-handling-833992",
+      "summary": "Improve OpenAI Retry-After handling"
+    },
+    {
+      "ts": "2026-05-08T15:40:14.435Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-ea5e3c7f",
+      "contractId": "2026-05-08-improve-openai-retry-after-handling-833992",
+      "status": "pass",
+      "summary": "Focused OpenAI Retry-After and rate-limit retryability verification passed"
+    },
+    {
+      "ts": "2026-05-08T15:41:02.565Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-f13e6ce0",
+      "contractId": "2026-05-08-improve-openai-retry-after-handling-833992",
+      "status": "pass",
+      "summary": "selfdev build and reload passed for OpenAI Retry-After handling slice"
+    },
+    {
+      "ts": "2026-05-08T15:41:24.896Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-improve-openai-retry-after-handling-833992",
+      "gateId": "gate-2026-05-08-43bb88",
       "verdict": "pass"
     }
   ]

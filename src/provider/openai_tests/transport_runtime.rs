@@ -433,6 +433,46 @@ fn test_normalize_transport_model_trims_and_lowercases() {
     assert_eq!(normalize_transport_model("   \t\n  "), None);
 }
 
+#[test]
+fn openai_retry_after_parser_accepts_seconds_and_http_date() {
+    let now = chrono::DateTime::parse_from_rfc3339("2026-05-08T15:00:00Z")
+        .expect("valid fixture time")
+        .with_timezone(&chrono::Utc);
+
+    assert_eq!(parse_retry_after_secs("42", now), Some(42));
+    assert_eq!(parse_retry_after_secs(" 7 ", now), Some(7));
+    assert_eq!(
+        parse_retry_after_secs("Fri, 08 May 2026 15:01:30 GMT", now),
+        Some(90)
+    );
+    assert_eq!(
+        parse_retry_after_secs("Friday, 08-May-26 15:00:05 GMT", now),
+        Some(5)
+    );
+    assert_eq!(
+        parse_retry_after_secs("Fri May  8 14:59:59 2026", now),
+        Some(0),
+        "past Retry-After dates should schedule an immediate retry instead of failing to parse"
+    );
+    assert_eq!(parse_retry_after_secs("not a date", now), None);
+}
+
+#[test]
+fn openai_rate_limit_retryable_patterns_are_explicit() {
+    assert!(is_retryable_error("429 Too Many Requests"));
+    assert!(is_retryable_error("Rate limited (retry after 17s): slow down"));
+    assert!(is_retryable_error("rate_limit_exceeded"));
+    assert!(is_retryable_error("Please reduce your rate limit usage"));
+
+    let message = format_openai_http_error(
+        StatusCode::TOO_MANY_REQUESTS,
+        Some(17),
+        "too many requests",
+    );
+    assert_eq!(message, "Rate limited (retry after 17s): too many requests");
+    assert!(is_retryable_error(&message.to_lowercase()));
+}
+
 #[tokio::test]
 async fn test_record_websocket_success_clears_normalized_keys() {
     let cooldowns = Arc::new(RwLock::new(HashMap::new()));
