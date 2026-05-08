@@ -262,6 +262,7 @@ The first Rust bridge keeps the core event schema canonical:
 - `HarnessGrpcEventFrame` embeds already-redacted `HarnessEvent` JSON and validates protocol/schema/run/event/sequence metadata on decode.
 - `HarnessGrpcControlCommandFrame` embeds the existing `HarnessControlCommand` JSON and validates command name, run id, and write authorization metadata.
 - `HarnessGrpcAgentIdentity` validates agent registration identity, capabilities, protocol version, and event schema version.
+- `HarnessGrpcLocalControlPlane` is the dependency-free local prototype for #23. It lets tests exercise orchestrator/worker registration, task assignment, event upload, command delivery, cancellation, bounded queue backpressure, and disconnect/reconnect behavior using the same gRPC frame structs before a tonic server is introduced.
 
 Future tonic servers should bind to loopback by default, require explicit opt-in for remote exposure, and preserve the existing read/write authorization split before accepting distributed commands.
 

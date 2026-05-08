@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::hint::black_box;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -437,6 +437,50 @@ pub struct HarnessGrpcAgentIdentity {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub capabilities: Vec<String>,
     pub harness_event_schema_version: u16,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct HarnessGrpcTaskAssignment {
+    pub task_id: String,
+    pub run_id: String,
+    pub instructions: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub artifacts: Vec<HarnessGrpcArtifactRef>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HarnessGrpcLocalRegistration {
+    pub agent_id: String,
+    pub run_id: String,
+    pub role: String,
+    pub reconnected: bool,
+    pub connected_workers: usize,
+    pub disconnect_count: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HarnessGrpcLocalWorkerSnapshot {
+    pub identity: HarnessGrpcAgentIdentity,
+    pub connected: bool,
+    pub pending_tasks: usize,
+    pub pending_commands: usize,
+    pub disconnect_count: u64,
+}
+
+#[derive(Clone, Debug)]
+pub struct HarnessGrpcLocalControlPlane {
+    max_queue_depth: usize,
+    workers: HashMap<String, HarnessGrpcLocalWorker>,
+    event_frames: VecDeque<HarnessGrpcEventFrame>,
+}
+
+#[derive(Clone, Debug)]
+struct HarnessGrpcLocalWorker {
+    identity: HarnessGrpcAgentIdentity,
+    connected: bool,
+    task_queue: VecDeque<HarnessGrpcTaskAssignment>,
+    command_queue: VecDeque<HarnessGrpcControlCommandFrame>,
+    disconnect_count: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -1230,6 +1274,288 @@ impl HarnessGrpcAgentIdentity {
         }
         Ok(())
     }
+}
+
+impl HarnessGrpcTaskAssignment {
+    pub fn new(
+        task_id: impl Into<String>,
+        run_id: impl Into<String>,
+        instructions: impl Into<String>,
+    ) -> Self {
+        Self {
+            task_id: task_id.into(),
+            run_id: run_id.into(),
+            instructions: instructions.into(),
+            artifacts: Vec::new(),
+        }
+    }
+
+    pub fn with_artifact(mut self, artifact: HarnessGrpcArtifactRef) -> Self {
+        self.artifacts.push(artifact);
+        self
+    }
+
+    pub fn validate(&self) -> anyhow::Result<()> {
+        require_control_field("task_id", &self.task_id)?;
+        require_control_field("run_id", &self.run_id)?;
+        require_control_field("instructions", &self.instructions)?;
+        for artifact in &self.artifacts {
+            require_control_field("artifact.uri", &artifact.uri)?;
+            validate_optional_control_field("artifact.media_type", &artifact.media_type)?;
+            validate_optional_control_field("artifact.sha256", &artifact.sha256)?;
+        }
+        Ok(())
+    }
+}
+
+impl Default for HarnessGrpcLocalControlPlane {
+    fn default() -> Self {
+        Self::new(DEFAULT_EVENT_BUS_CAPACITY)
+    }
+}
+
+impl HarnessGrpcLocalControlPlane {
+    pub fn new(max_queue_depth: usize) -> Self {
+        Self {
+            max_queue_depth: max_queue_depth.max(1),
+            workers: HashMap::new(),
+            event_frames: VecDeque::new(),
+        }
+    }
+
+    pub fn register_agent(
+        &mut self,
+        identity: HarnessGrpcAgentIdentity,
+    ) -> anyhow::Result<HarnessGrpcLocalRegistration> {
+        identity.validate()?;
+        let agent_id = identity.agent_id.clone();
+        let mut reconnected = false;
+        let disconnect_count;
+
+        if let Some(worker) = self.workers.get_mut(&agent_id) {
+            if worker.connected {
+                anyhow::bail!("gRPC local control-plane agent {agent_id} is already connected");
+            }
+            if worker.identity.run_id != identity.run_id || worker.identity.role != identity.role {
+                anyhow::bail!(
+                    "gRPC local control-plane reconnect identity does not match prior worker"
+                );
+            }
+            worker.identity = identity.clone();
+            worker.connected = true;
+            reconnected = true;
+            disconnect_count = worker.disconnect_count;
+        } else {
+            disconnect_count = 0;
+            self.workers.insert(
+                agent_id.clone(),
+                HarnessGrpcLocalWorker {
+                    identity: identity.clone(),
+                    connected: true,
+                    task_queue: VecDeque::new(),
+                    command_queue: VecDeque::new(),
+                    disconnect_count,
+                },
+            );
+        }
+
+        Ok(HarnessGrpcLocalRegistration {
+            agent_id,
+            run_id: identity.run_id,
+            role: identity.role,
+            reconnected,
+            connected_workers: self.connected_worker_count(),
+            disconnect_count,
+        })
+    }
+
+    pub fn reconnect_agent(
+        &mut self,
+        identity: HarnessGrpcAgentIdentity,
+    ) -> anyhow::Result<HarnessGrpcLocalRegistration> {
+        self.register_agent(identity)
+    }
+
+    pub fn disconnect_agent(
+        &mut self,
+        agent_id: &str,
+    ) -> anyhow::Result<HarnessGrpcLocalWorkerSnapshot> {
+        let worker = self.workers.get_mut(agent_id).ok_or_else(|| {
+            anyhow::anyhow!("gRPC local control-plane agent {agent_id} is unknown")
+        })?;
+        if !worker.connected {
+            anyhow::bail!("gRPC local control-plane agent {agent_id} is already disconnected");
+        }
+        worker.connected = false;
+        worker.disconnect_count = worker.disconnect_count.saturating_add(1);
+        Ok(harness_grpc_local_worker_snapshot(worker))
+    }
+
+    pub fn connected_worker_count(&self) -> usize {
+        self.workers
+            .values()
+            .filter(|worker| worker.connected)
+            .count()
+    }
+
+    pub fn worker_snapshot(&self, agent_id: &str) -> Option<HarnessGrpcLocalWorkerSnapshot> {
+        self.workers
+            .get(agent_id)
+            .map(harness_grpc_local_worker_snapshot)
+    }
+
+    pub fn assign_task(
+        &mut self,
+        agent_id: &str,
+        assignment: HarnessGrpcTaskAssignment,
+    ) -> anyhow::Result<()> {
+        assignment.validate()?;
+        let max_queue_depth = self.max_queue_depth;
+        let worker = self.connected_worker_mut(agent_id)?;
+        if worker.identity.run_id != assignment.run_id {
+            anyhow::bail!("gRPC local control-plane task run_id does not match worker");
+        }
+        ensure_harness_grpc_queue_capacity(
+            worker.task_queue.len(),
+            max_queue_depth,
+            "task assignment",
+        )?;
+        worker.task_queue.push_back(assignment);
+        Ok(())
+    }
+
+    pub fn poll_task(
+        &mut self,
+        agent_id: &str,
+    ) -> anyhow::Result<Option<HarnessGrpcTaskAssignment>> {
+        let worker = self.connected_worker_mut(agent_id)?;
+        Ok(worker.task_queue.pop_front())
+    }
+
+    pub fn upload_event_frame(
+        &mut self,
+        agent_id: &str,
+        frame: HarnessGrpcEventFrame,
+    ) -> anyhow::Result<()> {
+        let event = harness_event_from_grpc_event_frame(&frame)?;
+        let worker = self.connected_worker(agent_id)?;
+        if worker.identity.run_id != event.run_id {
+            anyhow::bail!("gRPC local control-plane event run_id does not match worker");
+        }
+        ensure_harness_grpc_queue_capacity(
+            self.event_frames.len(),
+            self.max_queue_depth,
+            "event upload",
+        )?;
+        self.event_frames.push_back(frame);
+        Ok(())
+    }
+
+    pub fn drain_event_frames(&mut self) -> Vec<HarnessGrpcEventFrame> {
+        self.event_frames.drain(..).collect()
+    }
+
+    pub fn drain_events(&mut self) -> anyhow::Result<Vec<HarnessEvent>> {
+        self.event_frames
+            .drain(..)
+            .map(|frame| harness_event_from_grpc_event_frame(&frame))
+            .collect()
+    }
+
+    pub fn send_command_frame(
+        &mut self,
+        agent_id: &str,
+        frame: HarnessGrpcControlCommandFrame,
+    ) -> anyhow::Result<()> {
+        let command = harness_control_command_from_grpc_frame(&frame)?;
+        let max_queue_depth = self.max_queue_depth;
+        let worker = self.connected_worker_mut(agent_id)?;
+        if worker.identity.run_id != command.run_id() {
+            anyhow::bail!("gRPC local control-plane command run_id does not match worker");
+        }
+        ensure_harness_grpc_queue_capacity(
+            worker.command_queue.len(),
+            max_queue_depth,
+            "control command",
+        )?;
+        worker.command_queue.push_back(frame);
+        Ok(())
+    }
+
+    pub fn cancel_run(
+        &mut self,
+        agent_id: &str,
+        run_id: impl Into<String>,
+        actor: Option<String>,
+        reason: Option<String>,
+        client_command_id: Option<String>,
+    ) -> anyhow::Result<HarnessGrpcControlCommandFrame> {
+        let command = HarnessControlCommand::CancelRun {
+            run_id: run_id.into(),
+            actor,
+            reason,
+            client_command_id,
+        };
+        let frame = harness_grpc_control_command_frame(&command)?;
+        self.send_command_frame(agent_id, frame.clone())?;
+        Ok(frame)
+    }
+
+    pub fn poll_command_frame(
+        &mut self,
+        agent_id: &str,
+    ) -> anyhow::Result<Option<HarnessGrpcControlCommandFrame>> {
+        let worker = self.connected_worker_mut(agent_id)?;
+        Ok(worker.command_queue.pop_front())
+    }
+
+    fn connected_worker(&self, agent_id: &str) -> anyhow::Result<&HarnessGrpcLocalWorker> {
+        let worker = self.workers.get(agent_id).ok_or_else(|| {
+            anyhow::anyhow!("gRPC local control-plane agent {agent_id} is unknown")
+        })?;
+        if !worker.connected {
+            anyhow::bail!("gRPC local control-plane agent {agent_id} is disconnected");
+        }
+        Ok(worker)
+    }
+
+    fn connected_worker_mut(
+        &mut self,
+        agent_id: &str,
+    ) -> anyhow::Result<&mut HarnessGrpcLocalWorker> {
+        let worker = self.workers.get_mut(agent_id).ok_or_else(|| {
+            anyhow::anyhow!("gRPC local control-plane agent {agent_id} is unknown")
+        })?;
+        if !worker.connected {
+            anyhow::bail!("gRPC local control-plane agent {agent_id} is disconnected");
+        }
+        Ok(worker)
+    }
+}
+
+fn harness_grpc_local_worker_snapshot(
+    worker: &HarnessGrpcLocalWorker,
+) -> HarnessGrpcLocalWorkerSnapshot {
+    HarnessGrpcLocalWorkerSnapshot {
+        identity: worker.identity.clone(),
+        connected: worker.connected,
+        pending_tasks: worker.task_queue.len(),
+        pending_commands: worker.command_queue.len(),
+        disconnect_count: worker.disconnect_count,
+    }
+}
+
+fn ensure_harness_grpc_queue_capacity(
+    len: usize,
+    max_queue_depth: usize,
+    queue_name: &str,
+) -> anyhow::Result<()> {
+    if len >= max_queue_depth {
+        anyhow::bail!(
+            "gRPC local control-plane backpressure: {queue_name} queue is full ({len}/{max_queue_depth})"
+        );
+    }
+    Ok(())
 }
 
 pub fn harness_grpc_event_frame(event: &HarnessEvent) -> anyhow::Result<HarnessGrpcEventFrame> {
@@ -3943,6 +4269,221 @@ mod tests {
                 .to_string()
                 .contains("role must not be empty")
         );
+    }
+
+    #[test]
+    fn grpc_local_prototype_exchanges_task_event_and_command_frames() {
+        let mut control_plane = HarnessGrpcLocalControlPlane::new(4);
+        let identity = HarnessGrpcAgentIdentity::new("agent-local", "run_local", "worker")
+            .with_capability("events")
+            .with_capability("tasks");
+        let registration = control_plane.register_agent(identity).unwrap();
+
+        assert!(!registration.reconnected);
+        assert_eq!(registration.connected_workers, 1);
+
+        let assignment = HarnessGrpcTaskAssignment::new(
+            "task-local-1",
+            "run_local",
+            "run focused harness event validation",
+        )
+        .with_artifact(HarnessGrpcArtifactRef::new("file://plan.md"));
+        control_plane
+            .assign_task("agent-local", assignment.clone())
+            .unwrap();
+
+        assert_eq!(
+            control_plane
+                .worker_snapshot("agent-local")
+                .unwrap()
+                .pending_tasks,
+            1
+        );
+        assert_eq!(
+            control_plane.poll_task("agent-local").unwrap(),
+            Some(assignment)
+        );
+
+        let event = HarnessEvent::new(
+            "hevt_grpc_local",
+            "run_local",
+            DateTime::parse_from_rfc3339("2026-05-08T06:39:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            21,
+            HarnessEventLevel::Info,
+            HarnessEventKind::ToolFinished,
+            json!({"tool": "cargo test", "status": "ok", "token": "sk-local-redacted"}),
+        );
+        control_plane
+            .upload_event_frame("agent-local", harness_grpc_event_frame(&event).unwrap())
+            .unwrap();
+        let drained = control_plane.drain_events().unwrap();
+        assert_eq!(drained.len(), 1);
+        assert_eq!(drained[0].event_id, "hevt_grpc_local");
+        assert_eq!(drained[0].payload["token"], HARNESS_EVENT_REDACTED);
+
+        let command = HarnessControlCommand::ResumeRun {
+            run_id: "run_local".to_string(),
+            actor: Some("orchestrator".to_string()),
+            reason: Some("prototype smoke".to_string()),
+            client_command_id: Some("cmd-resume-local".to_string()),
+        };
+        control_plane
+            .send_command_frame(
+                "agent-local",
+                harness_grpc_control_command_frame(&command).unwrap(),
+            )
+            .unwrap();
+        let command_frame = control_plane
+            .poll_command_frame("agent-local")
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            harness_control_command_from_grpc_frame(&command_frame).unwrap(),
+            command
+        );
+    }
+
+    #[test]
+    fn grpc_local_prototype_applies_backpressure_and_cancel_command() {
+        let mut control_plane = HarnessGrpcLocalControlPlane::new(1);
+        control_plane
+            .register_agent(HarnessGrpcAgentIdentity::new(
+                "agent-backpressure",
+                "run_backpressure",
+                "worker",
+            ))
+            .unwrap();
+
+        let first = HarnessEvent::new(
+            "hevt_backpressure_1",
+            "run_backpressure",
+            DateTime::parse_from_rfc3339("2026-05-08T06:40:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            1,
+            HarnessEventLevel::Info,
+            HarnessEventKind::ToolFinished,
+            json!({"status": "first"}),
+        );
+        let second = HarnessEvent::new(
+            "hevt_backpressure_2",
+            "run_backpressure",
+            DateTime::parse_from_rfc3339("2026-05-08T06:40:01Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            2,
+            HarnessEventLevel::Info,
+            HarnessEventKind::ToolFinished,
+            json!({"status": "second"}),
+        );
+
+        control_plane
+            .upload_event_frame(
+                "agent-backpressure",
+                harness_grpc_event_frame(&first).unwrap(),
+            )
+            .unwrap();
+        let err = control_plane
+            .upload_event_frame(
+                "agent-backpressure",
+                harness_grpc_event_frame(&second).unwrap(),
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("backpressure"));
+        assert_eq!(control_plane.drain_event_frames().len(), 1);
+
+        let cancel = control_plane
+            .cancel_run(
+                "agent-backpressure",
+                "run_backpressure",
+                Some("orchestrator".to_string()),
+                Some("test cancellation".to_string()),
+                Some("cmd-cancel-backpressure".to_string()),
+            )
+            .unwrap();
+        assert_eq!(cancel.command_name, "cancel_run");
+        assert!(cancel.requires_write_authorization);
+        let err = control_plane
+            .cancel_run(
+                "agent-backpressure",
+                "run_backpressure",
+                Some("orchestrator".to_string()),
+                Some("queue should be full".to_string()),
+                Some("cmd-cancel-overflow".to_string()),
+            )
+            .unwrap_err();
+        assert!(err.to_string().contains("backpressure"));
+
+        let queued = control_plane
+            .poll_command_frame("agent-backpressure")
+            .unwrap()
+            .unwrap();
+        assert!(matches!(
+            harness_control_command_from_grpc_frame(&queued).unwrap(),
+            HarnessControlCommand::CancelRun { .. }
+        ));
+    }
+
+    #[test]
+    fn grpc_local_prototype_disconnects_and_reconnects_worker() {
+        let mut control_plane = HarnessGrpcLocalControlPlane::new(2);
+        let identity = HarnessGrpcAgentIdentity::new("agent-reconnect", "run_reconnect", "worker")
+            .with_capability("events");
+        control_plane.register_agent(identity.clone()).unwrap();
+        control_plane
+            .assign_task(
+                "agent-reconnect",
+                HarnessGrpcTaskAssignment::new("task-persist", "run_reconnect", "persist me"),
+            )
+            .unwrap();
+
+        let disconnected = control_plane.disconnect_agent("agent-reconnect").unwrap();
+        assert!(!disconnected.connected);
+        assert_eq!(disconnected.pending_tasks, 1);
+        assert_eq!(disconnected.disconnect_count, 1);
+
+        let event = HarnessEvent::new(
+            "hevt_after_disconnect",
+            "run_reconnect",
+            DateTime::parse_from_rfc3339("2026-05-08T06:41:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            7,
+            HarnessEventLevel::Warn,
+            HarnessEventKind::RunFailed,
+            json!({"status": "disconnected"}),
+        );
+        let err = control_plane
+            .upload_event_frame("agent-reconnect", harness_grpc_event_frame(&event).unwrap())
+            .unwrap_err();
+        assert!(err.to_string().contains("disconnected"));
+
+        let reconnected = control_plane
+            .reconnect_agent(identity.with_capability("reconnected"))
+            .unwrap();
+        assert!(reconnected.reconnected);
+        assert_eq!(reconnected.disconnect_count, 1);
+        assert_eq!(control_plane.connected_worker_count(), 1);
+        assert_eq!(
+            control_plane
+                .poll_task("agent-reconnect")
+                .unwrap()
+                .unwrap()
+                .task_id,
+            "task-persist"
+        );
+
+        control_plane.disconnect_agent("agent-reconnect").unwrap();
+        let err = control_plane
+            .reconnect_agent(HarnessGrpcAgentIdentity::new(
+                "agent-reconnect",
+                "run_changed",
+                "worker",
+            ))
+            .unwrap_err();
+        assert!(err.to_string().contains("identity does not match"));
     }
 
     #[test]
