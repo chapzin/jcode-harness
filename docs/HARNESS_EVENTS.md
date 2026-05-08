@@ -188,6 +188,8 @@ Broker messages use a versioned envelope from `serialize_harness_event_broker_pa
 
 `HarnessEventFanoutSink` composes that policy directly: it writes local NDJSON/audit evidence first, then attempts broker publish. Normal mode captures broker failure in `HarnessEventFanoutReport` without losing the local proof; strict mode can return an error after the local write has succeeded.
 
+`HarnessEventRedisStreamSink` is the first real optional adapter behind `--features harness-events-redis`. It uses Redis Streams `XADD`, maps Redis stream ids to `HarnessEventSinkAck.message_id`, and keeps the default build free of Redis dependencies.
+
 ## SSE protocol core
 
 The first SSE slice is transport-neutral framing for future local dashboard endpoints. A `HarnessEvent` maps to a Server-Sent Events message as:

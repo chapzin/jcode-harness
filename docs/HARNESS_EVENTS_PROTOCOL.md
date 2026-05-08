@@ -236,6 +236,7 @@ Current local implementations:
 - `HarnessEventNdjsonSink` and `HarnessEventNdjsonSource` provide the local fallback every broker-backed path should preserve.
 - `HarnessEventMemoryBroker` is the dependency-free adapter harness for tests and future adapter development: it serializes through the broker envelope, exposes delivery metadata, tracks ack outcomes, and can redeliver unacked messages with incremented attempts.
 - `HarnessEventFanoutSink` enforces the outage policy for future adapters: write local audit evidence first, publish to the broker second, and record broker failure as non-fatal evidence unless strict mode is explicitly enabled.
+- `HarnessEventRedisStreamSink` is available behind `--features harness-events-redis`; it publishes the broker envelope to Redis Streams with `XADD`, using the derived stream key and storing searchable fields such as `event_id`, `run_id`, `dedupe_key`, `schema_version`, `kind`, and `level` beside the JSON payload.
 
 Route mapping for future adapters:
 
@@ -258,6 +259,7 @@ Broker payload and ack contract:
 - Redis `XADD` id should map to `message_id`; `XACK` only applies when consumer groups are used.
 - The memory broker is not durable and should not be used as audit evidence; use it to verify adapter-independent publish/consume/ack behavior before wiring NATS or Redis.
 - Broker fanout must never delete or rewrite local NDJSON evidence. In normal mode broker publish errors are captured in `HarnessEventFanoutReport.broker_error`; strict mode may return an error after the local write has already succeeded.
+- Redis support remains opt-in. The default build has no Redis dependency, and Redis integration tests should be gated on both the cargo feature and an explicit broker URL environment variable.
 
 ## WebSocket control command core
 

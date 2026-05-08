@@ -365,6 +365,22 @@ pub struct HarnessEventFanoutReport {
     pub broker_error: Option<String>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct HarnessEventRedisStreamEntry {
+    pub stream_key: String,
+    pub id: String,
+    pub fields: Vec<(String, String)>,
+}
+
+impl HarnessEventRedisStreamEntry {
+    pub fn field(&self, name: &str) -> Option<&str> {
+        self.fields
+            .iter()
+            .find(|(field, _)| field == name)
+            .map(|(_, value)| value.as_str())
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct HarnessEventFanoutSink<L, B> {
     name: String,
@@ -372,6 +388,22 @@ pub struct HarnessEventFanoutSink<L, B> {
     broker_sink: B,
     fail_on_broker_error: bool,
     last_report: Option<HarnessEventFanoutReport>,
+}
+
+#[cfg(feature = "harness-events-redis")]
+pub struct HarnessEventRedisStreamSink {
+    name: String,
+    connection: redis::Connection,
+}
+
+#[cfg(feature = "harness-events-redis")]
+impl std::fmt::Debug for HarnessEventRedisStreamSink {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HarnessEventRedisStreamSink")
+            .field("name", &self.name)
+            .field("connection", &"<redis::Connection>")
+            .finish()
+    }
 }
 
 impl HarnessEventNdjsonSource {
@@ -567,6 +599,26 @@ where
 
         self.last_report = Some(report.clone());
         Ok(report)
+    }
+}
+
+#[cfg(feature = "harness-events-redis")]
+impl HarnessEventRedisStreamSink {
+    pub fn new(connection: redis::Connection) -> Self {
+        Self::with_name("redis-streams", connection)
+    }
+
+    pub fn with_name(name: impl Into<String>, connection: redis::Connection) -> Self {
+        Self {
+            name: name.into(),
+            connection,
+        }
+    }
+
+    pub fn from_url(url: &str) -> anyhow::Result<Self> {
+        let client = redis::Client::open(url)?;
+        let connection = client.get_connection()?;
+        Ok(Self::new(connection))
     }
 }
 
@@ -1263,6 +1315,30 @@ where
     }
 }
 
+#[cfg(feature = "harness-events-redis")]
+impl HarnessEventSink for HarnessEventRedisStreamSink {
+    fn sink_name(&self) -> &str {
+        &self.name
+    }
+
+    fn publish_event(&mut self, event: &HarnessEvent) -> anyhow::Result<HarnessEventSinkAck> {
+        let entry = harness_event_redis_stream_entry(event)?;
+        let mut command = redis::cmd("XADD");
+        command.arg(&entry.stream_key).arg(&entry.id);
+        for (field, value) in &entry.fields {
+            command.arg(field).arg(value);
+        }
+        let message_id: String = command.query(&mut self.connection)?;
+        Ok(HarnessEventSinkAck {
+            sink: self.sink_name().to_string(),
+            durable: true,
+            event_id: event.event_id.clone(),
+            run_id: event.run_id.clone(),
+            message_id: Some(message_id),
+        })
+    }
+}
+
 fn redact_harness_event_error_message(error: impl std::fmt::Display) -> String {
     let message = error.to_string();
     let redacted = message
@@ -1299,6 +1375,33 @@ fn redact_harness_event_error_message(error: impl std::fmt::Display) -> String {
     } else {
         redacted
     }
+}
+
+pub fn harness_event_redis_stream_entry(
+    event: &HarnessEvent,
+) -> anyhow::Result<HarnessEventRedisStreamEntry> {
+    let route = harness_event_broker_route(event);
+    let envelope = harness_event_broker_envelope(event);
+    let payload = serde_json::to_string(&envelope)?;
+    Ok(HarnessEventRedisStreamEntry {
+        stream_key: route.redis_stream_key,
+        id: "*".to_string(),
+        fields: vec![
+            ("payload".to_string(), payload),
+            ("event_id".to_string(), envelope.event.event_id.clone()),
+            ("run_id".to_string(), envelope.event.run_id.clone()),
+            ("dedupe_key".to_string(), envelope.dedupe_key),
+            (
+                "schema_version".to_string(),
+                envelope.event.schema_version.to_string(),
+            ),
+            ("kind".to_string(), event_label(&envelope.event.kind)),
+            (
+                "level".to_string(),
+                format!("{:?}", envelope.event.level).to_ascii_lowercase(),
+            ),
+        ],
+    })
 }
 
 impl HarnessEventSource for HarnessEventMemoryBroker {
@@ -3384,6 +3487,66 @@ mod tests {
         assert_eq!(ack.event_id, "hevt_delivery");
         assert_eq!(ack.message_id.as_deref(), Some("nats:42"));
         assert_eq!(ack.detail.as_deref(), Some("processed"));
+    }
+
+    #[test]
+    fn redis_stream_entry_maps_event_to_xadd_fields_without_secrets() {
+        let event = HarnessEvent::new(
+            "hevt_redis",
+            "run/redis:prod",
+            DateTime::parse_from_rfc3339("2026-05-08T05:54:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            3,
+            HarnessEventLevel::Warn,
+            HarnessEventKind::ToolFinished,
+            json!({"task_id": "task.redis", "api_key": "sk-should-not-leak", "status": "ok"}),
+        );
+
+        let entry = harness_event_redis_stream_entry(&event).unwrap();
+        let payload = entry.field("payload").unwrap();
+        let envelope = serde_json::from_str::<HarnessEventBrokerEnvelope>(payload).unwrap();
+
+        assert_eq!(entry.id, "*");
+        assert!(entry.stream_key.starts_with("jcode:harness-events:v1:run:"));
+        assert!(!entry.stream_key.contains("run/redis:prod"));
+        assert_eq!(entry.field("event_id"), Some("hevt_redis"));
+        assert_eq!(entry.field("run_id"), Some("run/redis:prod"));
+        assert_eq!(entry.field("dedupe_key"), Some("v1:hevt_redis"));
+        assert_eq!(entry.field("schema_version"), Some("1"));
+        assert_eq!(entry.field("kind"), Some("tool_finished"));
+        assert_eq!(entry.field("level"), Some("warn"));
+        assert_eq!(envelope.event.payload["api_key"], HARNESS_EVENT_REDACTED);
+        assert!(!payload.contains("sk-should-not-leak"));
+    }
+
+    #[test]
+    fn redis_stream_entry_uses_same_route_key_as_broker_route() {
+        let event = HarnessEvent::new(
+            "hevt_redis_route",
+            "run redis route",
+            DateTime::parse_from_rfc3339("2026-05-08T05:55:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            7,
+            HarnessEventLevel::Info,
+            HarnessEventKind::RunCompleted,
+            json!({"status": "ok"}),
+        )
+        .with_session_id("session redis");
+        let route = harness_event_broker_route(&event);
+        let entry = harness_event_redis_stream_entry(&event).unwrap();
+
+        assert_eq!(entry.stream_key, route.redis_stream_key);
+        assert!(entry.stream_key.contains(":session:"));
+        assert_eq!(
+            entry
+                .fields
+                .iter()
+                .filter(|(key, _)| key == "payload")
+                .count(),
+            1
+        );
     }
 
     #[test]

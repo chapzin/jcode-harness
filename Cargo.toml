@@ -171,6 +171,7 @@ jcode-tui-workspace = { path = "crates/jcode-tui-workspace" }
 jcode-usage-types = { path = "crates/jcode-usage-types" }
 
 # Streaming
+redis = { version = "1", default-features = false, features = ["streams"], optional = true }
 tokio-stream = "0.1"
 bytes = "1"
 
@@ -240,6 +241,7 @@ jemalloc-prof = [
 ]
 embeddings = ["dep:jcode-embedding"]
 pdf = ["dep:jcode-pdf"]
+harness-events-redis = ["dep:redis"]
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Threading"] }
