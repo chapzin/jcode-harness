@@ -58,6 +58,7 @@ fn member(
             detail: None,
             friendly_name: Some(session_id.to_string()),
             report_back_to_session_id: None,
+            run_id: None,
             latest_completion_report: None,
             role: role.to_string(),
             joined_at: Instant::now(),
@@ -197,6 +198,7 @@ async fn register_visible_spawned_member_marks_startup_as_running() {
         Some("/tmp/worktree"),
         true,
         Some("owner"),
+        Some("run-visible"),
         &swarm_members,
         &swarms_by_id,
         &event_history,
@@ -210,6 +212,7 @@ async fn register_visible_spawned_member_marks_startup_as_running() {
     assert_eq!(member.status, "running");
     assert_eq!(member.detail.as_deref(), Some("startup queued"));
     assert_eq!(member.swarm_id.as_deref(), Some("swarm-1"));
+    assert_eq!(member.run_id.as_deref(), Some("run-visible"));
     assert_eq!(
         member.working_dir.as_deref(),
         Some(std::path::Path::new("/tmp/worktree"))

@@ -155,6 +155,7 @@ fn test_comm_members_roundtrip_includes_status() -> Result<()> {
             role: Some("agent".to_string()),
             is_headless: Some(true),
             report_back_to_session_id: Some("sess-coord".to_string()),
+            run_id: Some("run-proto".to_string()),
             latest_completion_report: Some("Done.".to_string()),
             live_attachments: Some(0),
             status_age_secs: Some(12),
@@ -180,6 +181,7 @@ fn test_comm_members_roundtrip_includes_status() -> Result<()> {
         Some("sess-coord")
     );
     assert_eq!(members[0].latest_completion_report.as_deref(), Some("Done."));
+    assert_eq!(members[0].run_id.as_deref(), Some("run-proto"));
     assert_eq!(members[0].live_attachments, Some(0));
     assert_eq!(members[0].status_age_secs, Some(12));
     Ok(())

@@ -336,6 +336,7 @@ async fn handle_lightweight_control_request(
             working_dir,
             initial_message,
             request_nonce,
+            run_id,
         } => {
             handle_comm_spawn(
                 id,
@@ -343,6 +344,7 @@ async fn handle_lightweight_control_request(
                 working_dir,
                 initial_message,
                 request_nonce,
+                run_id,
                 &client_event_tx,
                 sessions,
                 global_session_id,
@@ -565,6 +567,7 @@ async fn handle_lightweight_control_request(
             prefer_spawn,
             spawn_if_needed,
             message,
+            run_id,
         } => {
             handle_comm_assign_next(
                 id,
@@ -574,6 +577,7 @@ async fn handle_lightweight_control_request(
                 prefer_spawn,
                 spawn_if_needed,
                 message,
+                run_id,
                 &client_event_tx,
                 sessions,
                 global_session_id,
@@ -2146,6 +2150,7 @@ pub(super) async fn handle_client(
                 working_dir,
                 initial_message,
                 request_nonce,
+                run_id,
             } => {
                 handle_comm_spawn(
                     id,
@@ -2153,6 +2158,7 @@ pub(super) async fn handle_client(
                     working_dir,
                     initial_message,
                     request_nonce,
+                    run_id,
                     &client_event_tx,
                     &sessions,
                     &global_session_id,
@@ -2385,6 +2391,7 @@ pub(super) async fn handle_client(
                 prefer_spawn,
                 spawn_if_needed,
                 message,
+                run_id,
             } => {
                 handle_comm_assign_next(
                     id,
@@ -2394,6 +2401,7 @@ pub(super) async fn handle_client(
                     prefer_spawn,
                     spawn_if_needed,
                     message,
+                    run_id,
                     &client_event_tx,
                     &sessions,
                     &global_session_id,

@@ -78,6 +78,16 @@ fn communicate_input_accepts_cleanup_lifecycle_flags() {
 }
 
 #[test]
+fn communicate_input_accepts_run_id() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "run_plan",
+        "run_id": "run-explicit-1"
+    }))
+    .expect("run_id should deserialize");
+    assert_eq!(parsed.run_id.as_deref(), Some("run-explicit-1"));
+}
+
+#[test]
 fn cleanup_candidates_default_to_owned_terminal_workers() {
     let members = vec![
         AgentInfo {
@@ -89,6 +99,7 @@ fn cleanup_candidates_default_to_owned_terminal_workers() {
             role: Some("coordinator".to_string()),
             is_headless: None,
             report_back_to_session_id: None,
+            run_id: None,
             latest_completion_report: None,
             live_attachments: None,
             status_age_secs: None,
@@ -102,6 +113,7 @@ fn cleanup_candidates_default_to_owned_terminal_workers() {
             role: Some("agent".to_string()),
             is_headless: Some(true),
             report_back_to_session_id: Some("coord".to_string()),
+            run_id: None,
             latest_completion_report: None,
             live_attachments: None,
             status_age_secs: None,
@@ -115,6 +127,7 @@ fn cleanup_candidates_default_to_owned_terminal_workers() {
             role: Some("agent".to_string()),
             is_headless: None,
             report_back_to_session_id: None,
+            run_id: None,
             latest_completion_report: None,
             live_attachments: None,
             status_age_secs: None,
@@ -128,6 +141,7 @@ fn cleanup_candidates_default_to_owned_terminal_workers() {
             role: Some("agent".to_string()),
             is_headless: Some(true),
             report_back_to_session_id: Some("coord".to_string()),
+            run_id: None,
             latest_completion_report: None,
             live_attachments: None,
             status_age_secs: None,
@@ -157,6 +171,7 @@ fn format_swarm_health_summarizes_freshness_and_stale_members() {
             role: Some("coordinator".to_string()),
             is_headless: Some(false),
             report_back_to_session_id: None,
+            run_id: None,
             latest_completion_report: None,
             live_attachments: Some(1),
             status_age_secs: Some(1),
@@ -170,6 +185,7 @@ fn format_swarm_health_summarizes_freshness_and_stale_members() {
             role: Some("agent".to_string()),
             is_headless: Some(true),
             report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
             latest_completion_report: None,
             live_attachments: Some(0),
             status_age_secs: Some(3),
@@ -183,6 +199,7 @@ fn format_swarm_health_summarizes_freshness_and_stale_members() {
             role: Some("agent".to_string()),
             is_headless: Some(true),
             report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
             latest_completion_report: None,
             live_attachments: Some(0),
             status_age_secs: Some(10),
@@ -196,6 +213,7 @@ fn format_swarm_health_summarizes_freshness_and_stale_members() {
             role: Some("coordinator".to_string()),
             is_headless: Some(false),
             report_back_to_session_id: None,
+            run_id: None,
             latest_completion_report: None,
             live_attachments: Some(0),
             status_age_secs: Some(99),
@@ -215,6 +233,7 @@ fn format_swarm_health_summarizes_freshness_and_stale_members() {
     assert!(output.contains("server listener pid(s): 1234"));
     assert!(output.contains("members: total=4 owned=2 owned_active=1 owned_terminal=1 stale=1 foreign=1"));
     assert!(output.contains("statuses: crashed=1, ready=1, running=2"));
+    assert!(output.contains("runs: run-current=2"));
     assert!(output.contains("scoped await default: 1 active owned candidate(s)"));
     assert!(output.contains("owned terminal members: done(ready)"));
     assert!(output.contains("stale members: old-coord(crashed)"));
@@ -270,6 +289,7 @@ fn format_members_includes_status_and_detail() {
             role: Some("agent".to_string()),
             is_headless: Some(true),
             report_back_to_session_id: Some("sess-self".to_string()),
+            run_id: None,
             latest_completion_report: None,
             live_attachments: Some(0),
             status_age_secs: Some(12),
@@ -303,6 +323,7 @@ fn format_members_disambiguates_duplicate_friendly_names() {
                 role: Some("agent".to_string()),
                 is_headless: None,
                 report_back_to_session_id: None,
+                run_id: None,
                 latest_completion_report: None,
                 live_attachments: None,
                 status_age_secs: None,
@@ -316,6 +337,7 @@ fn format_members_disambiguates_duplicate_friendly_names() {
                 role: Some("agent".to_string()),
                 is_headless: None,
                 report_back_to_session_id: None,
+                run_id: None,
                 latest_completion_report: None,
                 live_attachments: None,
                 status_age_secs: None,

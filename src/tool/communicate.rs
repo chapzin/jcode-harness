@@ -33,6 +33,14 @@ fn fresh_spawn_request_nonce(ctx: &ToolContext) -> String {
     format!("{}-{}-{}", ctx.session_id, ctx.message_id, now_ms)
 }
 
+fn fresh_swarm_run_id(ctx: &ToolContext) -> String {
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    format!("run-{}-{}-{}", ctx.session_id, ctx.tool_call_id, now_ms)
+}
+
 fn check_error(response: &ServerEvent) -> Option<&str> {
     if let ServerEvent::Error { message, .. } = response {
         Some(message)
@@ -232,6 +240,10 @@ async fn run_swarm_plan_to_terminal(
     let timeout_minutes = params.timeout_minutes.unwrap_or(60).max(1);
     let retain_agents = params.retain_agents.unwrap_or(false);
     let spawn_if_needed = params.spawn_if_needed.or(Some(true));
+    let run_id = params
+        .run_id
+        .clone()
+        .unwrap_or_else(|| fresh_swarm_run_id(ctx));
     let mut assignment_count = 0usize;
     let mut loop_count = 0usize;
     let max_loops = 200usize;
@@ -284,6 +296,7 @@ async fn run_swarm_plan_to_terminal(
                 prefer_spawn: params.prefer_spawn,
                 spawn_if_needed,
                 message: params.message.clone(),
+                run_id: Some(run_id.clone()),
             };
             match send_request(request).await {
                 Ok(ServerEvent::CommAssignTaskResponse { target_session, .. }) => {
@@ -326,13 +339,18 @@ async fn run_swarm_plan_to_terminal(
     }
 }
 
-async fn spawn_assignment_session(ctx: &ToolContext, params: &CommunicateInput) -> Result<String> {
+async fn spawn_assignment_session(
+    ctx: &ToolContext,
+    params: &CommunicateInput,
+    run_id: Option<String>,
+) -> Result<String> {
     let spawn_request = Request::CommSpawn {
         id: REQUEST_ID,
         session_id: ctx.session_id.clone(),
         working_dir: params.working_dir.clone(),
         initial_message: None,
         request_nonce: Some(fresh_spawn_request_nonce(ctx)),
+        run_id,
     };
 
     match send_request(spawn_request).await {
@@ -513,6 +531,7 @@ fn format_swarm_health(
 ) -> ToolOutput {
     let mut statuses = BTreeMap::<String, usize>::new();
     let mut roles = BTreeMap::<String, usize>::new();
+    let mut runs = BTreeMap::<String, usize>::new();
     let mut owned = 0usize;
     let mut owned_active = 0usize;
     let mut owned_terminal = 0usize;
@@ -527,6 +546,9 @@ fn format_swarm_health(
         *roles
             .entry(member.role.as_deref().unwrap_or("unknown").to_string())
             .or_default() += 1;
+        if let Some(run_id) = member.run_id.as_deref() {
+            *runs.entry(run_id.to_string()).or_default() += 1;
+        }
 
         let is_self = member.session_id == ctx.session_id;
         let is_owned = health_is_owned_by(member, &ctx.session_id);
@@ -559,6 +581,11 @@ fn format_swarm_health(
     let role_summary = roles
         .into_iter()
         .map(|(role, count)| format!("{role}={count}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let run_summary = runs
+        .into_iter()
+        .map(|(run_id, count)| format!("{run_id}={count}"))
         .collect::<Vec<_>>()
         .join(", ");
     let pid_summary = if listener_pids.is_empty() {
@@ -603,6 +630,15 @@ fn format_swarm_health(
             "none"
         } else {
             &role_summary
+        }
+    );
+    let _ = writeln!(
+        output,
+        "- runs: {}",
+        if run_summary.is_empty() {
+            "none"
+        } else {
+            &run_summary
         }
     );
     let _ = writeln!(
@@ -742,6 +778,8 @@ struct CommunicateInput {
     #[serde(default)]
     retain_agents: Option<bool>,
     #[serde(default)]
+    run_id: Option<String>,
+    #[serde(default)]
     status: Option<String>,
     #[serde(default)]
     validation: Option<String>,
@@ -875,6 +913,10 @@ impl Tool for CommunicateTool {
                 "retain_agents": {
                     "type": "boolean",
                     "description": "For run_plan: keep spawned workers after the plan reaches a terminal state. Defaults to false, so owned workers are cleaned up."
+                },
+                "run_id": {
+                    "type": "string",
+                    "description": "Optional run/generation id for spawned workers. run_plan and fill_slots generate one when omitted so workers from the same orchestration run can be diagnosed together."
                 },
                 "wake": {
                     "type": "boolean",
@@ -1204,6 +1246,10 @@ impl Tool for CommunicateTool {
                     working_dir: params.working_dir.clone(),
                     initial_message: params.spawn_initial_message(),
                     request_nonce: None,
+                    run_id: params
+                        .run_id
+                        .clone()
+                        .or_else(|| Some(fresh_swarm_run_id(&ctx))),
                 };
 
                 match send_request(request).await {
@@ -1408,7 +1454,15 @@ impl Tool for CommunicateTool {
                 let prefer_spawn = params.prefer_spawn.unwrap_or(false);
 
                 if prefer_spawn && params.target_session.is_none() {
-                    let spawned_session = spawn_assignment_session(&ctx, &params).await?;
+                    let spawned_session = spawn_assignment_session(
+                        &ctx,
+                        &params,
+                        params
+                            .run_id
+                            .clone()
+                            .or_else(|| Some(fresh_swarm_run_id(&ctx))),
+                    )
+                    .await?;
                     return assign_task_to_session(
                         &ctx,
                         &params,
@@ -1444,7 +1498,15 @@ impl Tool for CommunicateTool {
                             && params.target_session.is_none()
                             && auto_assignment_needs_spawn(&response) =>
                     {
-                        let spawned_session = spawn_assignment_session(&ctx, &params).await?;
+                        let spawned_session = spawn_assignment_session(
+                            &ctx,
+                            &params,
+                            params
+                                .run_id
+                                .clone()
+                                .or_else(|| Some(fresh_swarm_run_id(&ctx))),
+                        )
+                        .await?;
                         assign_task_to_session(
                             &ctx,
                             &params,
@@ -1479,6 +1541,11 @@ impl Tool for CommunicateTool {
                     prefer_spawn: params.prefer_spawn,
                     spawn_if_needed: params.spawn_if_needed,
                     message: params.message.clone(),
+                    run_id: params.run_id.clone().or_else(|| {
+                        (params.prefer_spawn.unwrap_or(false)
+                            || params.spawn_if_needed.unwrap_or(false))
+                        .then(|| fresh_swarm_run_id(&ctx))
+                    }),
                 };
 
                 match send_request(request).await {
@@ -1518,6 +1585,10 @@ impl Tool for CommunicateTool {
 
                 let mut assignments = Vec::new();
                 let available_slots = concurrency_limit.saturating_sub(active_count);
+                let run_id = params
+                    .run_id
+                    .clone()
+                    .or_else(|| Some(fresh_swarm_run_id(&ctx)));
                 for _ in 0..available_slots {
                     let request = Request::CommAssignNext {
                         id: REQUEST_ID,
@@ -1527,6 +1598,7 @@ impl Tool for CommunicateTool {
                         prefer_spawn: params.prefer_spawn,
                         spawn_if_needed: params.spawn_if_needed,
                         message: params.message.clone(),
+                        run_id: run_id.clone(),
                     };
 
                     match send_request(request).await {

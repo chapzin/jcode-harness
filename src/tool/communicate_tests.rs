@@ -169,6 +169,7 @@ fn schema_advertises_supported_swarm_fields() {
     assert!(props.contains_key("initial_message"));
     assert!(props.contains_key("force"));
     assert!(props.contains_key("retain_agents"));
+    assert!(props.contains_key("run_id"));
     assert!(props.contains_key("status"));
     assert!(props.contains_key("validation"));
     assert!(props.contains_key("follow_up"));

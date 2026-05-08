@@ -371,9 +371,11 @@ fn test_comm_assign_next_roundtrip() -> Result<()> {
         prefer_spawn: Some(true),
         spawn_if_needed: Some(true),
         message: Some("Take the next runnable task.".to_string()),
+        run_id: Some("run-assign-next".to_string()),
     };
     let json = serde_json::to_string(&req)?;
     assert!(json.contains("\"type\":\"comm_assign_next\""));
+    assert!(json.contains("\"run_id\":\"run-assign-next\""));
     let decoded = parse_request_json(&json)?;
     assert_eq!(decoded.id(), 60);
     let Request::CommAssignNext {
@@ -383,6 +385,7 @@ fn test_comm_assign_next_roundtrip() -> Result<()> {
         prefer_spawn,
         spawn_if_needed,
         message,
+        run_id,
         ..
     } = decoded
     else {
@@ -394,6 +397,7 @@ fn test_comm_assign_next_roundtrip() -> Result<()> {
     assert_eq!(prefer_spawn, Some(true));
     assert_eq!(spawn_if_needed, Some(true));
     assert_eq!(message.as_deref(), Some("Take the next runnable task."));
+    assert_eq!(run_id.as_deref(), Some("run-assign-next"));
     Ok(())
 }
 
@@ -433,10 +437,12 @@ fn test_comm_spawn_roundtrip_with_optional_nonce() -> Result<()> {
         working_dir: Some("/tmp/project".to_string()),
         initial_message: Some("Start here".to_string()),
         request_nonce: Some("planner-fresh-123".to_string()),
+        run_id: Some("run-spawn".to_string()),
     };
     let json = serde_json::to_string(&req)?;
     assert!(json.contains("\"type\":\"comm_spawn\""));
     assert!(json.contains("\"request_nonce\":\"planner-fresh-123\""));
+    assert!(json.contains("\"run_id\":\"run-spawn\""));
     let decoded = parse_request_json(&json)?;
     assert_eq!(decoded.id(), 59);
     let Request::CommSpawn {
@@ -444,6 +450,7 @@ fn test_comm_spawn_roundtrip_with_optional_nonce() -> Result<()> {
         working_dir,
         initial_message,
         request_nonce,
+        run_id,
         ..
     } = decoded
     else {
@@ -453,5 +460,6 @@ fn test_comm_spawn_roundtrip_with_optional_nonce() -> Result<()> {
     assert_eq!(working_dir.as_deref(), Some("/tmp/project"));
     assert_eq!(initial_message.as_deref(), Some("Start here"));
     assert_eq!(request_nonce.as_deref(), Some("planner-fresh-123"));
+    assert_eq!(run_id.as_deref(), Some("run-spawn"));
     Ok(())
 }

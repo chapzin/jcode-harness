@@ -86,6 +86,7 @@ pub(super) async fn maybe_handle_session_admin_command(
             None,
             mcp_pool,
             None,
+            None,
         )
         .await?;
         if let Ok(value) = serde_json::from_str::<serde_json::Value>(&created)

@@ -1042,6 +1042,7 @@ mod tests {
                 detail: None,
                 friendly_name: Some(session_id.to_string()),
                 report_back_to_session_id: None,
+                run_id: None,
                 latest_completion_report: None,
                 role: role.to_string(),
                 joined_at: Instant::now(),

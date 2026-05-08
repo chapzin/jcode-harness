@@ -434,6 +434,9 @@ pub enum Request {
         initial_message: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         request_nonce: Option<String>,
+        /// Optional run/generation id used to group workers spawned by one orchestration run.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        run_id: Option<String>,
     },
 
     /// Stop/destroy an agent session (coordinator only)
@@ -535,6 +538,9 @@ pub enum Request {
         spawn_if_needed: Option<bool>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         message: Option<String>,
+        /// Optional run/generation id for workers spawned by this assignment request.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        run_id: Option<String>,
     },
 
     /// Control an existing assigned task lifecycle (coordinator only)
@@ -1228,6 +1234,9 @@ pub struct AgentInfo {
     /// Session that owns report-back/cleanup responsibility for this member.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub report_back_to_session_id: Option<String>,
+    /// Run/generation id for the orchestration run that spawned this member.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<String>,
     /// Latest structured completion report submitted by this member, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub latest_completion_report: Option<String>,
@@ -1532,6 +1541,9 @@ pub fn format_comm_members(current_session_id: &str, members: &[AgentInfo]) -> S
                 } else {
                     extra_meta.push(format!("owned_by={owner}"));
                 }
+            }
+            if let Some(run_id) = member.run_id.as_deref() {
+                extra_meta.push(format!("run_id={run_id}"));
             }
             if let Some(attachments) = member.live_attachments {
                 extra_meta.push(format!("attachments={attachments}"));
