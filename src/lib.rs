@@ -34,6 +34,7 @@ pub mod env;
 pub mod gateway;
 pub mod gmail;
 pub mod goal;
+pub mod harness_events;
 pub mod id;
 pub mod import;
 pub mod logging;
