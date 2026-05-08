@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Commit and push configurable provider cooldown cap slice",
+  "focus": "Commit and push provider model route cooldown metadata slice",
   "status": "done",
-  "activeContractId": "2026-05-08-configure-provider-rate-limit-cooldown-cap-7a6b56",
+  "activeContractId": "2026-05-08-surface-provider-cooldowns-in-model-routes-4c0d9e",
   "counters": {
-    "contracts": 55,
-    "traces": 91,
-    "gates": 59,
-    "verifications": 79,
+    "contracts": 56,
+    "traces": 93,
+    "gates": 60,
+    "verifications": 81,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -21,7 +21,7 @@
     {
       "id": "decision-2026-05-06-1c16f8",
       "ts": "2026-05-06T19:09:22.556Z",
-      "text": "Responder ao usuário em português conforme preferência global registrada."
+      "text": "Responder ao usu\u00e1rio em portugu\u00eas conforme prefer\u00eancia global registrada."
     },
     {
       "id": "decision-2026-05-07-f58c86",
@@ -717,6 +717,43 @@
       "contractId": "2026-05-08-configure-provider-rate-limit-cooldown-cap-7a6b56",
       "status": "pass",
       "summary": "Regression provider rate-limit cooldown verification passed."
+    },
+    {
+      "ts": "2026-05-08T17:14:36.769Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-surface-provider-cooldowns-in-model-routes-4c0d9e",
+      "summary": "Surface provider cooldowns in model routes"
+    },
+    {
+      "ts": "2026-05-08T17:18:13.951Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-53446ae8",
+      "contractId": "2026-05-08-surface-provider-cooldowns-in-model-routes-4c0d9e",
+      "status": "pass",
+      "summary": "Focused provider model route cooldown verification passed."
+    },
+    {
+      "ts": "2026-05-08T17:18:13.951Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-671d450d",
+      "contractId": "2026-05-08-surface-provider-cooldowns-in-model-routes-4c0d9e",
+      "status": "pass",
+      "summary": "Selfdev build and reload passed for model route cooldown metadata slice."
+    },
+    {
+      "ts": "2026-05-08T17:18:13.951Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-surface-provider-cooldowns-in-model-routes-4c0d9e",
+      "gateId": "gate-2026-05-08-f4eeb8",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T17:18:13.951Z",
+      "type": "state_update",
+      "note": "Initial helper placement compile error was fixed. Focused verification task 582745cozz, selfdev build task 624118ca66, reload, and completion gate gate-2026-05-08-f4eeb8 passed.",
+      "status": "done",
+      "focus": "Commit and push provider model route cooldown metadata slice",
+      "activeContractId": "2026-05-08-surface-provider-cooldowns-in-model-routes-4c0d9e"
     }
   ]
 }

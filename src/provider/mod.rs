@@ -1148,6 +1148,9 @@ impl Provider for MultiProvider {
         }
 
         dedupe_model_routes(routes)
+            .into_iter()
+            .map(apply_provider_cooldown_to_route)
+            .collect()
     }
 
     async fn prefetch_models(&self) -> Result<()> {
@@ -1879,6 +1882,40 @@ impl Provider for MultiProvider {
         self.auto_select_multi_account_for_provider(target);
         Ok(())
     }
+}
+
+fn apply_provider_cooldown_to_route(mut route: ModelRoute) -> ModelRoute {
+    let Some(provider) = provider_cooldown_scope_for_route(&route) else {
+        return route;
+    };
+    let Some(delay_ms) = provider_rate_limit_cooldown_remaining_ms(provider, &route.model) else {
+        return route;
+    };
+
+    route.available = false;
+    let cooldown_detail = format!(
+        "rate-limit cooldown {}",
+        provider_wait_status_duration(delay_ms)
+    );
+    if route.detail.trim().is_empty() {
+        route.detail = cooldown_detail;
+    } else {
+        route.detail = format!("{}; {}", cooldown_detail, route.detail);
+    }
+    route
+}
+
+fn provider_cooldown_scope_for_route(route: &ModelRoute) -> Option<&'static str> {
+    if route.api_method == "openrouter" {
+        return Some("openrouter");
+    }
+    if route.provider.eq_ignore_ascii_case("openai") {
+        return Some("openai");
+    }
+    if route.provider.eq_ignore_ascii_case("anthropic") {
+        return Some("anthropic");
+    }
+    None
 }
 
 #[cfg(test)]

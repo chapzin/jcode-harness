@@ -1,0 +1,31 @@
+{
+  "id": "gate-2026-05-08-f4eeb8",
+  "ts": "2026-05-08T17:18:13.951Z",
+  "contractId": "2026-05-08-surface-provider-cooldowns-in-model-routes-4c0d9e",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/provider/mod.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/tests/fallback_failover.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "OpenAI model routes become unavailable and include a compact rate-limit cooldown detail while their provider/model cooldown is active.",
+    "OpenRouter routes use the shared openrouter cooldown scope even when the route provider label is an endpoint/provider name.",
+    "Existing route details are preserved when cooldown detail is added.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "uncheckedConditions": [],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/582745cozz.output",
+    "/tmp/jcode-bg-tasks/624118ca66.output",
+    "src/provider/mod.rs",
+    "src/provider/tests/fallback_failover.rs",
+    "harness_audit_governance status=pass at 2026-05-08T17:18:52Z"
+  ],
+  "notes": "Direct completion gate: model_routes now maps deduped routes through a route metadata helper that marks active provider/model cooldowns unavailable and prepends compact cooldown detail. OpenRouter endpoint routes use api_method=openrouter to share the openrouter cooldown scope even when provider labels are endpoint names. Governance audit passed: harness_audit_governance status=pass at 2026-05-08T17:18:52Z."
+}

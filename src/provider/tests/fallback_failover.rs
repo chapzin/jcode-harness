@@ -427,6 +427,63 @@ fn provider_wait_status_details_cover_anthropic_and_openrouter_cooldowns() {
 }
 
 #[test]
+fn provider_model_route_cooldown_marks_openai_route_unavailable() {
+    with_env_var_removed("JCODE_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS", || {
+        clear_provider_rate_limit_cooldown("OpenAI", "gpt-test");
+        record_provider_rate_limit_cooldown_for_retry(
+            "OpenAI",
+            "gpt-test",
+            "Rate limited (retry after 2s)",
+            1,
+            1_000,
+            10_000,
+        );
+
+        let route = apply_provider_cooldown_to_route(ModelRoute {
+            model: "gpt-test".to_string(),
+            provider: "OpenAI".to_string(),
+            api_method: "openai-oauth".to_string(),
+            available: true,
+            detail: "account available".to_string(),
+            cheapness: None,
+        });
+
+        assert!(!route.available);
+        assert!(route.detail.starts_with("rate-limit cooldown "));
+        assert!(route.detail.contains("account available"));
+        clear_provider_rate_limit_cooldown("OpenAI", "gpt-test");
+    });
+}
+
+#[test]
+fn provider_model_route_cooldown_uses_openrouter_scope_for_endpoint_names() {
+    with_env_var_removed("JCODE_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS", || {
+        clear_provider_rate_limit_cooldown("openrouter", "anthropic/claude-test");
+        record_provider_rate_limit_cooldown_for_retry(
+            "openrouter",
+            "anthropic/claude-test",
+            "HTTP 429 retry-after: 2",
+            1,
+            1_000,
+            10_000,
+        );
+
+        let route = apply_provider_cooldown_to_route(ModelRoute {
+            model: "anthropic/claude-test".to_string(),
+            provider: "Some OpenRouter Endpoint".to_string(),
+            api_method: "openrouter".to_string(),
+            available: true,
+            detail: String::new(),
+            cheapness: None,
+        });
+
+        assert!(!route.available);
+        assert!(route.detail.starts_with("rate-limit cooldown "));
+        clear_provider_rate_limit_cooldown("openrouter", "anthropic/claude-test");
+    });
+}
+
+#[test]
 fn test_parse_provider_hint_supports_known_values() {
     assert_eq!(
         MultiProvider::parse_provider_hint("claude"),
