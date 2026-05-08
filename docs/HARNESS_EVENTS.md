@@ -190,7 +190,7 @@ events.addEventListener("tool_finished", (event) => {
 events.onerror = () => console.warn("event stream reconnecting");
 ```
 
-The endpoint itself is not enabled in this slice. Server integration should reuse `write_harness_event_sse`, `render_harness_event_sse`, and `harness_events_after_last_event_id` so `Last-Event-ID` can replay retained local events before subscribing to live fan-out.
+The gateway endpoint is exposed at `GET /events/runs/{urlencoded_run_id}/stream` for paired clients. It reuses `write_harness_event_sse`, `render_harness_event_sse`, and `harness_events_after_last_event_id` so `Last-Event-ID` replays retained local events before subscribing to live fan-out. Use `?replay=only` for scripts/tests that want the retained tail and a closed connection.
 
 ### CLI helpers
 

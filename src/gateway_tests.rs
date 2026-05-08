@@ -1,5 +1,29 @@
 use super::*;
+use chrono::{DateTime, Utc};
 use tokio_tungstenite::tungstenite::handshake::server::Request;
+
+struct EnvVarGuard {
+    key: &'static str,
+    previous: Option<std::ffi::OsString>,
+}
+
+impl EnvVarGuard {
+    fn set(key: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
+        let previous = std::env::var_os(key);
+        crate::env::set_var(key, value);
+        Self { key, previous }
+    }
+}
+
+impl Drop for EnvVarGuard {
+    fn drop(&mut self) {
+        if let Some(previous) = self.previous.as_ref() {
+            crate::env::set_var(self.key, previous);
+        } else {
+            crate::env::remove_var(self.key);
+        }
+    }
+}
 
 #[test]
 fn test_device_registry_pairing() {
@@ -119,4 +143,181 @@ fn test_extract_ws_auth_rejects_conflicting_sources() {
         .body(())
         .expect("request");
     assert!(extract_ws_auth(&request).is_err());
+}
+
+#[test]
+fn test_route_harness_event_sse_run_id_decodes_path() {
+    assert_eq!(
+        route_harness_event_sse_run_id("/events/runs/run%20demo/stream").as_deref(),
+        Some("run demo")
+    );
+    assert!(route_harness_event_sse_run_id("/events/runs/run_demo").is_none());
+}
+
+#[test]
+fn test_extract_http_auth_token_accepts_bearer_and_rejects_missing() {
+    let mut headers = std::collections::HashMap::new();
+    headers.insert(
+        "authorization".to_string(),
+        "Bearer 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_string(),
+    );
+
+    let token = extract_http_auth_token(&headers, None).unwrap();
+
+    assert_eq!(
+        token,
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    );
+    assert!(extract_http_auth_token(&std::collections::HashMap::new(), None).is_err());
+}
+
+#[tokio::test]
+async fn test_gateway_http_sse_replays_tail_with_auth() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-gateway-sse-")
+        .tempdir()
+        .unwrap();
+    let _home = EnvVarGuard::set("JCODE_HOME", temp.path().join("home"));
+    let _runtime = EnvVarGuard::set("JCODE_RUNTIME_DIR", temp.path().join("runtime"));
+    std::fs::create_dir_all(crate::storage::jcode_dir().unwrap()).unwrap();
+
+    let mut registry = DeviceRegistry::default();
+    let token = registry.pair_device("device-sse".to_string(), "SSE Dashboard".to_string(), None);
+    let registry = std::sync::Arc::new(tokio::sync::RwLock::new(registry));
+
+    write_gateway_sse_test_event("hevt_start", "run_gateway_sse", 1);
+    write_gateway_sse_test_event("hevt_tool", "run_gateway_sse", 2);
+    write_gateway_sse_test_event("hevt_done", "run_gateway_sse", 3);
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let registry_for_task = std::sync::Arc::clone(&registry);
+    let server = tokio::spawn(async move {
+        let (stream, peer_addr) = listener.accept().await.unwrap();
+        handle_http(stream, peer_addr, registry_for_task)
+            .await
+            .unwrap();
+    });
+
+    let mut client = tokio::net::TcpStream::connect(addr).await.unwrap();
+    let request = format!(
+        "GET /events/runs/run_gateway_sse/stream?replay=only&retry_ms=1500 HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {token}\r\nLast-Event-ID: hevt_tool\r\n\r\n"
+    );
+    tokio::io::AsyncWriteExt::write_all(&mut client, request.as_bytes())
+        .await
+        .unwrap();
+    let mut response = Vec::new();
+    tokio::io::AsyncReadExt::read_to_end(&mut client, &mut response)
+        .await
+        .unwrap();
+    server.await.unwrap();
+
+    let response = String::from_utf8(response).unwrap();
+    assert!(response.starts_with("HTTP/1.1 200 OK"), "{response}");
+    assert!(
+        response.contains("Content-Type: text/event-stream"),
+        "{response}"
+    );
+    assert!(response.contains("id: hevt_done"), "{response}");
+    assert!(response.contains("retry: 1500"), "{response}");
+    assert!(!response.contains("id: hevt_start"), "{response}");
+    assert!(!response.contains("id: hevt_tool"), "{response}");
+}
+
+#[tokio::test]
+async fn test_gateway_http_sse_streams_live_bus_events() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-gateway-sse-live-")
+        .tempdir()
+        .unwrap();
+    let _home = EnvVarGuard::set("JCODE_HOME", temp.path().join("home"));
+    let _runtime = EnvVarGuard::set("JCODE_RUNTIME_DIR", temp.path().join("runtime"));
+    std::fs::create_dir_all(crate::storage::jcode_dir().unwrap()).unwrap();
+
+    let mut registry = DeviceRegistry::default();
+    let token = registry.pair_device(
+        "device-sse-live".to_string(),
+        "SSE Live Dashboard".to_string(),
+        None,
+    );
+    let registry = std::sync::Arc::new(tokio::sync::RwLock::new(registry));
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let registry_for_task = std::sync::Arc::clone(&registry);
+    let server = tokio::spawn(async move {
+        let (stream, peer_addr) = listener.accept().await.unwrap();
+        handle_http(stream, peer_addr, registry_for_task)
+            .await
+            .unwrap();
+    });
+
+    let mut client = tokio::net::TcpStream::connect(addr).await.unwrap();
+    let request = format!(
+        "GET /events/runs/run_gateway_sse_live/stream HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {token}\r\n\r\n"
+    );
+    tokio::io::AsyncWriteExt::write_all(&mut client, request.as_bytes())
+        .await
+        .unwrap();
+
+    let mut response = Vec::new();
+    read_until_text(&mut client, &mut response, "\r\n\r\n").await;
+    crate::harness_events::HarnessEventBus::global().publish(
+        crate::harness_events::HarnessEventDraft::run_completed("run_gateway_sse_live"),
+    );
+    read_until_text(&mut client, &mut response, "event: run_completed").await;
+
+    let response = String::from_utf8(response).unwrap();
+    assert!(
+        response.contains("Content-Type: text/event-stream"),
+        "{response}"
+    );
+    assert!(response.contains("event: run_completed"), "{response}");
+    assert!(
+        response.contains("\"run_id\":\"run_gateway_sse_live\""),
+        "{response}"
+    );
+    drop(client);
+    server.abort();
+    let _ = server.await;
+}
+
+async fn read_until_text(client: &mut tokio::net::TcpStream, response: &mut Vec<u8>, needle: &str) {
+    let deadline = std::time::Duration::from_secs(2);
+    tokio::time::timeout(deadline, async {
+        let mut buf = [0u8; 1024];
+        loop {
+            if String::from_utf8_lossy(response).contains(needle) {
+                break;
+            }
+            let n = tokio::io::AsyncReadExt::read(client, &mut buf)
+                .await
+                .unwrap();
+            assert!(n > 0, "connection closed before finding {needle}");
+            response.extend_from_slice(&buf[..n]);
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("timed out waiting for {needle}"));
+}
+
+fn write_gateway_sse_test_event(event_id: &str, run_id: &str, sequence: u64) {
+    let event = crate::harness_events::HarnessEvent::new(
+        event_id,
+        run_id,
+        DateTime::parse_from_rfc3339("2026-05-08T04:56:00Z")
+            .unwrap()
+            .with_timezone(&Utc),
+        sequence,
+        crate::harness_events::HarnessEventLevel::Info,
+        crate::harness_events::HarnessEventKind::ToolFinished,
+        serde_json::json!({"status": "ok"}),
+    );
+    crate::harness_events::append_harness_event_ndjson(
+        crate::harness_events::harness_event_log_path(run_id),
+        &event,
+    )
+    .unwrap();
 }

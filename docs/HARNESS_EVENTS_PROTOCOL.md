@@ -194,6 +194,24 @@ jcode events sse --run "$RUN_ID" --last-event-id hevt_tool > replay-tail.sse
 
 `events sse` is strict like `events export`: malformed NDJSON fails the command so prototypes do not silently consume a damaged stream. Use `events replay --json` when you need tolerant diagnostics for corrupt or partial logs.
 
+The gateway SSE endpoint is now available for paired dashboard clients:
+
+```bash
+curl -N \
+  -H "Authorization: Bearer $JCODE_GATEWAY_TOKEN" \
+  -H "Last-Event-ID: hevt_seen" \
+  "http://127.0.0.1:7643/events/runs/$RUN_ID/stream"
+```
+
+Endpoint details:
+
+- path: `GET /events/runs/{urlencoded_run_id}/stream`
+- auth: same paired-device gateway token as `/ws`, via `Authorization: Bearer <token>` or `?token=<token>` for browser prototypes;
+- replay: reads the retained local NDJSON log, applies `Last-Event-ID`, and sends matching SSE frames before live fan-out;
+- live mode: subscribes to the in-process `HarnessEventBus` and streams matching `run_id` events;
+- test/export mode: `?replay=only` or `?once=1` sends only the retained replay tail and closes;
+- retry tuning: `?retry_ms=2000` overrides the SSE `retry:` field when greater than zero.
+
 ## Choosing a transport
 
 | Use case | Recommended transport | Why |
