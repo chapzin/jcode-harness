@@ -380,6 +380,69 @@ fn format_swarm_health_summarizes_freshness_and_stale_members() {
 }
 
 #[test]
+fn format_swarm_health_can_be_scoped_to_one_run_id() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let members = vec![
+        AgentInfo {
+            session_id: "coord".to_string(),
+            friendly_name: Some("coord".to_string()),
+            files_touched: vec![],
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("coordinator".to_string()),
+            is_headless: Some(false),
+            report_back_to_session_id: None,
+            run_id: None,
+            latest_completion_report: None,
+            live_attachments: Some(1),
+            status_age_secs: Some(1),
+        },
+        AgentInfo {
+            session_id: "current-worker".to_string(),
+            friendly_name: Some("current".to_string()),
+            files_touched: vec![],
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(3),
+        },
+        AgentInfo {
+            session_id: "old-worker".to_string(),
+            friendly_name: Some("old".to_string()),
+            files_touched: vec![],
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-old".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(10),
+        },
+    ];
+
+    let output = format_swarm_health_for_run(
+        &ctx,
+        std::path::Path::new("/tmp/jcode.sock"),
+        &[1234],
+        &members,
+        Some("run-current"),
+    )
+    .output;
+
+    assert!(output.contains("run scope: run_id=run-current (showing 1/3)"));
+    assert!(output.contains("members: total=1 owned=1 owned_active=1"));
+    assert!(output.contains("runs: run-current=1"));
+    assert!(!output.contains("run-old"));
+}
+
+#[test]
 fn format_tool_summary_includes_call_count() {
     let output = super::format_tool_summary(
         "session-123",
@@ -442,6 +505,55 @@ fn format_members_includes_status_and_detail() {
         output
             .output
             .contains("Meta: headless · owned_by_you · attachments=0 · status_age=12s")
+    );
+}
+
+#[test]
+fn format_members_can_be_scoped_to_one_run_id() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let members = vec![
+        AgentInfo {
+            session_id: "current-worker".to_string(),
+            friendly_name: Some("current".to_string()),
+            files_touched: vec![],
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(3),
+        },
+        AgentInfo {
+            session_id: "old-worker".to_string(),
+            friendly_name: Some("old".to_string()),
+            files_touched: vec![],
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-old".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(10),
+        },
+    ];
+
+    let output = format_members_for_run(&ctx, &members, Some("run-current")).output;
+
+    assert!(output.contains("Run scope: run_id=run-current (showing 1/2)"));
+    assert!(output.contains("current"));
+    assert!(output.contains("run_id=run-current"));
+    assert!(!output.contains("old-worker"));
+    assert!(!output.contains("run-old"));
+
+    let empty = format_members_for_run(&ctx, &members, Some("run-missing")).output;
+    assert_eq!(
+        empty,
+        "No agents found for run_id=run-missing (0/2 in current swarm)."
     );
 }
 

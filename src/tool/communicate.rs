@@ -495,8 +495,44 @@ fn format_context_entries(entries: &[ContextEntry]) -> ToolOutput {
     ToolOutput::new(format_comm_context_entries(entries))
 }
 
+fn run_scoped_members(members: &[AgentInfo], run_id: Option<&str>) -> Vec<AgentInfo> {
+    match run_id {
+        Some(run_id) => members
+            .iter()
+            .filter(|member| member.run_id.as_deref() == Some(run_id))
+            .cloned()
+            .collect(),
+        None => members.to_vec(),
+    }
+}
+
 fn format_members(ctx: &ToolContext, members: &[AgentInfo]) -> ToolOutput {
-    ToolOutput::new(format_comm_members(&ctx.session_id, members))
+    format_members_for_run(ctx, members, None)
+}
+
+fn format_members_for_run(
+    ctx: &ToolContext,
+    members: &[AgentInfo],
+    run_id: Option<&str>,
+) -> ToolOutput {
+    let scoped = run_scoped_members(members, run_id);
+    let mut output = String::new();
+    if let Some(run_id) = run_id {
+        if scoped.is_empty() {
+            return ToolOutput::new(format!(
+                "No agents found for run_id={run_id} (0/{} in current swarm).",
+                members.len()
+            ));
+        }
+        let _ = writeln!(
+            output,
+            "Run scope: run_id={run_id} (showing {}/{})\n",
+            scoped.len(),
+            members.len()
+        );
+    }
+    output.push_str(&format_comm_members(&ctx.session_id, &scoped));
+    ToolOutput::new(output)
 }
 
 fn format_tool_summary(target: &str, calls: &[ToolCallSummary]) -> ToolOutput {
@@ -616,6 +652,19 @@ fn format_swarm_health(
     listener_pids: &[u32],
     members: &[AgentInfo],
 ) -> ToolOutput {
+    format_swarm_health_for_run(ctx, socket_path, listener_pids, members, None)
+}
+
+fn format_swarm_health_for_run(
+    ctx: &ToolContext,
+    socket_path: &Path,
+    listener_pids: &[u32],
+    members: &[AgentInfo],
+    run_id_scope: Option<&str>,
+) -> ToolOutput {
+    let original_count = members.len();
+    let scoped_members = run_scoped_members(members, run_id_scope);
+    let members = scoped_members.as_slice();
     let mut statuses = BTreeMap::<String, usize>::new();
     let mut roles = BTreeMap::<String, usize>::new();
     let mut runs = BTreeMap::<String, usize>::new();
@@ -687,6 +736,14 @@ fn format_swarm_health(
 
     let mut output = String::new();
     let _ = writeln!(output, "Swarm health");
+    if let Some(run_id) = run_id_scope {
+        let _ = writeln!(
+            output,
+            "- run scope: run_id={run_id} (showing {}/{})",
+            members.len(),
+            original_count
+        );
+    }
     let _ = writeln!(output, "- build version: {}", env!("JCODE_VERSION"));
     let _ = writeln!(output, "- socket: {}", socket_path.display());
     let _ = writeln!(output, "- server listener pid(s): {pid_summary}");
@@ -1003,7 +1060,7 @@ impl Tool for CommunicateTool {
                 },
                 "run_id": {
                     "type": "string",
-                    "description": "Optional run/generation id for spawned workers and await/cleanup scoping. run_plan and fill_slots generate one when omitted so workers from the same orchestration run can be diagnosed together."
+                    "description": "Optional run/generation id for spawned workers and list/health/await/cleanup scoping. run_plan and fill_slots generate one when omitted so workers from the same orchestration run can be diagnosed together."
                 },
                 "wake": {
                     "type": "boolean",
@@ -1173,7 +1230,12 @@ impl Tool for CommunicateTool {
 
                 match send_request(request).await {
                     Ok(ServerEvent::CommMembers { members, .. }) => {
-                        Ok(format_members(&ctx, &members))
+                        match params.run_id.as_deref() {
+                            Some(run_id) => {
+                                Ok(format_members_for_run(&ctx, &members, Some(run_id)))
+                            }
+                            None => Ok(format_members(&ctx, &members)),
+                        }
                     }
                     Ok(response) => {
                         ensure_success(&response)?;
@@ -1187,12 +1249,16 @@ impl Tool for CommunicateTool {
                 let members = fetch_swarm_members(&ctx.session_id).await?;
                 let socket_path = crate::server::socket_path();
                 let listener_pids = listener_pids_for_unix_socket(&socket_path);
-                Ok(format_swarm_health(
-                    &ctx,
-                    &socket_path,
-                    &listener_pids,
-                    &members,
-                ))
+                Ok(match params.run_id.as_deref() {
+                    Some(run_id) => format_swarm_health_for_run(
+                        &ctx,
+                        &socket_path,
+                        &listener_pids,
+                        &members,
+                        Some(run_id),
+                    ),
+                    None => format_swarm_health(&ctx, &socket_path, &listener_pids, &members),
+                })
             }
 
             "list_channels" => {
