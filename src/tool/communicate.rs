@@ -53,6 +53,15 @@ fn fill_slots_request_nonce(operation_id: Option<&str>, slot_index: usize) -> Op
     explicit_operation_request_nonce(operation_id).map(|nonce| format!("{nonce}:slot:{slot_index}"))
 }
 
+fn run_plan_request_nonce(
+    operation_id: Option<&str>,
+    plan_version: u64,
+    slot_index: usize,
+) -> Option<String> {
+    explicit_operation_request_nonce(operation_id)
+        .map(|nonce| format!("{nonce}:plan:{plan_version}:slot:{slot_index}"))
+}
+
 fn fresh_swarm_run_id(ctx: &ToolContext) -> String {
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -503,6 +512,7 @@ async fn run_swarm_plan_to_terminal(
     let run_id = params
         .run_id
         .clone()
+        .or_else(|| operation_scoped_run_id(params.operation_id.as_deref()))
         .unwrap_or_else(|| fresh_swarm_run_id(ctx));
     let mut assignment_count = 0usize;
     let mut loop_count = 0usize;
@@ -548,7 +558,8 @@ async fn run_swarm_plan_to_terminal(
         let active_count = summary.active_ids.len();
         let available_slots = concurrency_limit.saturating_sub(active_count);
         let mut assigned_sessions = Vec::new();
-        for _ in 0..available_slots {
+        for slot_offset in 0..available_slots {
+            let slot_index = active_count + slot_offset;
             let request = Request::CommAssignNext {
                 id: REQUEST_ID,
                 session_id: ctx.session_id.clone(),
@@ -557,7 +568,11 @@ async fn run_swarm_plan_to_terminal(
                 prefer_spawn: params.prefer_spawn,
                 spawn_if_needed,
                 message: params.message.clone(),
-                request_nonce: None,
+                request_nonce: run_plan_request_nonce(
+                    params.operation_id.as_deref(),
+                    summary.version,
+                    slot_index,
+                ),
                 run_id: Some(run_id.clone()),
             };
             match send_request_with_coordinator_retry(ctx, request, "run_plan assignment").await {

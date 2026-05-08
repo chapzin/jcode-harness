@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Commit and push coordinator retry slice",
+  "focus": "Commit and push run_plan operation_id scope stability slice",
   "status": "done",
-  "activeContractId": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e",
+  "activeContractId": "2026-05-08-make-run-plan-operation-id-scope-stable-843df5",
   "counters": {
-    "contracts": 39,
-    "traces": 55,
-    "gates": 38,
-    "verifications": 44,
+    "contracts": 40,
+    "traces": 57,
+    "gates": 39,
+    "verifications": 46,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -127,41 +127,14 @@
       "id": "decision-2026-05-08-f7c593",
       "ts": "2026-05-08T14:06:58.312Z",
       "text": "Completed issue #13 coordinator retry slice: coordinator-only swarm tool actions now self-promote and retry once for assignment/control operations when the server returns a coordinator-denial error."
+    },
+    {
+      "id": "decision-2026-05-08-9cfee9",
+      "ts": "2026-05-08T14:13:10.908Z",
+      "text": "Completed issue #13 run_plan operation_id slice: explicit operation_id now provides a stable run scope and versioned per-slot assign_next nonces so same-phase retries replay while later plan versions can continue assigning newly ready tasks."
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-07T22:14:11.239Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-add-offline-session-spawn-dry-run-json-3962c1",
-      "summary": "Add offline session spawn dry-run JSON"
-    },
-    {
-      "ts": "2026-05-07T22:20:05.879Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-add-offline-session-attach-dry-run-json-c686cd",
-      "summary": "Add offline session attach dry-run JSON"
-    },
-    {
-      "ts": "2026-05-07T22:24:58.692Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-add-session-dry-run-ndjson-envelope-events-3dc47d",
-      "summary": "Add session dry-run NDJSON envelope events"
-    },
-    {
-      "ts": "2026-05-07T22:30:40.092Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
-      "summary": "Add ACP preview manifest and stdio handshake"
-    },
-    {
-      "ts": "2026-05-08T11:09:16.707Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-3e6d53c1",
-      "contractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
-      "status": "pass",
-      "summary": "session cancel CLI headless slice validation passed"
-    },
     {
       "ts": "2026-05-08T11:09:36.661Z",
       "type": "gate_evaluated",
@@ -719,6 +692,43 @@
       "status": "done",
       "focus": "Commit and push coordinator retry slice",
       "activeContractId": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e"
+    },
+    {
+      "ts": "2026-05-08T14:10:26.273Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-make-run-plan-operation-id-scope-stable-843df5",
+      "summary": "Make run_plan operation_id scope stable"
+    },
+    {
+      "ts": "2026-05-08T14:12:42.420Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-fe9df229",
+      "contractId": "2026-05-08-make-run-plan-operation-id-scope-stable-843df5",
+      "status": "pass",
+      "summary": "Focused run_plan operation_id verification passed"
+    },
+    {
+      "ts": "2026-05-08T14:12:49.994Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-fd70c530",
+      "contractId": "2026-05-08-make-run-plan-operation-id-scope-stable-843df5",
+      "status": "pass",
+      "summary": "Selfdev build passed for run_plan operation_id slice"
+    },
+    {
+      "ts": "2026-05-08T14:13:01.888Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-make-run-plan-operation-id-scope-stable-843df5",
+      "gateId": "gate-2026-05-08-5919bc",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T14:13:10.908Z",
+      "type": "state_update",
+      "note": "Focused verification task 475720az5f, selfdev build task 516485zbpx, reload, and completion gate gate-2026-05-08-5919bc passed.",
+      "status": "done",
+      "focus": "Commit and push run_plan operation_id scope stability slice",
+      "activeContractId": "2026-05-08-make-run-plan-operation-id-scope-stable-843df5"
     }
   ]
 }

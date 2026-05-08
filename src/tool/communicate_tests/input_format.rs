@@ -189,6 +189,34 @@ fn fill_slots_operation_id_derives_stable_run_and_slot_nonces() {
     assert_eq!(operation_scoped_run_id(None), None);
 }
 
+#[test]
+fn run_plan_operation_id_derives_stable_run_and_versioned_slot_nonces() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "run_plan",
+        "operation_id": " issue-13-run-plan-1 "
+    }))
+    .expect("run_plan operation_id should deserialize");
+
+    assert_eq!(parsed.operation_id.as_deref(), Some(" issue-13-run-plan-1 "));
+    assert_eq!(
+        operation_scoped_run_id(parsed.operation_id.as_deref()).as_deref(),
+        Some("run:op:issue-13-run-plan-1")
+    );
+    assert_eq!(
+        run_plan_request_nonce(parsed.operation_id.as_deref(), 7, 0).as_deref(),
+        Some("op:issue-13-run-plan-1:plan:7:slot:0")
+    );
+    assert_eq!(
+        run_plan_request_nonce(parsed.operation_id.as_deref(), 7, 2).as_deref(),
+        Some("op:issue-13-run-plan-1:plan:7:slot:2")
+    );
+    assert_eq!(
+        run_plan_request_nonce(parsed.operation_id.as_deref(), 8, 0).as_deref(),
+        Some("op:issue-13-run-plan-1:plan:8:slot:0")
+    );
+    assert_eq!(run_plan_request_nonce(None, 7, 0), None);
+}
+
 fn await_scope_member(
     session_id: &str,
     owner: Option<&str>,
