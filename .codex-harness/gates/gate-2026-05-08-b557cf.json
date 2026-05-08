@@ -1,0 +1,49 @@
+{
+  "id": "gate-2026-05-08-b557cf",
+  "ts": "2026-05-08T11:42:56.114Z",
+  "contractId": "2026-05-08-expose-swarm-event-member-metadata-6abff3",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/server/state.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/swarm.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/debug_events.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/comm_control_tests.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/reload_tests.rs",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/state.json",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/traces/2026-05-08.jsonl",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "SwarmEvent carries optional run_id, role, status, and working_dir metadata when the event is recorded for a known member",
+    "events:recent/events:since/events:subscribe include the new metadata fields when present",
+    "Existing event consumers remain backward-compatible when metadata is absent",
+    "Focused tests and cargo check/selfdev build pass"
+  ],
+  "uncheckedConditions": [],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/390767vp3e.output: strict verification passed with cargo fmt --check, debug_events tests, member metadata recorder test, graceful_shutdown_sessions tests, and cargo check -p jcode --lib.",
+    "/tmp/jcode-bg-tasks/443797ia3r.output: selfdev build passed.",
+    "git diff --check passed before governance recording."
+  ],
+  "notes": "Exact completion-condition gate for additive swarm event member metadata slice."
+}

@@ -1,6 +1,6 @@
 use super::{
     ClientConnectionInfo, SwarmEvent, SwarmEventType, SwarmMember, SwarmState, VersionedPlan,
-    broadcast_swarm_plan, persist_swarm_state_for, record_swarm_event,
+    broadcast_swarm_plan, persist_swarm_state_for, record_swarm_event_for_session,
 };
 use crate::agent::Agent;
 use crate::protocol::{
@@ -396,17 +396,16 @@ pub(super) async fn handle_comm_resync_plan(
                 ctx.swarms_by_id,
             )
             .await;
-            record_swarm_event(
-                ctx.event_history,
-                ctx.event_counter,
-                ctx.swarm_event_tx,
-                req_session_id.clone(),
-                None,
-                Some(swarm_id.clone()),
+            record_swarm_event_for_session(
+                &req_session_id,
                 SwarmEventType::PlanUpdate {
                     swarm_id: swarm_id.clone(),
                     item_count,
                 },
+                ctx.swarm_members,
+                ctx.event_history,
+                ctx.event_counter,
+                ctx.swarm_event_tx,
             )
             .await;
             let _ = ctx.client_event_tx.send(ServerEvent::Done { id });

@@ -94,6 +94,7 @@ fn swarm_event(session_id: &str, swarm_id: &str, event: SwarmEventType) -> Swarm
         session_id: session_id.to_string(),
         session_name: Some(session_id.to_string()),
         swarm_id: Some(swarm_id.to_string()),
+        member: None,
         event,
         timestamp: Instant::now(),
         absolute_time: SystemTime::now(),

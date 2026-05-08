@@ -5,7 +5,7 @@ use super::swarm_mutation_state::{
 use super::{
     SessionInterruptQueues, SharedContext, SwarmEvent, SwarmEventType, SwarmMember, SwarmState,
     VersionedPlan, broadcast_swarm_plan, persist_swarm_state_for, queue_soft_interrupt_for_session,
-    record_swarm_event, summarize_plan_items,
+    record_swarm_event_for_session, summarize_plan_items,
 };
 use crate::agent::Agent;
 use crate::plan::PlanItem;
@@ -146,17 +146,16 @@ pub(super) async fn handle_comm_propose_plan(
             swarms_by_id,
         )
         .await;
-        record_swarm_event(
-            event_history,
-            event_counter,
-            swarm_event_tx,
-            req_session_id.clone(),
-            from_name.clone(),
-            Some(swarm_id.clone()),
+        record_swarm_event_for_session(
+            &req_session_id,
             SwarmEventType::PlanUpdate {
                 swarm_id: swarm_id.clone(),
                 item_count: items.len(),
             },
+            swarm_members,
+            event_history,
+            event_counter,
+            swarm_event_tx,
         )
         .await;
 
@@ -182,18 +181,17 @@ pub(super) async fn handle_comm_propose_plan(
             },
         );
     }
-    record_swarm_event(
-        event_history,
-        event_counter,
-        swarm_event_tx,
-        req_session_id.clone(),
-        from_name.clone(),
-        Some(swarm_id.clone()),
+    record_swarm_event_for_session(
+        &req_session_id,
         SwarmEventType::PlanProposal {
             swarm_id: swarm_id.clone(),
             proposer_session: req_session_id.clone(),
             item_count: items.len(),
         },
+        swarm_members,
+        event_history,
+        event_counter,
+        swarm_event_tx,
     )
     .await;
 
@@ -372,17 +370,16 @@ pub(super) async fn handle_comm_approve_plan(
             swarms_by_id,
         )
         .await;
-        record_swarm_event(
-            event_history,
-            event_counter,
-            swarm_event_tx,
-            req_session_id.clone(),
-            None,
-            Some(swarm_id.clone()),
+        record_swarm_event_for_session(
+            &req_session_id,
             SwarmEventType::PlanUpdate {
                 swarm_id: swarm_id.clone(),
                 item_count: items.len(),
             },
+            swarm_members,
+            event_history,
+            event_counter,
+            swarm_event_tx,
         )
         .await;
 
@@ -559,17 +556,16 @@ pub(super) async fn handle_comm_reject_plan(
         )
         .await;
     }
-    record_swarm_event(
-        event_history,
-        event_counter,
-        swarm_event_tx,
-        req_session_id.clone(),
-        coordinator_name,
-        Some(swarm_id.clone()),
+    record_swarm_event_for_session(
+        &req_session_id,
         SwarmEventType::Notification {
             notification_type: "plan_rejected".to_string(),
             message: proposer_session.clone(),
         },
+        swarm_members,
+        event_history,
+        event_counter,
+        swarm_event_tx,
     )
     .await;
 

@@ -1,7 +1,7 @@
 use super::{
     SessionInterruptQueues, SwarmEvent, SwarmEventType, SwarmMember, SwarmState, VersionedPlan,
-    broadcast_swarm_status, create_headless_session, persist_swarm_state_for, record_swarm_event,
-    remove_session_interrupt_queue,
+    broadcast_swarm_status, create_headless_session, persist_swarm_state_for,
+    record_swarm_event_with_member_metadata, remove_session_interrupt_queue,
 };
 use crate::agent::Agent;
 use crate::provider::Provider;
@@ -138,35 +138,44 @@ pub(super) async fn maybe_handle_session_admin_command(
             return Err(anyhow::anyhow!("Unknown session_id '{}'", target_id));
         }
 
-        let (swarm_id, friendly_name) = {
+        let (swarm_id, friendly_name, member_metadata) = {
             let mut members = swarm_members.write().await;
             members
                 .remove(target_id)
-                .map(|member| (member.swarm_id, member.friendly_name))
-                .unwrap_or((None, None))
+                .map(|member| {
+                    let metadata = super::SwarmEventMemberMetadata::from_member(&member);
+                    (member.swarm_id, member.friendly_name, Some(metadata))
+                })
+                .unwrap_or((None, None, None))
         };
 
         if let Some(ref swarm_id) = swarm_id {
-            record_swarm_event(
+            let mut stopped_metadata = member_metadata.clone();
+            if let Some(metadata) = &mut stopped_metadata {
+                metadata.status = Some("stopped".to_string());
+            }
+            record_swarm_event_with_member_metadata(
                 event_history,
                 event_counter,
                 swarm_event_tx,
                 target_id.to_string(),
                 friendly_name.clone(),
                 Some(swarm_id.clone()),
+                stopped_metadata,
                 SwarmEventType::StatusChange {
                     old_status: "ready".to_string(),
                     new_status: "stopped".to_string(),
                 },
             )
             .await;
-            record_swarm_event(
+            record_swarm_event_with_member_metadata(
                 event_history,
                 event_counter,
                 swarm_event_tx,
                 target_id.to_string(),
                 friendly_name,
                 Some(swarm_id.clone()),
+                member_metadata,
                 SwarmEventType::MemberChange {
                     action: "left".to_string(),
                 },

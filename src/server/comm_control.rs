@@ -10,8 +10,8 @@ use super::{
     ClientConnectionInfo, SwarmEvent, SwarmEventType, SwarmMember, SwarmMutationRuntime,
     SwarmState, SwarmTaskProgress, VersionedPlan, broadcast_swarm_plan,
     broadcast_swarm_plan_with_previous, broadcast_swarm_status, fanout_session_event,
-    persist_swarm_state_for, queue_soft_interrupt_for_session, record_swarm_event, truncate_detail,
-    update_member_status, update_member_status_with_report,
+    persist_swarm_state_for, queue_soft_interrupt_for_session, record_swarm_event_for_session,
+    truncate_detail, update_member_status, update_member_status_with_report,
 };
 use crate::agent::Agent;
 use crate::plan::{
@@ -784,17 +784,16 @@ pub(super) async fn handle_comm_assign_role(
     persist_swarm_state_for(&swarm_id, &swarm_state).await;
 
     broadcast_swarm_status(&swarm_id, swarm_members, swarms_by_id).await;
-    record_swarm_event(
-        event_history,
-        event_counter,
-        swarm_event_tx,
-        req_session_id,
-        None,
-        Some(swarm_id),
+    record_swarm_event_for_session(
+        &req_session_id,
         SwarmEventType::Notification {
             notification_type: "role_assignment".to_string(),
             message: format!("{} -> {}", target_session, role),
         },
+        swarm_members,
+        event_history,
+        event_counter,
+        swarm_event_tx,
     )
     .await;
     let _ = client_event_tx.send(ServerEvent::Done { id });
@@ -999,17 +998,16 @@ pub(super) async fn handle_comm_assign_task(
         swarms_by_id,
     )
     .await;
-    record_swarm_event(
-        event_history,
-        event_counter,
-        swarm_event_tx,
-        req_session_id.clone(),
-        None,
-        Some(swarm_id.clone()),
+    record_swarm_event_for_session(
+        &req_session_id,
         SwarmEventType::PlanUpdate {
             swarm_id: swarm_id.clone(),
             item_count: plan_item_count,
         },
+        swarm_members,
+        event_history,
+        event_counter,
+        swarm_event_tx,
     )
     .await;
 

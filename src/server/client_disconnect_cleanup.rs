@@ -1,8 +1,9 @@
 use super::{
     ClientConnectionInfo, ClientDebugState, FileAccess, SessionInterruptQueues, SwarmEvent,
-    SwarmEventType, SwarmMember, VersionedPlan, record_swarm_event,
-    remove_session_channel_subscriptions, remove_session_file_touches, remove_session_from_swarm,
-    remove_session_interrupt_queue, unregister_session_event_sender, update_member_status,
+    SwarmEventMemberMetadata, SwarmEventType, SwarmMember, VersionedPlan,
+    record_swarm_event_with_member_metadata, remove_session_channel_subscriptions,
+    remove_session_file_touches, remove_session_from_swarm, remove_session_interrupt_queue,
+    unregister_session_event_sender, update_member_status,
 };
 use crate::agent::Agent;
 use anyhow::Result;
@@ -205,23 +206,25 @@ pub(super) async fn cleanup_client_connection(
         )
         .await;
 
-        let (swarm_id, removed_name) = {
+        let (swarm_id, removed_name, member_metadata) = {
             let mut members = swarm_members.write().await;
             if let Some(member) = members.remove(client_session_id) {
-                (member.swarm_id, member.friendly_name)
+                let metadata = SwarmEventMemberMetadata::from_member(&member);
+                (member.swarm_id, member.friendly_name, Some(metadata))
             } else {
-                (None, None)
+                (None, None, None)
             }
         };
 
         if let Some(ref swarm_id) = swarm_id {
-            record_swarm_event(
+            record_swarm_event_with_member_metadata(
                 event_history,
                 event_counter,
                 swarm_event_tx,
                 client_session_id.to_string(),
                 removed_name.clone(),
                 Some(swarm_id.clone()),
+                member_metadata,
                 SwarmEventType::MemberChange {
                     action: "left".to_string(),
                 },

@@ -1,0 +1,48 @@
+{
+  "id": "2026-05-08-expose-swarm-event-member-metadata-6abff3",
+  "title": "Expose swarm event member metadata",
+  "goal": "Implement a small issue #13 observability slice: enrich structured swarm events with member run_id/role/status/working_dir metadata so debugging/recovery can correlate events to a run/worktree without reading raw swarm state.",
+  "createdAt": "2026-05-08T11:28:02.100Z",
+  "status": "active",
+  "requiredInputs": [
+    "chapzin/jcode-harness issue #13 robust swarm orchestration",
+    "Prior run_id/cleanup/reconcile/working_dir slices"
+  ],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 40
+  },
+  "permissions": [
+    "Modify source, tests, governance",
+    "Run cargo fmt/check/test and selfdev build",
+    "Commit and push"
+  ],
+  "completionConditions": [
+    "SwarmEvent carries optional run_id, role, status, and working_dir metadata when the event is recorded for a known member",
+    "events:recent/events:since/events:subscribe include the new metadata fields when present",
+    "Existing event consumers remain backward-compatible when metadata is absent",
+    "Focused tests and cargo check/selfdev build pass"
+  ],
+  "outputPaths": [
+    "src/server/state.rs",
+    "src/server/swarm.rs",
+    "src/server/debug_events.rs",
+    "src/server/comm_control_tests.rs",
+    "src/server/reload_tests.rs",
+    ".codex-harness/state.json",
+    ".codex-harness/traces/2026-05-08.jsonl"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode debug_events --lib -- --nocapture",
+    "cargo test -p jcode graceful_shutdown_sessions --lib -- --nocapture",
+    "cargo check -p jcode --lib"
+  ],
+  "failureTaxonomy": [
+    "Breaking existing debug event JSON shape by removing fields",
+    "Changing swarm event recording semantics or event filtering",
+    "Adding metadata that becomes stale before event record time without tests"
+  ],
+  "notes": "Keep this additive. Do not change event filtering, cleanup, await, spawn, or role assignment behavior. Only record and expose metadata when available."
+}

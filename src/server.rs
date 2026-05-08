@@ -52,9 +52,9 @@ use self::reload::await_reload_signal;
 use self::runtime::ServerRuntime;
 use self::swarm::{
     broadcast_swarm_plan, broadcast_swarm_plan_with_previous, broadcast_swarm_status,
-    record_swarm_event, record_swarm_event_for_session, refresh_swarm_task_staleness,
-    remove_plan_participant, remove_session_file_touches, remove_session_from_swarm,
-    rename_plan_participant, run_swarm_message, update_member_status,
+    record_swarm_event_for_session, record_swarm_event_with_member_metadata,
+    refresh_swarm_task_staleness, remove_plan_participant, remove_session_file_touches,
+    remove_session_from_swarm, rename_plan_participant, run_swarm_message, update_member_status,
     update_member_status_with_report,
 };
 use self::swarm_channels::{
@@ -312,8 +312,8 @@ mod state;
 
 use self::state::latest_peer_touches;
 pub use self::state::{
-    FileAccess, SessionControlHandle, SharedContext, SwarmEvent, SwarmEventType, SwarmMember,
-    SwarmState,
+    FileAccess, SessionControlHandle, SharedContext, SwarmEvent, SwarmEventMemberMetadata,
+    SwarmEventType, SwarmMember, SwarmState,
 };
 use self::state::{
     SessionInterruptQueues, fanout_live_client_event, fanout_session_event,
@@ -1455,29 +1455,20 @@ impl Server {
                     }
 
                     // Record event for subscription
-                    {
-                        let members = swarm_members.read().await;
-                        let member = members.get(&session_id);
-                        let session_name = member.and_then(|m| m.friendly_name.clone());
-                        let swarm_id = member.and_then(|m| m.swarm_id.clone());
-
-                        drop(members);
-                        record_swarm_event(
-                            &event_history,
-                            &event_counter,
-                            &swarm_event_tx,
-                            session_id.clone(),
-                            session_name,
-                            swarm_id,
-                            SwarmEventType::FileTouch {
-                                path: path.to_string_lossy().to_string(),
-                                op: touch.op.as_str().to_string(),
-                                summary: touch.summary.clone(),
-                                detail: touch.detail.clone(),
-                            },
-                        )
-                        .await;
-                    }
+                    record_swarm_event_for_session(
+                        &session_id,
+                        SwarmEventType::FileTouch {
+                            path: path.to_string_lossy().to_string(),
+                            op: touch.op.as_str().to_string(),
+                            summary: touch.summary.clone(),
+                            detail: touch.detail.clone(),
+                        },
+                        &swarm_members,
+                        &event_history,
+                        &event_counter,
+                        &swarm_event_tx,
+                    )
+                    .await;
 
                     // Find the swarm this session belongs to
                     let swarm_session_ids: Vec<String> = {

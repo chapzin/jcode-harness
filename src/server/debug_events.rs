@@ -118,20 +118,7 @@ pub(super) async fn maybe_handle_event_subscription_command<W: AsyncWrite + Unpi
                 {
                     continue;
                 }
-                let timestamp_unix = event
-                    .absolute_time
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_secs())
-                    .unwrap_or(0);
-                let event_json = serde_json::json!({
-                    "type": "event",
-                    "id": event.id,
-                    "session_id": event.session_id,
-                    "session_name": event.session_name,
-                    "swarm_id": event.swarm_id,
-                    "event": event.event,
-                    "timestamp_unix": timestamp_unix,
-                });
+                let event_json = subscription_event_payload(&event);
                 let mut line = serde_json::to_string(&event_json).unwrap_or_default();
                 line.push('\n');
                 if writer.write_all(line.as_bytes()).await.is_err() {
@@ -157,18 +144,119 @@ pub(super) async fn maybe_handle_event_subscription_command<W: AsyncWrite + Unpi
 }
 
 fn event_payload(event: &SwarmEvent) -> serde_json::Value {
+    let mut payload = base_event_payload(event);
+    payload.insert(
+        "age_secs".to_string(),
+        serde_json::json!(event.timestamp.elapsed().as_secs()),
+    );
+    serde_json::Value::Object(payload)
+}
+
+fn subscription_event_payload(event: &SwarmEvent) -> serde_json::Value {
+    let mut payload = base_event_payload(event);
+    payload.insert("type".to_string(), serde_json::json!("event"));
+    serde_json::Value::Object(payload)
+}
+
+fn base_event_payload(event: &SwarmEvent) -> serde_json::Map<String, serde_json::Value> {
     let timestamp_unix = event
         .absolute_time
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    serde_json::json!({
-        "id": event.id,
-        "session_id": event.session_id,
-        "session_name": event.session_name,
-        "swarm_id": event.swarm_id,
-        "event": event.event,
-        "age_secs": event.timestamp.elapsed().as_secs(),
-        "timestamp_unix": timestamp_unix,
-    })
+    let mut payload = serde_json::Map::new();
+    payload.insert("id".to_string(), serde_json::json!(event.id));
+    payload.insert(
+        "session_id".to_string(),
+        serde_json::json!(event.session_id),
+    );
+    payload.insert(
+        "session_name".to_string(),
+        serde_json::json!(event.session_name),
+    );
+    payload.insert("swarm_id".to_string(), serde_json::json!(event.swarm_id));
+    payload.insert("event".to_string(), serde_json::json!(event.event));
+    payload.insert(
+        "timestamp_unix".to_string(),
+        serde_json::json!(timestamp_unix),
+    );
+    if let Some(member) = &event.member {
+        if let Some(run_id) = member.run_id.as_deref() {
+            payload.insert("run_id".to_string(), serde_json::json!(run_id));
+        }
+        if let Some(role) = member.role.as_deref() {
+            payload.insert("role".to_string(), serde_json::json!(role));
+        }
+        if let Some(status) = member.status.as_deref() {
+            payload.insert("status".to_string(), serde_json::json!(status));
+        }
+        if let Some(working_dir) = member.working_dir.as_deref() {
+            payload.insert("working_dir".to_string(), serde_json::json!(working_dir));
+        }
+    }
+    payload
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::server::SwarmEventMemberMetadata;
+    use std::time::{Instant, SystemTime};
+
+    fn event(member: Option<SwarmEventMemberMetadata>) -> SwarmEvent {
+        SwarmEvent {
+            id: 7,
+            session_id: "session-worker".to_string(),
+            session_name: Some("bear".to_string()),
+            swarm_id: Some("swarm-test".to_string()),
+            member,
+            event: SwarmEventType::StatusChange {
+                old_status: "running".to_string(),
+                new_status: "ready".to_string(),
+            },
+            timestamp: Instant::now(),
+            absolute_time: SystemTime::UNIX_EPOCH,
+        }
+    }
+
+    #[test]
+    fn debug_event_payload_includes_member_metadata_when_present() {
+        let payload = event_payload(&event(Some(SwarmEventMemberMetadata {
+            run_id: Some("run-123".to_string()),
+            role: Some("agent".to_string()),
+            status: Some("ready".to_string()),
+            working_dir: Some("/tmp/jcode-worktrees/bear".to_string()),
+        })));
+
+        assert_eq!(payload["run_id"], "run-123");
+        assert_eq!(payload["role"], "agent");
+        assert_eq!(payload["status"], "ready");
+        assert_eq!(payload["working_dir"], "/tmp/jcode-worktrees/bear");
+    }
+
+    #[test]
+    fn debug_event_payload_omits_member_metadata_when_absent() {
+        let payload = event_payload(&event(None));
+
+        assert!(payload.get("run_id").is_none());
+        assert!(payload.get("role").is_none());
+        assert!(payload.get("status").is_none());
+        assert!(payload.get("working_dir").is_none());
+    }
+
+    #[test]
+    fn subscription_event_payload_reuses_member_metadata() {
+        let payload = subscription_event_payload(&event(Some(SwarmEventMemberMetadata {
+            run_id: Some("run-stream".to_string()),
+            role: Some("coordinator".to_string()),
+            status: Some("running".to_string()),
+            working_dir: None,
+        })));
+
+        assert_eq!(payload["type"], "event");
+        assert_eq!(payload["run_id"], "run-stream");
+        assert_eq!(payload["role"], "coordinator");
+        assert_eq!(payload["status"], "running");
+        assert!(payload.get("working_dir").is_none());
+    }
 }

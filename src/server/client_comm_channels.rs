@@ -1,6 +1,6 @@
 use super::{
-    SwarmEvent, SwarmEventType, SwarmMember, record_swarm_event, subscribe_session_to_channel,
-    unsubscribe_session_from_channel,
+    SwarmEvent, SwarmEventType, SwarmMember, record_swarm_event_for_session,
+    subscribe_session_to_channel, unsubscribe_session_from_channel,
 };
 use crate::protocol::{AgentInfo, ServerEvent, SwarmChannelInfo};
 use jcode_swarm_core::ChannelIndex;
@@ -143,17 +143,16 @@ pub(super) async fn handle_comm_subscribe_channel(
         )
         .await;
 
-        record_swarm_event(
-            event_history,
-            event_counter,
-            swarm_event_tx,
-            req_session_id.clone(),
-            None,
-            Some(swarm_id.clone()),
+        record_swarm_event_for_session(
+            &req_session_id,
             SwarmEventType::Notification {
                 notification_type: "channel_subscribe".to_string(),
                 message: channel.clone(),
             },
+            swarm_members,
+            event_history,
+            event_counter,
+            swarm_event_tx,
         )
         .await;
 
@@ -195,17 +194,16 @@ pub(super) async fn handle_comm_unsubscribe_channel(
         )
         .await;
 
-        record_swarm_event(
-            event_history,
-            event_counter,
-            swarm_event_tx,
-            req_session_id.clone(),
-            None,
-            Some(swarm_id.clone()),
+        record_swarm_event_for_session(
+            &req_session_id,
             SwarmEventType::Notification {
                 notification_type: "channel_unsubscribe".to_string(),
                 message: channel.clone(),
             },
+            swarm_members,
+            event_history,
+            event_counter,
+            swarm_event_tx,
         )
         .await;
 

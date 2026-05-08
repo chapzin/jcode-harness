@@ -333,16 +333,15 @@ async fn ensure_client_swarm_member(
             .or_insert_with(HashSet::new)
             .insert(client_session_id.to_string());
         drop(swarms);
-        super::record_swarm_event(
-            event_history,
-            event_counter,
-            swarm_event_tx,
-            client_session_id.to_string(),
-            member_name,
-            Some(swarm_id_ref.to_string()),
+        super::record_swarm_event_for_session(
+            client_session_id,
             crate::server::SwarmEventType::MemberChange {
                 action: "joined".to_string(),
             },
+            swarm_members,
+            event_history,
+            event_counter,
+            swarm_event_tx,
         )
         .await;
     }

@@ -274,6 +274,29 @@ pub enum SwarmEventType {
     },
 }
 
+/// Snapshot of member metadata captured when a swarm event is recorded.
+#[derive(Clone, Debug, Default)]
+pub struct SwarmEventMemberMetadata {
+    pub run_id: Option<String>,
+    pub role: Option<String>,
+    pub status: Option<String>,
+    pub working_dir: Option<String>,
+}
+
+impl SwarmEventMemberMetadata {
+    pub fn from_member(member: &SwarmMember) -> Self {
+        Self {
+            run_id: member.run_id.clone(),
+            role: Some(member.role.clone()),
+            status: Some(member.status.clone()),
+            working_dir: member
+                .working_dir
+                .as_ref()
+                .map(|path| path.display().to_string()),
+        }
+    }
+}
+
 /// A swarm event with metadata
 #[derive(Clone, Debug)]
 pub struct SwarmEvent {
@@ -281,6 +304,8 @@ pub struct SwarmEvent {
     pub session_id: String,
     pub session_name: Option<String>,
     pub swarm_id: Option<String>,
+    /// Member metadata captured at event-record time, when the member is known.
+    pub member: Option<SwarmEventMemberMetadata>,
     pub event: SwarmEventType,
     pub timestamp: Instant,
     pub absolute_time: std::time::SystemTime,

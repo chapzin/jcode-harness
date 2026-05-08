@@ -1,6 +1,6 @@
 use super::{
     SharedContext, SwarmEvent, SwarmEventType, SwarmMember, fanout_session_event,
-    record_swarm_event,
+    record_swarm_event_for_session,
 };
 use crate::protocol::{AgentInfo, ContextEntry, NotificationType, ServerEvent};
 use std::collections::{HashMap, HashSet};
@@ -117,17 +117,16 @@ pub(super) async fn handle_comm_share(
             }
         }
 
-        record_swarm_event(
-            event_history,
-            event_counter,
-            swarm_event_tx,
-            req_session_id.clone(),
-            friendly_name.clone(),
-            Some(swarm_id.clone()),
+        record_swarm_event_for_session(
+            &req_session_id,
             SwarmEventType::ContextUpdate {
                 swarm_id: swarm_id.clone(),
                 key: key.clone(),
             },
+            swarm_members,
+            event_history,
+            event_counter,
+            swarm_event_tx,
         )
         .await;
 

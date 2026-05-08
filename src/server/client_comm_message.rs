@@ -1,6 +1,6 @@
 use super::{
     ClientConnectionInfo, SessionInterruptQueues, SwarmEvent, SwarmEventType, SwarmMember,
-    fanout_session_event, queue_soft_interrupt_for_session, record_swarm_event,
+    fanout_session_event, queue_soft_interrupt_for_session, record_swarm_event_for_session,
     session_event_fanout_sender, truncate_detail,
 };
 use crate::agent::Agent;
@@ -348,17 +348,16 @@ pub(super) async fn handle_comm_message(
         } else {
             scope.to_string()
         };
-        record_swarm_event(
-            event_history,
-            event_counter,
-            swarm_event_tx,
-            from_session.clone(),
-            friendly_name.clone(),
-            Some(swarm_id.clone()),
+        record_swarm_event_for_session(
+            &from_session,
             SwarmEventType::Notification {
                 notification_type: scope_value,
                 message: truncate_detail(&message, 220),
             },
+            swarm_members,
+            event_history,
+            event_counter,
+            swarm_event_tx,
         )
         .await;
 

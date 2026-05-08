@@ -1,0 +1,54 @@
+{
+  "id": "gate-2026-05-08-1ecbb3",
+  "ts": "2026-05-08T11:42:47.868Z",
+  "contractId": "2026-05-08-expose-swarm-event-member-metadata-6abff3",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/server/state.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/swarm.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/debug_events.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/comm_control_tests.rs",
+      "exists": true
+    },
+    {
+      "path": "src/server/reload_tests.rs",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/state.json",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/traces/2026-05-08.jsonl",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "SwarmEvent carries optional member metadata (run_id, role, status, working_dir) for events recorded against known members.",
+    "events:recent, events:since, and events:subscribe include member metadata fields when present.",
+    "Events without member metadata remain backward compatible and omit the new fields.",
+    "Focused tests, cargo check, and final selfdev build passed."
+  ],
+  "uncheckedConditions": [
+    "SwarmEvent carries optional run_id, role, status, and working_dir metadata when the event is recorded for a known member",
+    "events:recent/events:since/events:subscribe include the new metadata fields when present",
+    "Existing event consumers remain backward-compatible when metadata is absent",
+    "Focused tests and cargo check/selfdev build pass"
+  ],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/390767vp3e.output: cargo fmt --check, debug_events tests, member metadata recorder test, graceful shutdown session tests, cargo check passed.",
+    "/tmp/jcode-bg-tasks/443797ia3r.output: selfdev build passed.",
+    "git diff --check passed before governance recording."
+  ],
+  "notes": "Implemented optional SwarmEventMemberMetadata, member-aware event recorders, JSON payload metadata for recent/since/subscribe, compatibility tests, and fixture updates."
+}

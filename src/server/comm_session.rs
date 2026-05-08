@@ -6,10 +6,11 @@ use super::swarm_mutation_state::{
 use super::{
     SessionInterruptQueues, SwarmEvent, SwarmEventType, SwarmMember, SwarmState, VersionedPlan,
     append_swarm_completion_report_instructions, broadcast_swarm_plan, broadcast_swarm_status,
-    create_headless_session, fanout_session_event, persist_swarm_state_for, record_swarm_event,
-    record_swarm_event_for_session, remove_session_channel_subscriptions,
-    remove_session_from_swarm, remove_session_interrupt_queue, truncate_detail,
-    update_member_status, update_member_status_with_report,
+    create_headless_session, fanout_session_event, persist_swarm_state_for,
+    record_swarm_event_for_session, record_swarm_event_with_member_metadata,
+    remove_session_channel_subscriptions, remove_session_from_swarm,
+    remove_session_interrupt_queue, truncate_detail, update_member_status,
+    update_member_status_with_report,
 };
 use crate::agent::Agent;
 use crate::protocol::{NotificationType, ServerEvent};
@@ -695,22 +696,24 @@ pub(super) async fn handle_comm_stop(
         }
     }
 
-    let (removed_swarm_id, removed_name) = {
+    let (removed_swarm_id, removed_name, member_metadata) = {
         let mut members = swarm_members.write().await;
         if let Some(member) = members.remove(&target_session) {
-            (member.swarm_id, member.friendly_name)
+            let metadata = super::SwarmEventMemberMetadata::from_member(&member);
+            (member.swarm_id, member.friendly_name, Some(metadata))
         } else {
-            (None, None)
+            (None, None, None)
         }
     };
     if let Some(ref swarm_id) = removed_swarm_id {
-        record_swarm_event(
+        record_swarm_event_with_member_metadata(
             event_history,
             event_counter,
             swarm_event_tx,
             target_session.clone(),
             removed_name.clone(),
             Some(swarm_id.clone()),
+            member_metadata,
             SwarmEventType::MemberChange {
                 action: "left".to_string(),
             },
