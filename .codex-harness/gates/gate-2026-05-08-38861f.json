@@ -1,0 +1,41 @@
+{
+  "id": "gate-2026-05-08-38861f",
+  "ts": "2026-05-08T14:06:46.099Z",
+  "contractId": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/tool/communicate.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate_tests.rs",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/state.json",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/traces/2026-05-08.jsonl",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Coordinator-only swarm tool actions for assignment/control detect coordinator denial and self-promote the current session before retrying once.",
+    "Existing spawn self-promotion behavior remains compatible through the shared failure-message helper.",
+    "Focused tests cover generic coordinator denial detection and actionable retry copy for assign/control retries.",
+    "cargo fmt/check/test, git diff --check, selfdev build and reload passed before commit."
+  ],
+  "uncheckedConditions": [
+    "The existing spawn self-promotion behavior and error copy remain compatible.",
+    "cargo fmt/check/test, git diff --check, selfdev build/reload, governance, commit, and push pass."
+  ],
+  "evidence": [
+    "src/tool/communicate.rs adds coordinator_retry_denial, coordinator_self_promote_failure_message, ensure_action_coordinator, and send_request_with_coordinator_retry.",
+    "src/tool/communicate.rs uses the coordinator retry helper for run_plan internal assignments, spawned assign_task follow-up, direct assign_task, direct assign_next, fill_slots, and task_control actions.",
+    "src/tool/communicate_tests.rs covers coordinator-only assign/control denials and actionable retry copy, while spawn detection remains limited to spawn denial.",
+    "Verification task 091300dyxx passed focused tests, cargo check, and diff check; selfdev build task 137550y5y4 passed; reload succeeded."
+  ],
+  "notes": "This is a tool-side one-shot retry only. Server authorization semantics remain unchanged and non-coordinator errors are not retried."
+}

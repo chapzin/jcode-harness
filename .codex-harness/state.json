@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Commit and push fill_slots operation_id idempotency slice",
+  "focus": "Commit and push coordinator retry slice",
   "status": "done",
-  "activeContractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc",
+  "activeContractId": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e",
   "counters": {
-    "contracts": 38,
-    "traces": 52,
-    "gates": 37,
-    "verifications": 42,
+    "contracts": 39,
+    "traces": 55,
+    "gates": 38,
+    "verifications": 44,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -122,52 +122,14 @@
       "id": "decision-2026-05-08-5f1d21",
       "ts": "2026-05-08T13:59:51.791Z",
       "text": "Completed issue #13 fill_slots idempotency slice: explicit operation_id now derives a stable run scope and per-slot assign_next nonces, so retries replay original slot assignments instead of filling additional tasks."
+    },
+    {
+      "id": "decision-2026-05-08-f7c593",
+      "ts": "2026-05-08T14:06:58.312Z",
+      "text": "Completed issue #13 coordinator retry slice: coordinator-only swarm tool actions now self-promote and retry once for assignment/control operations when the server returns a coordinator-denial error."
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-07T21:40:00.110Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-add-offline-session-show-json-b08332",
-      "summary": "Add offline session show JSON"
-    },
-    {
-      "ts": "2026-05-07T21:44:30.784Z",
-      "type": "trace_recorded",
-      "traceId": "trace-2026-05-07-7cf7bcba",
-      "contractId": "2026-05-07-add-offline-session-show-json-b08332",
-      "kind": "attempt",
-      "summary": "Implemented offline session show JSON slice"
-    },
-    {
-      "ts": "2026-05-07T21:45:05.214Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-07-704f7b17",
-      "contractId": "2026-05-07-add-offline-session-show-json-b08332",
-      "status": "pass",
-      "summary": "Focused session show validation passed"
-    },
-    {
-      "ts": "2026-05-07T21:46:41.371Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-07-add-offline-session-show-json-b08332",
-      "gateId": "gate-2026-05-07-29505b",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-07T21:46:41.371Z",
-      "type": "state_update",
-      "note": "Implemented and validated offline/read-only session show JSON. Next: commit and push.",
-      "status": "done",
-      "focus": "Issue #4 session show JSON",
-      "activeContractId": "2026-05-07-add-offline-session-show-json-b08332"
-    },
-    {
-      "ts": "2026-05-07T21:49:01.256Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-add-offline-session-resume-dry-run-json-2fd640",
-      "summary": "Add offline session resume dry-run JSON"
-    },
     {
       "ts": "2026-05-07T22:14:11.239Z",
       "type": "contract_created",
@@ -712,6 +674,51 @@
       "status": "done",
       "focus": "Commit and push fill_slots operation_id idempotency slice",
       "activeContractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc"
+    },
+    {
+      "ts": "2026-05-08T14:02:40.794Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e",
+      "summary": "Add coordinator retry for swarm control actions"
+    },
+    {
+      "ts": "2026-05-08T14:06:17.889Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-bb55b53b",
+      "contractId": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e",
+      "kind": "failure",
+      "summary": "Initial coordinator retry verification failed formatting gate"
+    },
+    {
+      "ts": "2026-05-08T14:06:30.213Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-3c4c4f2f",
+      "contractId": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e",
+      "status": "pass",
+      "summary": "Focused coordinator retry verification passed"
+    },
+    {
+      "ts": "2026-05-08T14:06:38.022Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-628071a2",
+      "contractId": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e",
+      "status": "pass",
+      "summary": "Selfdev build passed for coordinator retry slice"
+    },
+    {
+      "ts": "2026-05-08T14:06:46.099Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e",
+      "gateId": "gate-2026-05-08-38861f",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T14:06:58.313Z",
+      "type": "state_update",
+      "note": "Initial formatting failure resolved by cargo fmt. Focused verification task 091300dyxx, selfdev build task 137550y5y4, reload, and completion gate gate-2026-05-08-38861f passed.",
+      "status": "done",
+      "focus": "Commit and push coordinator retry slice",
+      "activeContractId": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e"
     }
   ]
 }

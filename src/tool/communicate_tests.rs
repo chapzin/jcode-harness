@@ -1,12 +1,12 @@
 use super::{
-    CommunicateInput, CommunicateTool, cleanup_candidate_session_ids,
-    default_await_target_statuses, default_cleanup_target_statuses,
-    explicit_operation_request_nonce, fill_slots_request_nonce, format_awaited_members,
-    format_awaited_members_with_reports, format_cleanup_dry_run, format_members,
-    format_members_for_run, format_plan_status, format_swarm_health, format_swarm_health_for_run,
-    format_swarm_reconcile, implicit_await_run_scope, latest_assistant_report,
-    operation_scoped_run_id, resolve_optional_target_session, spawn_requires_coordinator,
-    spawn_self_promote_failure_message,
+    CommunicateInput, CommunicateTool, cleanup_candidate_session_ids, coordinator_retry_denial,
+    coordinator_self_promote_failure_message, default_await_target_statuses,
+    default_cleanup_target_statuses, explicit_operation_request_nonce, fill_slots_request_nonce,
+    format_awaited_members, format_awaited_members_with_reports, format_cleanup_dry_run,
+    format_members, format_members_for_run, format_plan_status, format_swarm_health,
+    format_swarm_health_for_run, format_swarm_reconcile, implicit_await_run_scope,
+    latest_assistant_report, operation_scoped_run_id, resolve_optional_target_session,
+    spawn_requires_coordinator, spawn_self_promote_failure_message,
 };
 use crate::message::{Message, StreamEvent, ToolDefinition};
 use crate::protocol::{
@@ -145,11 +145,49 @@ fn spawn_requires_coordinator_detects_spawn_denials_only() {
 }
 
 #[test]
+fn coordinator_retry_denial_detects_all_coordinator_only_actions() {
+    let assign_denial = ServerEvent::Error {
+        id: 1,
+        message: "Only the coordinator can assign tasks.".to_string(),
+        retry_after_secs: None,
+    };
+    assert!(coordinator_retry_denial(&assign_denial));
+
+    let control_denial = ServerEvent::Error {
+        id: 2,
+        message: "Only the coordinator can control assigned tasks.".to_string(),
+        retry_after_secs: None,
+    };
+    assert!(coordinator_retry_denial(&control_denial));
+
+    let not_found = ServerEvent::Error {
+        id: 3,
+        message: "No runnable unassigned tasks are available in the swarm plan".to_string(),
+        retry_after_secs: None,
+    };
+    assert!(!coordinator_retry_denial(&not_found));
+
+    assert!(!coordinator_retry_denial(&ServerEvent::Done { id: 4 }));
+}
+
+#[test]
 fn spawn_self_promote_failure_message_includes_actionable_retry() {
     let message = spawn_self_promote_failure_message("Only the coordinator can assign roles.");
     assert!(message.contains("automatic self-promotion failed"));
     assert!(message.contains("swarm assign_role target_session=current role=coordinator"));
     assert!(message.contains("retry spawn"));
+}
+
+#[test]
+fn coordinator_retry_failure_message_names_operation_and_action() {
+    let message = coordinator_self_promote_failure_message(
+        "assign task",
+        "Only the coordinator can assign roles.",
+    );
+    assert!(message.contains("assign task requires coordinator role"));
+    assert!(message.contains("automatic self-promotion failed"));
+    assert!(message.contains("swarm assign_role target_session=current role=coordinator"));
+    assert!(message.contains("retry assign task"));
 }
 
 #[test]

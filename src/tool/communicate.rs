@@ -22,6 +22,7 @@ use std::path::Path;
 
 const REQUEST_ID: u64 = 1;
 const SPAWN_COORDINATOR_DENIAL: &str = "Only the coordinator can spawn new agents";
+const COORDINATOR_DENIAL_PREFIX: &str = "Only the coordinator can";
 
 mod transport;
 use transport::{send_request, send_request_with_timeout};
@@ -80,10 +81,21 @@ fn spawn_requires_coordinator(response: &ServerEvent) -> bool {
     check_error(response).is_some_and(|message| message.contains(SPAWN_COORDINATOR_DENIAL))
 }
 
-fn spawn_self_promote_failure_message(error: impl std::fmt::Display) -> String {
+fn coordinator_retry_denial(response: &ServerEvent) -> bool {
+    check_error(response).is_some_and(|message| message.contains(COORDINATOR_DENIAL_PREFIX))
+}
+
+fn coordinator_self_promote_failure_message(
+    operation: &str,
+    error: impl std::fmt::Display,
+) -> String {
     format!(
-        "Spawn requires coordinator role, and automatic self-promotion failed: {error}. Try `swarm assign_role target_session=current role=coordinator`, then retry spawn."
+        "{operation} requires coordinator role, and automatic self-promotion failed: {error}. Try `swarm assign_role target_session=current role=coordinator`, then retry {operation}."
     )
+}
+
+fn spawn_self_promote_failure_message(error: impl std::fmt::Display) -> String {
+    coordinator_self_promote_failure_message("Spawn", error)
 }
 
 async fn ensure_spawn_coordinator(ctx: &ToolContext) -> Result<()> {
@@ -124,6 +136,53 @@ async fn send_spawn_request_with_coordinator_retry(
     {
         return Err(anyhow::anyhow!(
             "Spawn still requires coordinator role after automatic self-promotion: {message}. Try `swarm assign_role target_session=current role=coordinator`, then retry spawn."
+        ));
+    }
+
+    Ok(retry_response)
+}
+
+async fn ensure_action_coordinator(ctx: &ToolContext, operation: &str) -> Result<()> {
+    let request = Request::CommAssignRole {
+        id: REQUEST_ID,
+        session_id: ctx.session_id.clone(),
+        target_session: ctx.session_id.clone(),
+        role: "coordinator".to_string(),
+    };
+
+    match send_request(request).await {
+        Ok(response) => ensure_success(&response).map_err(|error| {
+            anyhow::anyhow!(coordinator_self_promote_failure_message(operation, error))
+        }),
+        Err(error) => Err(anyhow::anyhow!(coordinator_self_promote_failure_message(
+            operation, error
+        ))),
+    }
+}
+
+async fn send_request_with_coordinator_retry(
+    ctx: &ToolContext,
+    request: Request,
+    operation: &str,
+) -> Result<ServerEvent> {
+    let first_response = send_request(request.clone())
+        .await
+        .map_err(|error| anyhow::anyhow!("Failed to {operation}: {error}"))?;
+
+    if !coordinator_retry_denial(&first_response) {
+        return Ok(first_response);
+    }
+
+    ensure_action_coordinator(ctx, operation).await?;
+
+    let retry_response = send_request(request)
+        .await
+        .map_err(|error| anyhow::anyhow!("Failed to {operation} after self-promoting: {error}"))?;
+    if coordinator_retry_denial(&retry_response)
+        && let Some(message) = check_error(&retry_response)
+    {
+        return Err(anyhow::anyhow!(
+            "{operation} still requires coordinator role after automatic self-promotion: {message}. Try `swarm assign_role target_session=current role=coordinator`, then retry {operation}."
         ));
     }
 
@@ -501,7 +560,7 @@ async fn run_swarm_plan_to_terminal(
                 request_nonce: None,
                 run_id: Some(run_id.clone()),
             };
-            match send_request(request).await {
+            match send_request_with_coordinator_retry(ctx, request, "run_plan assignment").await {
                 Ok(ServerEvent::CommAssignTaskResponse { target_session, .. }) => {
                     assignment_count += 1;
                     assigned_sessions.push(target_session);
@@ -595,7 +654,7 @@ async fn assign_task_to_session(
         request_nonce: explicit_operation_request_nonce(params.operation_id.as_deref()),
     };
 
-    match send_request(retry_request).await {
+    match send_request_with_coordinator_retry(ctx, retry_request, "assign task").await {
         Ok(ServerEvent::CommAssignTaskResponse { task_id, .. }) => Ok(ToolOutput::new(format!(
             "Task '{}' assigned to {}{}",
             task_id, target_session, spawned_suffix
@@ -2052,7 +2111,7 @@ impl Tool for CommunicateTool {
                     request_nonce: explicit_operation_request_nonce(params.operation_id.as_deref()),
                 };
 
-                match send_request(request).await {
+                match send_request_with_coordinator_retry(&ctx, request, "assign task").await {
                     Ok(ServerEvent::CommAssignTaskResponse {
                         task_id,
                         target_session,
@@ -2121,7 +2180,7 @@ impl Tool for CommunicateTool {
                     }),
                 };
 
-                match send_request(request).await {
+                match send_request_with_coordinator_retry(&ctx, request, "assign next task").await {
                     Ok(ServerEvent::CommAssignTaskResponse {
                         task_id,
                         target_session,
@@ -2180,7 +2239,7 @@ impl Tool for CommunicateTool {
                         run_id: run_id.clone(),
                     };
 
-                    match send_request(request).await {
+                    match send_request_with_coordinator_retry(&ctx, request, "fill slots").await {
                         Ok(ServerEvent::CommAssignTaskResponse {
                             task_id,
                             target_session,
@@ -2262,7 +2321,7 @@ impl Tool for CommunicateTool {
                     request_nonce: explicit_operation_request_nonce(params.operation_id.as_deref()),
                 };
 
-                match send_request(request).await {
+                match send_request_with_coordinator_retry(&ctx, request, &control_action).await {
                     Ok(ServerEvent::CommTaskControlResponse {
                         task_id,
                         action,

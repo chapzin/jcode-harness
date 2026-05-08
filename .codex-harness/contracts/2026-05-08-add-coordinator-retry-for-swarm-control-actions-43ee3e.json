@@ -1,0 +1,47 @@
+{
+  "id": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e",
+  "title": "Add coordinator retry for swarm control actions",
+  "goal": "Implement a bounded issue #13 UX/reliability slice so assign_task, assign_next, and task_control style swarm tool actions reactively self-promote on coordinator-denial errors, matching the existing spawn retry flow and reducing manual recovery during orchestration.",
+  "createdAt": "2026-05-08T14:02:40.793Z",
+  "status": "active",
+  "requiredInputs": [
+    "chapzin/jcode-harness issue #13 robust swarm orchestration",
+    "Existing send_spawn_request_with_coordinator_retry helper",
+    "Coordinator-only server responses for assign_task, assign_next, and task_control"
+  ],
+  "budget": {
+    "maxSteps": 7,
+    "maxMinutes": 35,
+    "maxToolCalls": 35
+  },
+  "permissions": [
+    "Modify swarm communicate tool coordinator retry helpers and focused tests",
+    "Run cargo fmt/check/test and selfdev build",
+    "Commit and push"
+  ],
+  "completionConditions": [
+    "Coordinator-only swarm tool actions for assignment/control detect coordinator denial and self-promote the current session before retrying once.",
+    "The existing spawn self-promotion behavior and error copy remain compatible.",
+    "Focused tests cover generic coordinator denial detection and actionable retry copy for assign/control retries.",
+    "cargo fmt/check/test, git diff --check, selfdev build/reload, governance, commit, and push pass."
+  ],
+  "outputPaths": [
+    "src/tool/communicate.rs",
+    "src/tool/communicate_tests.rs",
+    ".codex-harness/state.json",
+    ".codex-harness/traces/2026-05-08.jsonl"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode coordinator_retry --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check"
+  ],
+  "failureTaxonomy": [
+    "Retrying non-coordinator errors or masking real request failures",
+    "Infinite retry loops after self-promotion fails",
+    "Changing server authorization semantics instead of tool-side retry UX",
+    "Breaking existing spawn coordinator retry behavior"
+  ],
+  "notes": "Keep this tool-side only. Retry at most once after CommAssignRole current->coordinator succeeds. Do not change server permission rules."
+}
