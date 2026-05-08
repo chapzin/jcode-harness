@@ -253,6 +253,11 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             SkillCommand::LlmwikiBridge { json } => commands::run_llmwiki_bridge_command(json)?,
         },
         Some(Command::Events(subcmd)) => match subcmd {
+            EventCommand::List { json } => commands::run_events_list_command(json)?,
+            EventCommand::Show { run, json } => commands::run_events_show_command(&run, json)?,
+            EventCommand::Replay { run, json, output } => {
+                commands::run_events_replay_command(&run, json, output)?
+            }
             EventCommand::Path { run, json } => commands::run_events_path_command(&run, json)?,
             EventCommand::Tail { run, lines, ndjson } => {
                 commands::run_events_tail_command(&run, lines, ndjson)?

@@ -161,6 +161,97 @@ struct HarnessEventExportReport {
     events: usize,
 }
 
+#[derive(Serialize)]
+struct HarnessEventReplayOutput {
+    summary: crate::harness_events::HarnessEventLogSummary,
+    events: Vec<crate::harness_events::HarnessEvent>,
+}
+
+pub fn run_events_list_command(emit_json: bool) -> Result<()> {
+    let summaries = crate::harness_events::list_harness_event_logs()?;
+
+    if emit_json {
+        println!("{}", serde_json::to_string_pretty(&summaries)?);
+        return Ok(());
+    }
+
+    if summaries.is_empty() {
+        println!("No harness event logs found.");
+        return Ok(());
+    }
+
+    println!("run_id\tstatus\tevents\tlast_timestamp\tpath");
+    for summary in summaries {
+        println!(
+            "{}\t{}\t{}\t{}\t{}",
+            summary.run_id,
+            summary.status,
+            summary.events,
+            summary
+                .last_timestamp
+                .map(|timestamp| timestamp.to_string())
+                .unwrap_or_default(),
+            summary.path,
+        );
+    }
+
+    Ok(())
+}
+
+pub fn run_events_show_command(run_id: &str, emit_json: bool) -> Result<()> {
+    let path = crate::harness_events::harness_event_log_path(run_id);
+    let summary = crate::harness_events::summarize_harness_event_log(&path)?;
+
+    if emit_json {
+        println!("{}", serde_json::to_string_pretty(&summary)?);
+        return Ok(());
+    }
+
+    println!("Harness event log: {}", summary.run_id);
+    println!("Status: {}", summary.status);
+    println!("Events: {}", summary.events);
+    if let Some(first) = summary.first_timestamp {
+        println!("Started: {}", first);
+    }
+    if let Some(last) = summary.last_timestamp {
+        println!("Last event: {}", last);
+    }
+    if let Some(duration_ms) = summary.duration_ms {
+        println!("Duration: {} ms", duration_ms);
+    }
+    println!("Path: {}", summary.path);
+
+    Ok(())
+}
+
+pub fn run_events_replay_command(
+    run_id: &str,
+    emit_json: bool,
+    output: Option<PathBuf>,
+) -> Result<()> {
+    let path = crate::harness_events::harness_event_log_path(run_id);
+    let events = crate::harness_events::read_harness_event_ndjson(&path)?;
+    let summary = crate::harness_events::summarize_harness_events(&path, &events);
+
+    let content = if emit_json {
+        serde_json::to_string_pretty(&HarnessEventReplayOutput { summary, events })?
+    } else {
+        crate::harness_events::render_harness_event_replay_markdown(&events)
+    };
+
+    if let Some(output_path) = output {
+        write_output_file(&output_path, content.as_bytes())?;
+        println!("Wrote harness event replay to {}", output_path.display());
+    } else {
+        print!("{}", content);
+        if !content.ends_with('\n') {
+            println!();
+        }
+    }
+
+    Ok(())
+}
+
 pub fn run_events_path_command(run_id: &str, emit_json: bool) -> Result<()> {
     let path = crate::harness_events::harness_event_log_path(run_id);
 
@@ -230,17 +321,9 @@ pub fn run_events_export_command(
     let events = crate::harness_events::read_harness_event_ndjson(&input_path)?;
 
     if let Some(output_path) = output {
-        if let Some(parent) = output_path.parent()
-            && !parent.as_os_str().is_empty()
-        {
-            std::fs::create_dir_all(parent)?;
-        }
-        let mut file = std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(&output_path)?;
-        write_events_ndjson(&mut file, &events)?;
+        let mut output = Vec::new();
+        write_events_ndjson(&mut output, &events)?;
+        write_output_file(&output_path, &output)?;
 
         let report = HarnessEventExportReport {
             run_id: run_id.to_string(),
@@ -263,6 +346,16 @@ pub fn run_events_export_command(
         write_events_ndjson(&mut stdout, &events)?;
     }
 
+    Ok(())
+}
+
+fn write_output_file(path: &std::path::Path, bytes: &[u8]) -> Result<()> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, bytes)?;
     Ok(())
 }
 

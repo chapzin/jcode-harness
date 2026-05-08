@@ -515,6 +515,42 @@ fn skills_import_validate_match_and_bridge_parse() {
 
 #[test]
 fn events_path_tail_and_export_parse() {
+    let args = Args::try_parse_from(["jcode", "events", "list", "--json"]).unwrap();
+    match args.command {
+        Some(Command::Events(EventCommand::List { json })) => assert!(json),
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args =
+        Args::try_parse_from(["jcode", "events", "show", "--run", "run_123", "--json"]).unwrap();
+    match args.command {
+        Some(Command::Events(EventCommand::Show { run, json })) => {
+            assert_eq!(run, "run_123");
+            assert!(json);
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
+    let args = Args::try_parse_from([
+        "jcode",
+        "events",
+        "replay",
+        "--run",
+        "run_123",
+        "--json",
+        "--output",
+        "replay.json",
+    ])
+    .unwrap();
+    match args.command {
+        Some(Command::Events(EventCommand::Replay { run, json, output })) => {
+            assert_eq!(run, "run_123");
+            assert!(json);
+            assert_eq!(output, Some(std::path::PathBuf::from("replay.json")));
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
     let args =
         Args::try_parse_from(["jcode", "events", "path", "--run", "run_123", "--json"]).unwrap();
     match args.command {

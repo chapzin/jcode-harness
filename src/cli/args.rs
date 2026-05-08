@@ -398,6 +398,39 @@ pub(crate) enum Command {
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum EventCommand {
+    /// List local harness event logs
+    List {
+        /// Emit JSON instead of a human-readable table
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Show summary metadata for one local harness event log
+    Show {
+        /// Harness run id
+        #[arg(long)]
+        run: String,
+
+        /// Emit JSON instead of human-readable text
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Reconstruct a local harness event timeline as Markdown or JSON
+    Replay {
+        /// Harness run id
+        #[arg(long)]
+        run: String,
+
+        /// Emit JSON with summary and events instead of Markdown
+        #[arg(long)]
+        json: bool,
+
+        /// Write replay output to a file instead of stdout
+        #[arg(long)]
+        output: Option<std::path::PathBuf>,
+    },
+
     /// Print the default local NDJSON log path for a run id
     Path {
         /// Harness run id

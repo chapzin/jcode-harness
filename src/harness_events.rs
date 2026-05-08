@@ -77,6 +77,19 @@ pub struct HarnessEvent {
     pub payload: Value,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct HarnessEventLogSummary {
+    pub run_id: String,
+    pub path: String,
+    pub events: usize,
+    pub status: String,
+    pub first_timestamp: Option<DateTime<Utc>>,
+    pub last_timestamp: Option<DateTime<Utc>>,
+    pub duration_ms: Option<u128>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
 impl HarnessEvent {
     pub fn new(
         event_id: impl Into<String>,
@@ -371,6 +384,178 @@ pub fn read_harness_event_ndjson(path: impl AsRef<Path>) -> anyhow::Result<Vec<H
     Ok(events)
 }
 
+pub fn summarize_harness_event_log(
+    path: impl AsRef<Path>,
+) -> anyhow::Result<HarnessEventLogSummary> {
+    let path = path.as_ref();
+    let events = read_harness_event_ndjson(path)?;
+    Ok(summarize_harness_events(path, &events))
+}
+
+pub fn summarize_harness_events(
+    path: impl AsRef<Path>,
+    events: &[HarnessEvent],
+) -> HarnessEventLogSummary {
+    let path = path.as_ref();
+    let first_timestamp = events.iter().map(|event| event.timestamp).min();
+    let last_timestamp = events.iter().map(|event| event.timestamp).max();
+    let run_id = events
+        .first()
+        .map(|event| event.run_id.clone())
+        .unwrap_or_else(|| run_id_from_event_log_path(path));
+    let status = infer_harness_event_status(events).to_string();
+    let duration_ms = first_timestamp
+        .zip(last_timestamp)
+        .and_then(|(first, last)| (last - first).num_milliseconds().try_into().ok());
+
+    HarnessEventLogSummary {
+        run_id,
+        path: path.display().to_string(),
+        events: events.len(),
+        status,
+        first_timestamp,
+        last_timestamp,
+        duration_ms,
+        error: None,
+    }
+}
+
+pub fn list_harness_event_logs() -> anyhow::Result<Vec<HarnessEventLogSummary>> {
+    let dir = default_harness_event_log_dir();
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut summaries = Vec::new();
+    for entry in std::fs::read_dir(&dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("ndjson") {
+            continue;
+        }
+        match summarize_harness_event_log(&path) {
+            Ok(summary) => summaries.push(summary),
+            Err(err) => summaries.push(HarnessEventLogSummary {
+                run_id: run_id_from_event_log_path(&path),
+                path: path.display().to_string(),
+                events: 0,
+                status: "corrupt".to_string(),
+                first_timestamp: None,
+                last_timestamp: None,
+                duration_ms: None,
+                error: Some(err.to_string()),
+            }),
+        }
+    }
+
+    summaries.sort_by(|a, b| {
+        b.last_timestamp
+            .cmp(&a.last_timestamp)
+            .then_with(|| a.run_id.cmp(&b.run_id))
+    });
+    Ok(summaries)
+}
+
+pub fn render_harness_event_replay_markdown(events: &[HarnessEvent]) -> String {
+    let summary = summarize_harness_events("<memory>", events);
+    let mut output = String::new();
+    output.push_str(&format!("# Harness event replay: {}\n\n", summary.run_id));
+    output.push_str("## Summary\n\n");
+    output.push_str(&format!("- Status: `{}`\n", summary.status));
+    output.push_str(&format!("- Events: {}\n", summary.events));
+    if let Some(first) = summary.first_timestamp {
+        output.push_str(&format!("- Started: `{}`\n", first));
+    }
+    if let Some(last) = summary.last_timestamp {
+        output.push_str(&format!("- Last event: `{}`\n", last));
+    }
+    if let Some(duration_ms) = summary.duration_ms {
+        output.push_str(&format!("- Duration: {} ms\n", duration_ms));
+    }
+    output.push_str("\n## Timeline\n\n");
+    output.push_str("| Seq | Time | Level | Kind | Event | Details |\n");
+    output.push_str("| ---: | --- | --- | --- | --- | --- |\n");
+    for event in events {
+        output.push_str(&format!(
+            "| {} | `{}` | `{}` | `{}` | `{}` | {} |\n",
+            event.sequence,
+            event.timestamp,
+            event_label(&event.level),
+            event_label(&event.kind),
+            escape_markdown_table_cell(&event.event_id),
+            escape_markdown_table_cell(&event_payload_summary(&event.payload)),
+        ));
+    }
+    output
+}
+
+fn infer_harness_event_status(events: &[HarnessEvent]) -> &'static str {
+    if events.iter().any(|event| {
+        matches!(
+            event.kind,
+            HarnessEventKind::RunFailed
+                | HarnessEventKind::TestFailed
+                | HarnessEventKind::GateFailed
+        )
+    }) {
+        "failed"
+    } else if events
+        .iter()
+        .any(|event| matches!(event.kind, HarnessEventKind::RunCompleted))
+    {
+        "completed"
+    } else if events.is_empty() {
+        "empty"
+    } else {
+        "partial"
+    }
+}
+
+fn run_id_from_event_log_path(path: &Path) -> String {
+    path.file_stem()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .unwrap_or("run")
+        .to_string()
+}
+
+fn event_label<T: Serialize>(value: &T) -> String {
+    serde_json::to_value(value)
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_string))
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+fn event_payload_summary(payload: &Value) -> String {
+    match payload {
+        Value::Object(map) => {
+            let mut parts = Vec::new();
+            for key in ["status", "tool", "source", "duration_ms", "text_chars"] {
+                if let Some(value) = map.get(key) {
+                    parts.push(format!("{key}={}", short_json_value(value)));
+                }
+            }
+            if parts.is_empty() {
+                "".to_string()
+            } else {
+                parts.join(", ")
+            }
+        }
+        _ => short_json_value(payload),
+    }
+}
+
+fn short_json_value(value: &Value) -> String {
+    match value {
+        Value::String(value) => value.clone(),
+        other => other.to_string(),
+    }
+}
+
+fn escape_markdown_table_cell(value: &str) -> String {
+    value.replace('|', "\\|").replace('\n', " ")
+}
+
 fn sanitize_run_id(run_id: &str) -> String {
     let sanitized: String = run_id
         .chars()
@@ -455,6 +640,30 @@ impl HarnessEventBus {
 mod tests {
     use super::*;
     use tokio::time::{Duration, timeout};
+
+    struct EnvVarRestore {
+        key: &'static str,
+        value: Option<std::ffi::OsString>,
+    }
+
+    impl EnvVarRestore {
+        fn set_runtime_dir(path: &Path) -> Self {
+            let key = "JCODE_RUNTIME_DIR";
+            let value = std::env::var_os(key);
+            crate::env::set_var(key, path);
+            Self { key, value }
+        }
+    }
+
+    impl Drop for EnvVarRestore {
+        fn drop(&mut self) {
+            if let Some(value) = self.value.as_ref() {
+                crate::env::set_var(self.key, value);
+            } else {
+                crate::env::remove_var(self.key);
+            }
+        }
+    }
 
     #[test]
     fn event_serializes_stable_common_fields() {
@@ -711,6 +920,105 @@ mod tests {
 
         assert_eq!(file_name, "run_with_spaces_and__chars.ndjson");
         assert!(path.ends_with("harness-events/run_with_spaces_and__chars.ndjson"));
+    }
+
+    #[test]
+    fn event_log_summary_detects_completed_status_and_duration() {
+        let temp = tempfile::Builder::new()
+            .prefix("jcode-harness-events-summary-")
+            .tempdir()
+            .unwrap();
+        let path = temp.path().join("run_summary.ndjson");
+        let started = HarnessEvent::new(
+            "hevt_start",
+            "run_summary",
+            DateTime::parse_from_rfc3339("2026-05-08T03:40:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            1,
+            HarnessEventLevel::Info,
+            HarnessEventKind::RunStarted,
+            json!({"status": "started"}),
+        );
+        let completed = HarnessEvent::new(
+            "hevt_done",
+            "run_summary",
+            DateTime::parse_from_rfc3339("2026-05-08T03:40:02Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            2,
+            HarnessEventLevel::Info,
+            HarnessEventKind::RunCompleted,
+            json!({"status": "ok", "duration_ms": 2000}),
+        );
+
+        append_harness_event_ndjson(&path, &started).unwrap();
+        append_harness_event_ndjson(&path, &completed).unwrap();
+
+        let summary = summarize_harness_event_log(&path).unwrap();
+        assert_eq!(summary.run_id, "run_summary");
+        assert_eq!(summary.events, 2);
+        assert_eq!(summary.status, "completed");
+        assert_eq!(summary.duration_ms, Some(2000));
+    }
+
+    #[test]
+    fn list_event_logs_includes_corrupt_diagnostics() {
+        let _lock = crate::storage::lock_test_env();
+        let temp = tempfile::Builder::new()
+            .prefix("jcode-harness-events-list-")
+            .tempdir()
+            .unwrap();
+        let _env = EnvVarRestore::set_runtime_dir(temp.path());
+        std::fs::create_dir_all(default_harness_event_log_dir()).unwrap();
+        let bus = HarnessEventBus::with_capacity(8);
+        append_harness_event_ndjson(
+            harness_event_log_path("run_good"),
+            &bus.publish(HarnessEventDraft::run_completed("run_good")),
+        )
+        .unwrap();
+        std::fs::write(
+            default_harness_event_log_dir().join("run_bad.ndjson"),
+            "bad\n",
+        )
+        .unwrap();
+
+        let summaries = list_harness_event_logs().unwrap();
+        assert!(summaries.iter().any(|summary| summary.run_id == "run_good"));
+        let corrupt = summaries
+            .iter()
+            .find(|summary| summary.run_id == "run_bad")
+            .expect("corrupt summary");
+        assert_eq!(corrupt.status, "corrupt");
+        assert!(
+            corrupt
+                .error
+                .as_deref()
+                .unwrap_or_default()
+                .contains("line 1")
+        );
+    }
+
+    #[test]
+    fn replay_markdown_contains_summary_and_timeline() {
+        let event = HarnessEvent::new(
+            "hevt_tool",
+            "run_replay",
+            DateTime::parse_from_rfc3339("2026-05-08T03:41:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            1,
+            HarnessEventLevel::Info,
+            HarnessEventKind::ToolFinished,
+            json!({"tool": "cargo test", "status": "ok"}),
+        );
+
+        let markdown = render_harness_event_replay_markdown(&[event]);
+
+        assert!(markdown.contains("# Harness event replay: run_replay"));
+        assert!(markdown.contains("## Summary"));
+        assert!(markdown.contains("| Seq | Time | Level | Kind | Event | Details |"));
+        assert!(markdown.contains("tool=cargo test"));
     }
 
     #[tokio::test]

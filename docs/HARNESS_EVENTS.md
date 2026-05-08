@@ -136,16 +136,23 @@ The default log directory is under `JCODE_RUNTIME_DIR` when set, otherwise the p
 ```bash
 jcode events path --run run_123
 jcode events path --run run_123 --json
+jcode events list --json
+jcode events show --run run_123 --json
 jcode events tail --run run_123 --lines 50
 jcode events tail --run run_123 --lines 50 --ndjson
 jcode events export --run run_123 --output run.ndjson --json
 jcode events export --run run_123 > run.ndjson
+jcode events replay --run run_123 > replay.md
+jcode events replay --run run_123 --json > replay.json
 ```
 
 - `path` prints the sanitized default log path for a run id.
+- `list` indexes local `.ndjson` logs and marks corrupt files instead of hiding them.
+- `show` prints summary metadata for one run.
 - `tail --ndjson` writes only raw event NDJSON to stdout.
 - `export` validates each source line as `HarnessEvent` before rewriting normalized NDJSON.
 - `export --json` requires `--output` so stdout remains machine-safe.
+- `replay` reconstructs a local audit timeline as Markdown by default, or JSON with `--json`.
 
 ## Minimal producer usage
 
