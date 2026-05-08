@@ -51,6 +51,7 @@ async fn task_control_wake_returns_structured_response_with_plan_summary() {
         "active-task".to_string(),
         Some(worker.to_string()),
         Some("continue".to_string()),
+        None,
         &client_tx,
         &sessions,
         &soft_interrupt_queues,
@@ -140,6 +141,7 @@ async fn task_control_resume_without_task_id_uses_unique_target_assignment() {
         String::new(),
         Some(worker.to_string()),
         None,
+        None,
         &client_tx,
         &sessions,
         &soft_interrupt_queues,
@@ -225,6 +227,7 @@ async fn task_control_without_task_id_rejects_ambiguous_target_assignments() {
         String::new(),
         Some(worker.to_string()),
         None,
+        None,
         &client_tx,
         &sessions,
         &soft_interrupt_queues,
@@ -249,4 +252,147 @@ async fn task_control_without_task_id_rejects_ambiguous_target_assignments() {
         }
         other => panic!("expected Error, got {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn task_control_wake_operation_id_replays_without_duplicate_interrupt() {
+    let (_env, _runtime) = RuntimeEnvGuard::new();
+    let swarm_id = "swarm-task-control-idempotent";
+    let requester = "coord";
+    let worker = "worker";
+    let (client_tx, mut client_rx) = mpsc::unbounded_channel();
+    let worker_agent = test_agent().await;
+    let worker_queue = worker_agent.lock().await.soft_interrupt_queue();
+    let sessions = Arc::new(RwLock::new(HashMap::from([(
+        worker.to_string(),
+        worker_agent.clone(),
+    )])));
+    let soft_interrupt_queues = Arc::new(RwLock::new(HashMap::new()));
+    crate::server::register_session_interrupt_queue(
+        &soft_interrupt_queues,
+        worker,
+        worker_queue.clone(),
+    )
+    .await;
+    let client_connections = Arc::new(RwLock::new(HashMap::new()));
+    let swarm_members = Arc::new(RwLock::new(HashMap::from([
+        (requester.to_string(), {
+            let mut member = member(requester, swarm_id, "ready");
+            member.role = "coordinator".to_string();
+            member
+        }),
+        (worker.to_string(), member(worker, swarm_id, "ready")),
+    ])));
+    let swarms_by_id = Arc::new(RwLock::new(HashMap::from([(
+        swarm_id.to_string(),
+        HashSet::from([requester.to_string(), worker.to_string()]),
+    )])));
+    let mut assigned = plan_item("wake-me", "queued", "high", &[]);
+    assigned.assigned_to = Some(worker.to_string());
+    let swarm_plans = Arc::new(RwLock::new(HashMap::from([(
+        swarm_id.to_string(),
+        VersionedPlan {
+            items: vec![assigned],
+            version: 1,
+            participants: HashSet::from([requester.to_string(), worker.to_string()]),
+            task_progress: HashMap::new(),
+        },
+    )])));
+    let swarm_coordinators = Arc::new(RwLock::new(HashMap::from([(
+        swarm_id.to_string(),
+        requester.to_string(),
+    )])));
+    let event_history = Arc::new(RwLock::new(VecDeque::new()));
+    let event_counter = Arc::new(AtomicU64::new(1));
+    let (swarm_event_tx, _swarm_event_rx) = broadcast::channel(32);
+    let mutation_runtime = SwarmMutationRuntime::default();
+
+    let _busy_guard = worker_agent.lock().await;
+
+    handle_comm_task_control(
+        201,
+        requester.to_string(),
+        "wake".to_string(),
+        "wake-me".to_string(),
+        Some(worker.to_string()),
+        Some("continue once".to_string()),
+        Some("op:wake-retry".to_string()),
+        &client_tx,
+        &sessions,
+        &soft_interrupt_queues,
+        &client_connections,
+        &swarm_members,
+        &swarms_by_id,
+        &swarm_plans,
+        &swarm_coordinators,
+        &event_history,
+        &event_counter,
+        &swarm_event_tx,
+        &mutation_runtime,
+    )
+    .await;
+
+    match client_rx.recv().await.expect("first response") {
+        ServerEvent::CommTaskControlResponse {
+            id,
+            action,
+            task_id,
+            target_session,
+            status,
+            ..
+        } => {
+            assert_eq!(id, 201);
+            assert_eq!(action, "wake");
+            assert_eq!(task_id, "wake-me");
+            assert_eq!(target_session.as_deref(), Some(worker));
+            assert_eq!(status, "queued");
+        }
+        other => panic!("expected first CommTaskControlResponse, got {other:?}"),
+    }
+
+    handle_comm_task_control(
+        202,
+        requester.to_string(),
+        "wake".to_string(),
+        "wake-me".to_string(),
+        Some(worker.to_string()),
+        Some("changed duplicate instructions".to_string()),
+        Some("op:wake-retry".to_string()),
+        &client_tx,
+        &sessions,
+        &soft_interrupt_queues,
+        &client_connections,
+        &swarm_members,
+        &swarms_by_id,
+        &swarm_plans,
+        &swarm_coordinators,
+        &event_history,
+        &event_counter,
+        &swarm_event_tx,
+        &mutation_runtime,
+    )
+    .await;
+
+    match client_rx.recv().await.expect("replay response") {
+        ServerEvent::CommTaskControlResponse {
+            id,
+            action,
+            task_id,
+            target_session,
+            status,
+            ..
+        } => {
+            assert_eq!(id, 202);
+            assert_eq!(action, "wake");
+            assert_eq!(task_id, "wake-me");
+            assert_eq!(target_session.as_deref(), Some(worker));
+            assert_eq!(status, "queued");
+        }
+        other => panic!("expected replay CommTaskControlResponse, got {other:?}"),
+    }
+
+    let pending = worker_queue.lock().expect("worker queue lock");
+    assert_eq!(pending.len(), 1);
+    assert!(pending[0].content.contains("continue once"));
+    assert!(!pending[0].content.contains("changed duplicate instructions"));
 }

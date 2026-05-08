@@ -559,6 +559,9 @@ pub enum Request {
         target_session: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         message: Option<String>,
+        /// Optional idempotency nonce for explicit task control retries.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        request_nonce: Option<String>,
     },
 
     /// Subscribe to a named channel in the swarm

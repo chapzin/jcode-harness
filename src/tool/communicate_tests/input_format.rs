@@ -133,6 +133,22 @@ fn communicate_input_accepts_operation_id_for_assign_next() {
     assert_eq!(explicit_operation_request_nonce(None), None);
 }
 
+#[test]
+fn communicate_input_accepts_operation_id_for_task_control() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "wake",
+        "task_id": "task-1",
+        "operation_id": " issue-13-task-control-1 "
+    }))
+    .expect("task_control operation_id should deserialize");
+
+    assert_eq!(parsed.operation_id.as_deref(), Some(" issue-13-task-control-1 "));
+    assert_eq!(
+        explicit_operation_request_nonce(parsed.operation_id.as_deref()).as_deref(),
+        Some("op:issue-13-task-control-1")
+    );
+}
+
 fn await_scope_member(
     session_id: &str,
     owner: Option<&str>,

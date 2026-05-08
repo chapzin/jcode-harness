@@ -1,0 +1,55 @@
+{
+  "id": "2026-05-08-make-task-control-operation-id-idempotent-c45e22",
+  "title": "Make task_control operation_id idempotent",
+  "goal": "Implement a bounded issue #13 idempotency slice so explicit operation_id deduplicates task_control retries, preventing duplicate wake/start/resume side effects such as repeated soft interrupts or task starts.",
+  "createdAt": "2026-05-08T13:30:10.695Z",
+  "status": "active",
+  "requiredInputs": [
+    "chapzin/jcode-harness issue #13 robust swarm orchestration",
+    "Existing swarm mutation state TaskControl and AssignTask response support",
+    "Current CommTaskControl does not accept a request_nonce even though the swarm tool exposes operation_id globally"
+  ],
+  "budget": {
+    "maxSteps": 9,
+    "maxMinutes": 60,
+    "maxToolCalls": 45
+  },
+  "permissions": [
+    "Modify protocol, swarm tool, task control server handler, and focused tests",
+    "Run cargo fmt/check/test and selfdev build",
+    "Commit and push"
+  ],
+  "completionConditions": [
+    "CommTaskControl accepts an optional request_nonce propagated from swarm operation_id for explicit retry idempotency.",
+    "When wake/start/resume task_control is called with request_nonce, duplicate calls replay the original TaskControl response instead of repeating side effects.",
+    "Task control behavior without operation_id remains unchanged so intentional repeated control calls still execute normally.",
+    "Existing retry/reassign/replace/salvage assign_task-backed control paths remain compatible with mutation replay.",
+    "Focused protocol/server/tool tests, cargo fmt/check, git diff --check, selfdev build/reload, governance, commit, and push pass."
+  ],
+  "outputPaths": [
+    "crates/jcode-protocol/src/lib.rs",
+    "crates/jcode-protocol/src/protocol_tests/comm_requests.rs",
+    "src/tool/communicate.rs",
+    "src/tool/communicate_tests/input_format.rs",
+    "src/server/client_lifecycle.rs",
+    "src/server/comm_control.rs",
+    "src/server/comm_control_tests/task_control.rs",
+    ".codex-harness/state.json",
+    ".codex-harness/traces/2026-05-08.jsonl"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode-protocol test_comm_task_control_roundtrip",
+    "cargo test -p jcode task_control_wake_operation_id --lib -- --test-threads=1 --nocapture",
+    "cargo test -p jcode tool::communicate::tests::communicate_input_accepts_operation_id_for_task_control --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check"
+  ],
+  "failureTaxonomy": [
+    "Changing default task_control behavior without operation_id",
+    "Persisting a task_control final response before side effects finish",
+    "Breaking retry/reassign/replace/salvage assign_task-backed responses",
+    "Over-expanding into full run_plan or task state persistence redesign"
+  ],
+  "notes": "Keep the slice to CommTaskControl explicit request_nonce support and operation_id wiring. Prove duplicate wake does not queue duplicate soft interrupts."
+}

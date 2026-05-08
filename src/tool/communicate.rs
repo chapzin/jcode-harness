@@ -2244,6 +2244,7 @@ impl Tool for CommunicateTool {
                     task_id: task_id.clone(),
                     target_session: params.target_session.clone(),
                     message: params.message.clone(),
+                    request_nonce: explicit_operation_request_nonce(params.operation_id.as_deref()),
                 };
 
                 match send_request(request).await {

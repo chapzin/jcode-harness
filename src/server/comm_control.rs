@@ -1475,6 +1475,69 @@ pub(super) async fn handle_comm_assign_next(
     .await;
 }
 
+fn task_control_mutation_key(
+    req_session_id: &str,
+    swarm_id: &str,
+    action: TaskControlAction,
+    request_nonce: &Option<String>,
+) -> Option<String> {
+    request_nonce
+        .as_deref()
+        .map(str::trim)
+        .filter(|nonce| !nonce.is_empty())
+        .map(|nonce| {
+            swarm_mutation_request_key(
+                req_session_id,
+                "task_control",
+                &[
+                    swarm_id.to_string(),
+                    action.as_str().to_string(),
+                    format!("nonce:{nonce}"),
+                ],
+            )
+        })
+}
+
+fn persisted_task_control_response(response: ServerEvent) -> PersistedSwarmMutationResponse {
+    match response {
+        ServerEvent::CommTaskControlResponse {
+            action,
+            task_id,
+            target_session,
+            status,
+            summary,
+            ..
+        } => PersistedSwarmMutationResponse::TaskControl {
+            action,
+            task_id,
+            target_session,
+            status,
+            summary,
+        },
+        ServerEvent::CommAssignTaskResponse {
+            task_id,
+            target_session,
+            ..
+        } => PersistedSwarmMutationResponse::AssignTask {
+            task_id,
+            target_session,
+        },
+        ServerEvent::Done { .. } => PersistedSwarmMutationResponse::Done,
+        ServerEvent::Error {
+            message,
+            retry_after_secs,
+            ..
+        } => PersistedSwarmMutationResponse::Error {
+            message,
+            retry_after_secs,
+        },
+        other => PersistedSwarmMutationResponse::Error {
+            message: format!("Unexpected task_control response: {other:?}"),
+            retry_after_secs: None,
+        },
+    }
+}
+
 #[expect(
     clippy::too_many_arguments,
     reason = "task control checks assignment state, delivery, and safe recovery paths together"
@@ -1486,6 +1549,7 @@ pub(super) async fn handle_comm_task_control(
     task_id: String,
     target_session: Option<String>,
     message: Option<String>,
+    request_nonce: Option<String>,
     client_event_tx: &mpsc::UnboundedSender<ServerEvent>,
     sessions: &SessionAgents,
     soft_interrupt_queues: &super::SessionInterruptQueues,
@@ -1522,6 +1586,112 @@ pub(super) async fn handle_comm_task_control(
         None => return,
     };
 
+    if let Some(mutation_key) =
+        task_control_mutation_key(&req_session_id, &swarm_id, action, &request_nonce)
+    {
+        let Some(mutation_state) = begin_swarm_mutation_or_replay(
+            swarm_mutation_runtime,
+            &mutation_key,
+            "task_control",
+            &req_session_id,
+            id,
+            client_event_tx,
+        )
+        .await
+        else {
+            return;
+        };
+
+        let (capture_tx, mut capture_rx) = mpsc::unbounded_channel();
+        handle_comm_task_control_resolved(
+            id,
+            req_session_id,
+            swarm_id,
+            action,
+            task_id,
+            target_session,
+            message,
+            &capture_tx,
+            sessions,
+            soft_interrupt_queues,
+            client_connections,
+            swarm_members,
+            swarms_by_id,
+            swarm_plans,
+            swarm_coordinators,
+            event_history,
+            event_counter,
+            swarm_event_tx,
+            swarm_mutation_runtime,
+        )
+        .await;
+
+        let response = capture_rx
+            .recv()
+            .await
+            .unwrap_or_else(|| ServerEvent::Error {
+                id,
+                message: "Task control request completed without a response".to_string(),
+                retry_after_secs: None,
+            });
+        finish_swarm_mutation_request(
+            swarm_mutation_runtime,
+            &mutation_state,
+            persisted_task_control_response(response),
+        )
+        .await;
+        return;
+    }
+
+    handle_comm_task_control_resolved(
+        id,
+        req_session_id,
+        swarm_id,
+        action,
+        task_id,
+        target_session,
+        message,
+        client_event_tx,
+        sessions,
+        soft_interrupt_queues,
+        client_connections,
+        swarm_members,
+        swarms_by_id,
+        swarm_plans,
+        swarm_coordinators,
+        event_history,
+        event_counter,
+        swarm_event_tx,
+        swarm_mutation_runtime,
+    )
+    .await;
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "task control has the same runtime dependencies as the public wrapper"
+)]
+async fn handle_comm_task_control_resolved(
+    id: u64,
+    req_session_id: String,
+    swarm_id: String,
+    action: TaskControlAction,
+    task_id: String,
+    target_session: Option<String>,
+    message: Option<String>,
+    client_event_tx: &mpsc::UnboundedSender<ServerEvent>,
+    sessions: &SessionAgents,
+    soft_interrupt_queues: &super::SessionInterruptQueues,
+    client_connections: &Arc<RwLock<HashMap<String, ClientConnectionInfo>>>,
+    swarm_members: &Arc<RwLock<HashMap<String, SwarmMember>>>,
+    swarms_by_id: &Arc<RwLock<HashMap<String, HashSet<String>>>>,
+    swarm_plans: &Arc<RwLock<HashMap<String, VersionedPlan>>>,
+    swarm_coordinators: &Arc<RwLock<HashMap<String, String>>>,
+    event_history: &Arc<RwLock<std::collections::VecDeque<SwarmEvent>>>,
+    event_counter: &Arc<std::sync::atomic::AtomicU64>,
+    swarm_event_tx: &broadcast::Sender<SwarmEvent>,
+    swarm_mutation_runtime: &SwarmMutationRuntime,
+) {
     let task_id = if task_id.trim().is_empty() {
         let Some(target_session) = target_session.as_deref() else {
             let _ = client_event_tx.send(ServerEvent::Error {

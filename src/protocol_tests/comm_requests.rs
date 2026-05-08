@@ -284,9 +284,11 @@ fn test_comm_task_control_roundtrip() -> Result<()> {
         task_id: "task_42".to_string(),
         target_session: Some("sess_replacement".to_string()),
         message: Some("Recover partial progress first.".to_string()),
+        request_nonce: Some("op:task-control-1".to_string()),
     };
     let json = serde_json::to_string(&req)?;
     assert!(json.contains("\"type\":\"comm_task_control\""));
+    assert!(json.contains("\"request_nonce\":\"op:task-control-1\""));
     let decoded = parse_request_json(&json)?;
     assert_eq!(decoded.id(), 58);
     let Request::CommTaskControl {
@@ -295,6 +297,7 @@ fn test_comm_task_control_roundtrip() -> Result<()> {
         task_id,
         target_session,
         message,
+        request_nonce,
         ..
     } = decoded
     else {
@@ -305,6 +308,7 @@ fn test_comm_task_control_roundtrip() -> Result<()> {
     assert_eq!(task_id, "task_42");
     assert_eq!(target_session.as_deref(), Some("sess_replacement"));
     assert_eq!(message.as_deref(), Some("Recover partial progress first."));
+    assert_eq!(request_nonce.as_deref(), Some("op:task-control-1"));
     Ok(())
 }
 

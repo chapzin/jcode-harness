@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Commit and push assign_next operation_id idempotency",
+  "focus": "Commit and push task_control operation_id idempotency",
   "status": "done",
-  "activeContractId": "2026-05-08-make-assign-next-operation-id-idempotent-086ab7",
+  "activeContractId": "2026-05-08-make-task-control-operation-id-idempotent-c45e22",
   "counters": {
-    "contracts": 35,
-    "traces": 43,
-    "gates": 34,
-    "verifications": 36,
+    "contracts": 36,
+    "traces": 46,
+    "gates": 35,
+    "verifications": 38,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -107,53 +107,14 @@
       "id": "decision-2026-05-08-0faa68",
       "ts": "2026-05-08T13:26:46.046Z",
       "text": "Completed issue #13 assign_next idempotency slice: explicit operation_id/request_nonce now replays the original assign_next assignment instead of advancing to another task, while default assign_next remains non-idempotent."
+    },
+    {
+      "id": "decision-2026-05-08-f5b780",
+      "ts": "2026-05-08T13:36:33.662Z",
+      "text": "Completed issue #13 task_control idempotency slice: explicit operation_id/request_nonce now replays wake/start/resume task_control responses without repeating side effects, while default task_control remains non-idempotent."
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-07T21:07:46.124Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-07-c9a1e4",
-      "contractId": "2026-05-07-add-offline-demo-manifest-9c2f1d",
-      "status": "pass",
-      "summary": "demo manifest validation passed"
-    },
-    {
-      "ts": "2026-05-07T21:07:46.124Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-07-add-offline-demo-manifest-9c2f1d",
-      "gateId": "gate-2026-05-07-a2b9e6",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-07T21:07:46.124Z",
-      "type": "state_update",
-      "note": "Implemented, validated, and selfdev-built offline demo manifest for issue #2 first slice. Next: commit and push.",
-      "status": "done",
-      "focus": "Issue #2 offline demo manifest",
-      "activeContractId": "2026-05-07-add-offline-demo-manifest-9c2f1d"
-    },
-    {
-      "ts": "2026-05-07T21:15:35.766Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-add-offline-demo-runner-4e8c91",
-      "summary": "Add offline demo runner"
-    },
-    {
-      "ts": "2026-05-07T21:15:35.766Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-07-d6f2ab",
-      "contractId": "2026-05-07-add-offline-demo-runner-4e8c91",
-      "status": "pass",
-      "summary": "demo run validation passed"
-    },
-    {
-      "ts": "2026-05-07T21:15:35.766Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-07-add-offline-demo-runner-4e8c91",
-      "gateId": "gate-2026-05-07-b7d4c2",
-      "verdict": "pass"
-    },
     {
       "ts": "2026-05-07T21:15:35.766Z",
       "type": "state_update",
@@ -693,6 +654,51 @@
       "status": "done",
       "focus": "Commit and push assign_next operation_id idempotency",
       "activeContractId": "2026-05-08-make-assign-next-operation-id-idempotent-086ab7"
+    },
+    {
+      "ts": "2026-05-08T13:30:10.696Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-make-task-control-operation-id-idempotent-c45e22",
+      "summary": "Make task_control operation_id idempotent"
+    },
+    {
+      "ts": "2026-05-08T13:36:33.652Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-ff6008b8",
+      "contractId": "2026-05-08-make-task-control-operation-id-idempotent-c45e22",
+      "kind": "failure",
+      "summary": "Initial task_control verification wrapper timed out at one second before tests ran."
+    },
+    {
+      "ts": "2026-05-08T13:36:33.655Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-d3634551",
+      "contractId": "2026-05-08-make-task-control-operation-id-idempotent-c45e22",
+      "status": "pass",
+      "summary": "Focused task_control operation_id idempotency verification passed."
+    },
+    {
+      "ts": "2026-05-08T13:36:33.657Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-3fd74a8b",
+      "contractId": "2026-05-08-make-task-control-operation-id-idempotent-c45e22",
+      "status": "pass",
+      "summary": "Coordinated selfdev build and reload passed for task_control idempotency."
+    },
+    {
+      "ts": "2026-05-08T13:36:33.659Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-make-task-control-operation-id-idempotent-c45e22",
+      "gateId": "gate-2026-05-08-7d76d7",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T13:36:33.662Z",
+      "type": "state_update",
+      "note": "Gate PASS. Commit and push task_control operation_id idempotency slice next.",
+      "status": "done",
+      "focus": "Commit and push task_control operation_id idempotency",
+      "activeContractId": "2026-05-08-make-task-control-operation-id-idempotent-c45e22"
     }
   ]
 }
