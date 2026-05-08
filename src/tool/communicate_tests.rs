@@ -5,9 +5,9 @@ use super::{
     format_awaited_members, format_awaited_members_with_reports, format_cleanup_dry_run,
     format_members, format_members_for_run, format_plan_status, format_swarm_health,
     format_swarm_health_for_run, format_swarm_reconcile, implicit_await_run_scope,
-    latest_assistant_report, operation_scoped_run_id, resolve_optional_target_session,
-    run_plan_request_nonce, spawn_requires_coordinator, spawn_self_promote_failure_message,
-    spawned_worker_run_id,
+    latest_assistant_report, operation_run_scope, operation_scoped_run_id,
+    resolve_optional_target_session, run_plan_request_nonce, spawn_requires_coordinator,
+    spawn_self_promote_failure_message, spawned_worker_run_id,
 };
 use crate::message::{Message, StreamEvent, ToolDefinition};
 use crate::protocol::{

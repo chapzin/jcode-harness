@@ -337,6 +337,66 @@ fn implicit_await_run_scope_keeps_fallback_when_no_active_run_scope() {
 }
 
 #[test]
+fn operation_run_scope_derives_followup_scope_and_preserves_explicit_run_id() {
+    assert_eq!(
+        operation_run_scope(None, Some(" issue-13-followup-1 ")).as_deref(),
+        Some("run:op:issue-13-followup-1")
+    );
+    assert_eq!(
+        operation_run_scope(Some("run-explicit"), Some(" issue-13-followup-1 ")).as_deref(),
+        Some("run-explicit")
+    );
+    assert_eq!(operation_run_scope(None, None), None);
+}
+
+#[test]
+fn operation_run_scope_limits_cleanup_candidates_to_operation_run() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "cleanup",
+        "operation_id": " issue-13-followup-1 "
+    }))
+    .expect("cleanup operation_id should deserialize");
+    let members = vec![
+        await_scope_member("coord", None, None, "ready"),
+        await_scope_member(
+            "op-run-worker",
+            Some("coord"),
+            Some("run:op:issue-13-followup-1"),
+            "completed",
+        ),
+        await_scope_member("old-run-worker", Some("coord"), Some("run-old"), "completed"),
+    ];
+    let statuses = default_cleanup_target_statuses();
+    let run_scope = operation_run_scope(None, parsed.operation_id.as_deref());
+
+    assert_eq!(
+        cleanup_candidate_session_ids(
+            "coord",
+            &members,
+            &statuses,
+            &[],
+            false,
+            run_scope.as_deref(),
+        ),
+        vec!["op-run-worker".to_string()]
+    );
+}
+
+#[test]
+fn operation_run_scope_matches_await_followup_scope_without_explicit_members() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "await_members",
+        "operation_id": " issue-13-followup-1 "
+    }))
+    .expect("await_members operation_id should deserialize");
+
+    assert_eq!(
+        operation_run_scope(parsed.run_id.as_deref(), parsed.operation_id.as_deref()).as_deref(),
+        Some("run:op:issue-13-followup-1")
+    );
+}
+
+#[test]
 fn cleanup_candidates_default_to_owned_terminal_workers() {
     let members = vec![
         AgentInfo {

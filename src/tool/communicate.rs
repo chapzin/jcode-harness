@@ -49,15 +49,21 @@ fn operation_scoped_run_id(operation_id: Option<&str>) -> Option<String> {
     explicit_operation_request_nonce(operation_id).map(|nonce| format!("run:{nonce}"))
 }
 
+fn operation_run_scope(
+    explicit_run_id: Option<&str>,
+    operation_id: Option<&str>,
+) -> Option<String> {
+    explicit_run_id
+        .map(ToString::to_string)
+        .or_else(|| operation_scoped_run_id(operation_id))
+}
+
 fn spawned_worker_run_id(
     ctx: &ToolContext,
     explicit_run_id: Option<&str>,
     operation_id: Option<&str>,
 ) -> String {
-    explicit_run_id
-        .map(ToString::to_string)
-        .or_else(|| operation_scoped_run_id(operation_id))
-        .unwrap_or_else(|| fresh_swarm_run_id(ctx))
+    operation_run_scope(explicit_run_id, operation_id).unwrap_or_else(|| fresh_swarm_run_id(ctx))
 }
 
 fn fill_slots_request_nonce(operation_id: Option<&str>, slot_index: usize) -> Option<String> {
@@ -412,7 +418,11 @@ async fn cleanup_swarm_workers_with_run_id(
         .unwrap_or_else(default_cleanup_target_statuses);
     let session_ids = params.session_ids.clone().unwrap_or_default();
     let force = params.force.unwrap_or(false);
-    let run_id_scope = run_id_scope.or(params.run_id.as_deref());
+    let run_id_scope_value = operation_run_scope(
+        run_id_scope.or(params.run_id.as_deref()),
+        params.operation_id.as_deref(),
+    );
+    let run_id_scope = run_id_scope_value.as_deref();
     let candidates = cleanup_candidate_session_ids(
         &ctx.session_id,
         &members,
@@ -483,7 +493,7 @@ async fn cleanup_swarm_workers_with_run_id(
 }
 
 async fn cleanup_swarm_workers(ctx: &ToolContext, params: &CommunicateInput) -> Result<String> {
-    cleanup_swarm_workers_with_run_id(ctx, params, params.run_id.as_deref()).await
+    cleanup_swarm_workers_with_run_id(ctx, params, None).await
 }
 
 async fn await_swarm_progress(
@@ -2446,12 +2456,17 @@ impl Tool for CommunicateTool {
                 {
                     session_ids.push(target_session);
                 }
-                let run_id = if params.run_id.is_none() && !explicit_member_scope {
+                let requested_run_id = if explicit_member_scope {
+                    params.run_id.clone()
+                } else {
+                    operation_run_scope(params.run_id.as_deref(), params.operation_id.as_deref())
+                };
+                let run_id = if requested_run_id.is_none() && !explicit_member_scope {
                     let members = fetch_swarm_members(&ctx.session_id).await?;
                     implicit_await_run_scope(&ctx.session_id, &members, &target_status)
                         .map_err(anyhow::Error::msg)?
                 } else {
-                    params.run_id.clone()
+                    requested_run_id
                 };
                 let owned_only = session_ids.is_empty().then_some(true);
                 let timeout_minutes = params.timeout_minutes.unwrap_or(60);

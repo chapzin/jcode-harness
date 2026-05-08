@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Stable spawned worker run ids for operation_id retries",
+  "focus": "Operation scoped cleanup and await followups",
   "status": "done",
-  "activeContractId": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
+  "activeContractId": "2026-05-08-operation-scoped-cleanup-and-await-followups-a0a848",
   "counters": {
-    "contracts": 41,
-    "traces": 61,
-    "gates": 40,
-    "verifications": 49,
+    "contracts": 42,
+    "traces": 64,
+    "gates": 41,
+    "verifications": 52,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -135,42 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T11:25:03.238Z",
-      "type": "state_update",
-      "note": "Verification and governance audit passed. Ready to commit.",
-      "status": "done",
-      "focus": "Commit completed working_dir cleanup preview slice.",
-      "activeContractId": "2026-05-08-expose-swarm-cleanup-working-dir-preview-24922a"
-    },
-    {
-      "ts": "2026-05-08T11:28:02.100Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-expose-swarm-event-member-metadata-6abff3",
-      "summary": "Expose swarm event member metadata"
-    },
-    {
-      "ts": "2026-05-08T11:42:42.517Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-147232a6",
-      "contractId": "2026-05-08-expose-swarm-event-member-metadata-6abff3",
-      "status": "pass",
-      "summary": "Swarm event member metadata strict verification and final selfdev build passed"
-    },
-    {
-      "ts": "2026-05-08T11:42:47.868Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-expose-swarm-event-member-metadata-6abff3",
-      "gateId": "gate-2026-05-08-1ecbb3",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-08T11:42:56.114Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-expose-swarm-event-member-metadata-6abff3",
-      "gateId": "gate-2026-05-08-b557cf",
-      "verdict": "pass"
-    },
     {
       "ts": "2026-05-08T11:43:01.247Z",
       "type": "state_update",
@@ -731,6 +695,43 @@
       "contractId": "2026-05-08-stable-spawned-worker-run-ids-for-operation-id-retries-335c93",
       "kind": "decision",
       "summary": "Chose operation-scoped run_id for retryable spawned workers"
+    },
+    {
+      "ts": "2026-05-08T14:23:47.725Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-operation-scoped-cleanup-and-await-followups-a0a848",
+      "summary": "Operation scoped cleanup and await followups"
+    },
+    {
+      "ts": "2026-05-08T14:26:23.774Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-077cb0eb",
+      "contractId": "2026-05-08-operation-scoped-cleanup-and-await-followups-a0a848",
+      "status": "pass",
+      "summary": "Focused operation_run_scope verification passed"
+    },
+    {
+      "ts": "2026-05-08T14:26:54.147Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-f9c5c751",
+      "contractId": "2026-05-08-operation-scoped-cleanup-and-await-followups-a0a848",
+      "status": "pass",
+      "summary": "Selfdev build passed for operation scoped cleanup/await slice"
+    },
+    {
+      "ts": "2026-05-08T14:27:57.731Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-8d27fb5e",
+      "contractId": "2026-05-08-operation-scoped-cleanup-and-await-followups-a0a848",
+      "status": "pass",
+      "summary": "Selfdev rebuild and reload metadata refresh passed"
+    },
+    {
+      "ts": "2026-05-08T14:28:09.717Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-operation-scoped-cleanup-and-await-followups-a0a848",
+      "gateId": "gate-2026-05-08-3fe9c0",
+      "verdict": "pass"
     }
   ]
 }
