@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Commit and push spawn operation_id run-drift slice",
+  "focus": "Commit and push implicit await run scope guard",
   "status": "done",
-  "activeContractId": "2026-05-08-make-spawn-operation-id-ignore-run-drift-e5c780",
+  "activeContractId": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d",
   "counters": {
-    "contracts": 33,
-    "traces": 38,
-    "gates": 32,
-    "verifications": 32,
+    "contracts": 34,
+    "traces": 41,
+    "gates": 33,
+    "verifications": 34,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -97,54 +97,14 @@
       "id": "decision-2026-05-08-6c4197",
       "ts": "2026-05-08T13:05:48.284Z",
       "text": "Completed issue #13 spawn idempotency follow-up: explicit operation_id/request_nonce spawn keys now ignore generated run_id drift, preserving default non-operation-id spawn key specificity."
+    },
+    {
+      "id": "decision-2026-05-08-09d952",
+      "ts": "2026-05-08T13:13:45.058Z",
+      "text": "Completed issue #13 await scoping guard: implicit await_members now infers a sole active owned run_id or errors with an explicit-scope hint when multiple active owned runs are present, while preserving explicit scopes and no-run fallback."
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-07T20:34:01.449Z",
-      "type": "state_update",
-      "note": "Committed and pushed 53305abf. Branch clean/synced after push.",
-      "status": "done",
-      "focus": "Refresh init context scaffolds",
-      "activeContractId": "2026-05-07-refresh-init-context-scaffolds-19bd29"
-    },
-    {
-      "ts": "2026-05-07T20:34:41.249Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-evaluate-lib-bins-gate-c13f1b",
-      "summary": "Evaluate lib-bins gate"
-    },
-    {
-      "ts": "2026-05-07T20:45:51.449Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-07-7e2790f6",
-      "contractId": "2026-05-07-evaluate-lib-bins-gate-c13f1b",
-      "status": "fail",
-      "summary": "lib-bins default run timed out under local supervision"
-    },
-    {
-      "ts": "2026-05-07T20:46:37.920Z",
-      "type": "trace_recorded",
-      "traceId": "trace-2026-05-07-f2d8d054",
-      "contractId": "2026-05-07-evaluate-lib-bins-gate-c13f1b",
-      "kind": "decision",
-      "summary": "Decided not to promote lib-bins gate yet"
-    },
-    {
-      "ts": "2026-05-07T20:46:47.113Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-07-evaluate-lib-bins-gate-c13f1b",
-      "gateId": "gate-2026-05-07-545bb3",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-07T20:47:14.009Z",
-      "type": "state_update",
-      "note": "Committed and pushed e3c025a3. Next: issue-based triage and local-first implementation.",
-      "status": "done",
-      "focus": "Evaluate lib-bins gate",
-      "activeContractId": "2026-05-07-evaluate-lib-bins-gate-c13f1b"
-    },
     {
       "ts": "2026-05-07T20:48:28.816Z",
       "type": "contract_created",
@@ -681,6 +641,51 @@
       "status": "done",
       "focus": "Commit and push spawn operation_id run-drift slice",
       "activeContractId": "2026-05-08-make-spawn-operation-id-ignore-run-drift-e5c780"
+    },
+    {
+      "ts": "2026-05-08T13:07:55.273Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d",
+      "summary": "Guard implicit await across run scopes"
+    },
+    {
+      "ts": "2026-05-08T13:10:51.514Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-18b5e30d",
+      "contractId": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d",
+      "kind": "failure",
+      "summary": "Initial implicit await run scope verification failed due to test assertion type error"
+    },
+    {
+      "ts": "2026-05-08T13:13:15.054Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-e9db54ab",
+      "contractId": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d",
+      "status": "pass",
+      "summary": "Focused implicit await run scope guard verification passed."
+    },
+    {
+      "ts": "2026-05-08T13:13:25.071Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-3d23b9c9",
+      "contractId": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d",
+      "status": "pass",
+      "summary": "Self-dev build and reload passed for implicit await run scope guard."
+    },
+    {
+      "ts": "2026-05-08T13:13:34.805Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d",
+      "gateId": "gate-2026-05-08-fbc74e",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T13:13:45.058Z",
+      "type": "state_update",
+      "note": "Initial verification task 8082575cwx exposed a test assertion type error; rerun task 859544br57 passed, selfdev build task 910772w2im and reload passed, and gate gate-2026-05-08-fbc74e passed.",
+      "status": "done",
+      "focus": "Commit and push implicit await run scope guard",
+      "activeContractId": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d"
     }
   ]
 }

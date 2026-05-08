@@ -3,8 +3,9 @@ use super::{
     default_await_target_statuses, default_cleanup_target_statuses, format_awaited_members,
     format_awaited_members_with_reports, format_cleanup_dry_run, format_members,
     format_members_for_run, format_plan_status, format_swarm_health, format_swarm_health_for_run,
-    format_swarm_reconcile, latest_assistant_report, resolve_optional_target_session,
-    spawn_requires_coordinator, spawn_self_promote_failure_message,
+    format_swarm_reconcile, implicit_await_run_scope, latest_assistant_report,
+    resolve_optional_target_session, spawn_requires_coordinator,
+    spawn_self_promote_failure_message,
 };
 use crate::message::{Message, StreamEvent, ToolDefinition};
 use crate::protocol::{

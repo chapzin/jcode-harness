@@ -1,0 +1,47 @@
+{
+  "id": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d",
+  "title": "Guard implicit await across run scopes",
+  "goal": "Implement a small issue #13 scoping guard so implicit swarm await_members does not wait across multiple active run_id scopes owned by the same coordinator.",
+  "createdAt": "2026-05-08T13:07:55.272Z",
+  "status": "active",
+  "requiredInputs": [
+    "chapzin/jcode-harness issue #13 robust swarm orchestration",
+    "Current await_members owned_only server fallback",
+    "Existing AgentInfo run_id/report_back/status metadata"
+  ],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 35,
+    "maxToolCalls": 35
+  },
+  "permissions": [
+    "Modify swarm tool await scoping and tests",
+    "Run cargo fmt/check/test and selfdev build",
+    "Commit and push"
+  ],
+  "completionConditions": [
+    "await_members without session_ids, target_session, or run_id infers the sole active owned run_id when exactly one non-terminal owned run has active workers.",
+    "await_members without explicit scope returns an actionable error when multiple active owned run_id values are present, instead of sending an unscoped request that waits across runs.",
+    "await_members keeps existing server fallback when there is no single active owned run_id and no mixed active runs.",
+    "Focused helper tests, cargo fmt/check, git diff --check, selfdev build/reload, governance, commit, and push pass."
+  ],
+  "outputPaths": [
+    "src/tool/communicate.rs",
+    "src/tool/communicate_tests/input_format.rs",
+    ".codex-harness/state.json",
+    ".codex-harness/traces/2026-05-08.jsonl"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode tool::communicate::tests::input_format::implicit_await_run_scope --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check"
+  ],
+  "failureTaxonomy": [
+    "Breaking explicit session_ids or target_session await behavior",
+    "Breaking explicit run_id await behavior",
+    "Treating terminal/failed/stale workers as active run ambiguity",
+    "Adding blocking network or provider calls beyond existing CommList lookup"
+  ],
+  "notes": "Limit to tool-side inference/error before CommAwaitMembers. Do not redesign SwarmRun persistence in this slice."
+}

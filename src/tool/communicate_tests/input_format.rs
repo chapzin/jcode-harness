@@ -118,6 +118,82 @@ fn communicate_input_accepts_operation_id_for_messages() {
     assert_eq!(parsed.operation_id.as_deref(), Some(" issue-13-message-1 "));
 }
 
+fn await_scope_member(
+    session_id: &str,
+    owner: Option<&str>,
+    run_id: Option<&str>,
+    status: &str,
+) -> AgentInfo {
+    AgentInfo {
+        session_id: session_id.to_string(),
+        friendly_name: Some(session_id.to_string()),
+        files_touched: vec![],
+        working_dir: None,
+        status: Some(status.to_string()),
+        detail: None,
+        role: Some("agent".to_string()),
+        is_headless: Some(true),
+        report_back_to_session_id: owner.map(str::to_string),
+        run_id: run_id.map(str::to_string),
+        latest_completion_report: None,
+        live_attachments: None,
+        status_age_secs: None,
+    }
+}
+
+#[test]
+fn implicit_await_run_scope_infers_single_active_owned_run() {
+    let statuses = default_await_target_statuses();
+    let members = vec![
+        await_scope_member("worker-active", Some("coord"), Some("run-active"), "running"),
+        await_scope_member("worker-ready", Some("coord"), Some("run-old"), "ready"),
+        await_scope_member(
+            "worker-stale",
+            Some("coord"),
+            Some("run-stale"),
+            "running_stale",
+        ),
+        await_scope_member("worker-foreign", Some("other"), Some("run-other"), "running"),
+    ];
+
+    assert_eq!(
+        implicit_await_run_scope("coord", &members, &statuses)
+            .expect("single active run should infer scope")
+            .as_deref(),
+        Some("run-active")
+    );
+}
+
+#[test]
+fn implicit_await_run_scope_rejects_multiple_active_owned_runs() {
+    let statuses = default_await_target_statuses();
+    let members = vec![
+        await_scope_member("worker-a", Some("coord"), Some("run-a"), "running"),
+        await_scope_member("worker-b", Some("coord"), Some("run-b"), "spawned"),
+    ];
+
+    let error = implicit_await_run_scope("coord", &members, &statuses)
+        .expect_err("mixed active runs should require explicit scope");
+    assert!(error.contains("multiple active owned run scopes"));
+    assert!(error.contains("run-a"));
+    assert!(error.contains("run-b"));
+    assert!(error.contains("Pass run_id=<id>"));
+}
+
+#[test]
+fn implicit_await_run_scope_keeps_fallback_when_no_active_run_scope() {
+    let statuses = default_await_target_statuses();
+    let members = vec![
+        await_scope_member("worker-ready", Some("coord"), Some("run-old"), "ready"),
+        await_scope_member("worker-unscoped", Some("coord"), None, "running"),
+    ];
+
+    assert_eq!(
+        implicit_await_run_scope("coord", &members, &statuses),
+        Ok(None)
+    );
+}
+
 #[test]
 fn cleanup_candidates_default_to_owned_terminal_workers() {
     let members = vec![

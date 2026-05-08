@@ -16,7 +16,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Write as _;
 use std::path::Path;
 
@@ -193,6 +193,46 @@ fn cleanup_candidate_label(members: &[AgentInfo], session_id: &str) -> String {
         parts.push(format!("working_dir={working_dir}"));
     }
     format!("{} ({})", session_id, parts.join(", "))
+}
+
+fn implicit_await_run_scope(
+    owner_session_id: &str,
+    members: &[AgentInfo],
+    target_status: &[String],
+) -> Result<Option<String>, String> {
+    let done_statuses = target_status
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let mut active_run_ids = BTreeSet::new();
+
+    for member in members {
+        let status = health_member_status(member);
+        let Some(run_id) = member
+            .run_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|run_id| !run_id.is_empty())
+        else {
+            continue;
+        };
+        if member.session_id != owner_session_id
+            && member.report_back_to_session_id.as_deref() == Some(owner_session_id)
+            && !done_statuses.contains(status)
+            && !health_is_stale_status(status)
+        {
+            active_run_ids.insert(run_id.to_string());
+        }
+    }
+
+    match active_run_ids.len() {
+        0 => Ok(None),
+        1 => Ok(active_run_ids.into_iter().next()),
+        _ => Err(format!(
+            "await_members found multiple active owned run scopes: {}. Pass run_id=<id>, session_ids, or target_session to choose an explicit scope.",
+            active_run_ids.into_iter().collect::<Vec<_>>().join(", ")
+        )),
+    }
 }
 
 fn format_cleanup_dry_run(
@@ -2289,11 +2329,20 @@ impl Tool for CommunicateTool {
                     .target_status
                     .unwrap_or_else(default_await_target_statuses);
                 let mut session_ids = params.session_ids.unwrap_or_default();
+                let explicit_member_scope =
+                    params.target_session.is_some() || !session_ids.is_empty();
                 if let Some(target_session) = params.target_session.clone()
                     && !session_ids.iter().any(|id| id == &target_session)
                 {
                     session_ids.push(target_session);
                 }
+                let run_id = if params.run_id.is_none() && !explicit_member_scope {
+                    let members = fetch_swarm_members(&ctx.session_id).await?;
+                    implicit_await_run_scope(&ctx.session_id, &members, &target_status)
+                        .map_err(anyhow::Error::msg)?
+                } else {
+                    params.run_id.clone()
+                };
                 let owned_only = session_ids.is_empty().then_some(true);
                 let timeout_minutes = params.timeout_minutes.unwrap_or(60);
                 let timeout_secs = timeout_minutes * 60;
@@ -2305,7 +2354,7 @@ impl Tool for CommunicateTool {
                     session_ids,
                     owned_only,
                     mode: params.mode.clone(),
-                    run_id: params.run_id.clone(),
+                    run_id,
                     timeout_secs: Some(timeout_secs),
                 };
 
