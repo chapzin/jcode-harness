@@ -700,6 +700,32 @@ fn provider_runtime_state_revision_prunes_expired_cooldowns() {
 }
 
 #[test]
+fn provider_runtime_state_revision_publishes_models_updated() {
+    let mut rx = crate::bus::Bus::global().subscribe();
+    while rx.try_recv().is_ok() {}
+    crate::bus::reset_models_updated_publish_state_for_tests();
+
+    clear_provider_rate_limit_cooldown("openai", "gpt-bus-test");
+    record_provider_rate_limit_cooldown_for_retry(
+        "openai",
+        "gpt-bus-test",
+        "HTTP 429 retry-after: 2",
+        1,
+        1_000,
+        10_000,
+    );
+
+    enter_test_runtime().block_on(async {
+        match tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv()).await {
+            Ok(Ok(crate::bus::BusEvent::ModelsUpdated)) => {}
+            other => panic!("expected ModelsUpdated from provider runtime state bump, got {other:?}"),
+        }
+    });
+
+    clear_provider_rate_limit_cooldown("openai", "gpt-bus-test");
+}
+
+#[test]
 fn test_parse_provider_hint_supports_known_values() {
     assert_eq!(
         MultiProvider::parse_provider_hint("claude"),

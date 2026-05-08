@@ -234,6 +234,7 @@ pub(crate) fn provider_runtime_state_revision() -> u64 {
 
 fn bump_provider_runtime_state_revision() {
     PROVIDER_RUNTIME_STATE_REVISION.fetch_add(1, Ordering::Relaxed);
+    crate::bus::Bus::global().publish_models_updated();
 }
 
 fn prune_expired_provider_rate_limit_cooldowns() {

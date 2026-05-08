@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Invalidate local picker cache on provider runtime state",
+  "focus": "Publish model updates for provider runtime state",
   "status": "done",
-  "activeContractId": "2026-05-08-invalidate-local-picker-cache-on-provider-runtime-state-b562f6",
+  "activeContractId": "2026-05-08-publish-model-updates-for-provider-runtime-state-489159",
   "counters": {
-    "contracts": 59,
-    "traces": 106,
-    "gates": 63,
-    "verifications": 87,
+    "contracts": 60,
+    "traces": 109,
+    "gates": 64,
+    "verifications": 89,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -135,41 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T15:35:25.907Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-improve-openai-retry-after-handling-833992",
-      "summary": "Improve OpenAI Retry-After handling"
-    },
-    {
-      "ts": "2026-05-08T15:40:14.435Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-ea5e3c7f",
-      "contractId": "2026-05-08-improve-openai-retry-after-handling-833992",
-      "status": "pass",
-      "summary": "Focused OpenAI Retry-After and rate-limit retryability verification passed"
-    },
-    {
-      "ts": "2026-05-08T15:41:02.565Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-f13e6ce0",
-      "contractId": "2026-05-08-improve-openai-retry-after-handling-833992",
-      "status": "pass",
-      "summary": "selfdev build and reload passed for OpenAI Retry-After handling slice"
-    },
-    {
-      "ts": "2026-05-08T15:41:24.896Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-improve-openai-retry-after-handling-833992",
-      "gateId": "gate-2026-05-08-43bb88",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-08T15:43:01.994Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-share-retry-after-provider-handling-9940a8",
-      "summary": "Share Retry-After provider handling"
-    },
     {
       "ts": "2026-05-08T15:48:29.914Z",
       "type": "verification_recorded",
@@ -721,6 +686,43 @@
       "contractId": "2026-05-08-invalidate-local-picker-cache-on-provider-runtime-state-b562f6",
       "kind": "verification",
       "summary": "Governance audit passed for provider runtime state cache invalidation slice"
+    },
+    {
+      "ts": "2026-05-08T17:46:42.925Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-publish-model-updates-for-provider-runtime-state-489159",
+      "summary": "Publish model updates for provider runtime state"
+    },
+    {
+      "ts": "2026-05-08T17:50:09.742Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-31a64875",
+      "contractId": "2026-05-08-publish-model-updates-for-provider-runtime-state-489159",
+      "status": "pass",
+      "summary": "Focused ModelsUpdated publication verification passed."
+    },
+    {
+      "ts": "2026-05-08T17:50:20.134Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-5d61ef66",
+      "contractId": "2026-05-08-publish-model-updates-for-provider-runtime-state-489159",
+      "status": "pass",
+      "summary": "Selfdev build and reload passed for ModelsUpdated provider runtime state slice."
+    },
+    {
+      "ts": "2026-05-08T17:50:27.538Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-publish-model-updates-for-provider-runtime-state-489159",
+      "gateId": "gate-2026-05-08-fb5875",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T17:50:39.956Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-bc4075e6",
+      "contractId": "2026-05-08-publish-model-updates-for-provider-runtime-state-489159",
+      "kind": "verification",
+      "summary": "Governance audit passed for ModelsUpdated provider runtime state slice."
     }
   ]
 }

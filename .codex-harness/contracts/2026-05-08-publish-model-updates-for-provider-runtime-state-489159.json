@@ -1,0 +1,47 @@
+{
+  "id": "2026-05-08-publish-model-updates-for-provider-runtime-state-489159",
+  "title": "Publish model updates for provider runtime state",
+  "goal": "Make provider cooldown/backpressure runtime state changes reactive for remote clients by publishing the existing debounced ModelsUpdated bus event when provider runtime state revision changes.",
+  "createdAt": "2026-05-08T17:46:42.925Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 30
+  },
+  "permissions": [
+    "read repo",
+    "edit provider code/tests",
+    "run focused tests",
+    "selfdev build/reload",
+    "commit and push",
+    "comment issue #27"
+  ],
+  "completionConditions": [
+    "Provider runtime state revision changes publish debounced ModelsUpdated events.",
+    "Publish hook covers cooldown record/clear/expiry and backpressure permit acquire/release via the shared revision bump helper.",
+    "Focused tests prove a runtime state bump emits/coalesces ModelsUpdated through the bus.",
+    "Focused tests, cargo fmt/check, cargo check, selfdev build/reload, governance, commit/push, and issue #27 update pass."
+  ],
+  "outputPaths": [
+    "src/provider/routing.rs",
+    "src/provider/tests/fallback_failover.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode provider_runtime_state_revision_publishes_models_updated --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "formatting_failure",
+    "bus_event_spam_regression",
+    "missing_remote_update",
+    "governance_failure"
+  ],
+  "notes": "Follow-up to 51283f9a. Local picker cache invalidates on runtime state revision, but remote clients need a ModelsUpdated push when the same revision changes."
+}
