@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Add ACP preview manifest and stdio handshake",
+  "focus": "Commit completed working_dir cleanup preview slice.",
   "status": "done",
-  "activeContractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
+  "activeContractId": "2026-05-08-expose-swarm-cleanup-working-dir-preview-24922a",
   "counters": {
-    "contracts": 26,
-    "traces": 25,
-    "gates": 24,
-    "verifications": 21,
+    "contracts": 27,
+    "traces": 26,
+    "gates": 25,
+    "verifications": 22,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -62,37 +62,14 @@
       "id": "decision-2026-05-07-10dee0",
       "ts": "2026-05-07T21:46:41.371Z",
       "text": "Expose `jcode-harness session show <id> --json` as a local-session-only, read-only headless metadata API with transcript preview opt-in via bounded `--preview N`, keeping external imported session show semantics for later source-specific slices."
+    },
+    {
+      "id": "decision-2026-05-08-d2bfe3",
+      "ts": "2026-05-08T11:25:03.238Z",
+      "text": "Completed issue #13 safety slice add working_dir metadata to AgentInfo, swarm list formatting, and cleanup dry-run labels without changing live cleanup behavior."
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-06T22:38:08.746Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-06-embedded-skills-scoping-improvement-87c1a0",
-      "gateId": "gate-2026-05-06-7b6af3",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-06T22:42:10.871Z",
-      "type": "contract_created",
-      "contractId": "2026-05-06-harden-panic-stderr-writes-6d115e",
-      "summary": "Harden panic stderr writes"
-    },
-    {
-      "ts": "2026-05-06T22:45:17.794Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-06-d66d3fa4",
-      "contractId": "2026-05-06-harden-panic-stderr-writes-6d115e",
-      "status": "pass",
-      "summary": "Hardening stderr panic cleanup validations and selfdev build passed."
-    },
-    {
-      "ts": "2026-05-06T22:45:25.063Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-06-harden-panic-stderr-writes-6d115e",
-      "gateId": "gate-2026-05-06-190eee",
-      "verdict": "pass"
-    },
     {
       "ts": "2026-05-06T22:46:34.563Z",
       "type": "contract_created",
@@ -633,6 +610,35 @@
       "contractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
       "gateId": "gate-2026-05-08-6429da",
       "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T11:17:07.695Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-expose-swarm-cleanup-working-dir-preview-24922a",
+      "summary": "Expose swarm cleanup working_dir preview"
+    },
+    {
+      "ts": "2026-05-08T11:24:37.741Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-a5e1e3d8",
+      "contractId": "2026-05-08-expose-swarm-cleanup-working-dir-preview-24922a",
+      "status": "pass",
+      "summary": "Working_dir metadata slice focused tests, cargo check, and selfdev build passed."
+    },
+    {
+      "ts": "2026-05-08T11:24:43.837Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-expose-swarm-cleanup-working-dir-preview-24922a",
+      "gateId": "gate-2026-05-08-6a13f3",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T11:25:03.238Z",
+      "type": "state_update",
+      "note": "Verification and governance audit passed. Ready to commit.",
+      "status": "done",
+      "focus": "Commit completed working_dir cleanup preview slice.",
+      "activeContractId": "2026-05-08-expose-swarm-cleanup-working-dir-preview-24922a"
     }
   ]
 }

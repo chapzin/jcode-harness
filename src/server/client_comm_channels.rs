@@ -85,6 +85,10 @@ pub(super) async fn handle_comm_channel_members(
                     session_id: sid.clone(),
                     friendly_name: member.friendly_name.clone(),
                     files_touched: Vec::new(),
+                    working_dir: member
+                        .working_dir
+                        .as_ref()
+                        .map(|path| path.display().to_string()),
                     status: Some(member.status.clone()),
                     detail: member.detail.clone(),
                     role: Some(member.role.clone()),

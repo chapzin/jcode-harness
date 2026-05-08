@@ -189,6 +189,9 @@ fn cleanup_candidate_label(members: &[AgentInfo], session_id: &str) -> String {
     if let Some(owner) = member.report_back_to_session_id.as_deref() {
         parts.push(format!("owner={owner}"));
     }
+    if let Some(working_dir) = member.working_dir.as_deref() {
+        parts.push(format!("working_dir={working_dir}"));
+    }
     format!("{} ({})", session_id, parts.join(", "))
 }
 

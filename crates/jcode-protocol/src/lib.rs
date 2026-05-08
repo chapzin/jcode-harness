@@ -1222,6 +1222,9 @@ pub struct AgentInfo {
     pub friendly_name: Option<String>,
     /// Files this agent has touched
     pub files_touched: Vec<String>,
+    /// Working directory/worktree associated with this member, when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub working_dir: Option<String>,
     /// Current lifecycle status (ready, running, completed, failed, stopped, etc.)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
@@ -1551,6 +1554,9 @@ pub fn format_comm_members(current_session_id: &str, members: &[AgentInfo]) -> S
             }
             if let Some(run_id) = member.run_id.as_deref() {
                 extra_meta.push(format!("run_id={run_id}"));
+            }
+            if let Some(working_dir) = member.working_dir.as_deref() {
+                extra_meta.push(format!("working_dir={working_dir}"));
             }
             if let Some(attachments) = member.live_attachments {
                 extra_meta.push(format!("attachments={attachments}"));
