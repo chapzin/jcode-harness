@@ -10,6 +10,8 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 pub(crate) const DEFAULT_RETRY_BACKOFF_CAP_MS: u64 = 10_000;
 pub(crate) const DEFAULT_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS: u64 = 5 * 60 * 1_000;
 pub(crate) const DEFAULT_PROVIDER_CONCURRENCY_LIMIT: usize = 2;
+const PROVIDER_RATE_LIMIT_COOLDOWN_CAP_ENV: &str = "JCODE_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS";
+const PROVIDER_CONCURRENCY_LIMIT_ENV: &str = "JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL";
 
 static RETRY_JITTER_COUNTER: AtomicU64 = AtomicU64::new(1);
 static PROVIDER_RATE_LIMIT_COOLDOWNS: LazyLock<Mutex<HashMap<String, Instant>>> =
@@ -129,14 +131,16 @@ pub(crate) fn provider_rate_limit_cooldown_delay_ms_for_error(
     base_delay_ms: u64,
     retry_cap_delay_ms: u64,
 ) -> u64 {
+    let cooldown_cap_ms = provider_rate_limit_cooldown_cap_ms();
+    if cooldown_cap_ms == 0 {
+        return 0;
+    }
+
     retry_after_secs_from_error(error_str)
-        .map(|seconds| {
-            seconds
-                .saturating_mul(1_000)
-                .min(DEFAULT_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS)
-        })
+        .map(|seconds| seconds.saturating_mul(1_000).min(cooldown_cap_ms))
         .unwrap_or_else(|| {
             retry_delay_ms_for_error(retry_attempt, base_delay_ms, retry_cap_delay_ms, error_str)
+                .min(cooldown_cap_ms)
         })
 }
 
@@ -244,10 +248,17 @@ pub(crate) async fn acquire_provider_concurrency_permit(
 }
 
 fn provider_concurrency_limit() -> usize {
-    std::env::var("JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL")
+    std::env::var(PROVIDER_CONCURRENCY_LIMIT_ENV)
         .ok()
         .and_then(|value| value.trim().parse::<usize>().ok())
         .unwrap_or(DEFAULT_PROVIDER_CONCURRENCY_LIMIT)
+}
+
+pub(crate) fn provider_rate_limit_cooldown_cap_ms() -> u64 {
+    std::env::var(PROVIDER_RATE_LIMIT_COOLDOWN_CAP_ENV)
+        .ok()
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .unwrap_or(DEFAULT_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS)
 }
 
 #[cfg(test)]

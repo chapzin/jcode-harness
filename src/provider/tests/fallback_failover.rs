@@ -140,34 +140,105 @@ fn provider_retry_delay_caps_retry_after_and_ignores_missing_hint() {
 
 #[test]
 fn provider_cooldown_delay_honors_retry_after_beyond_retry_cap() {
-    assert_eq!(
-        retry_after_delay_ms_from_error("Rate limited (retry after 90s)", 10_000),
-        Some(10_000),
-        "same-request retry sleeps should stay bounded by the short retry cap"
-    );
-    assert_eq!(
-        provider_rate_limit_cooldown_delay_ms_for_error(
-            "Rate limited (retry after 90s)",
-            1,
-            1_000,
-            10_000,
-        ),
-        90_000,
-        "shared provider cooldown should honor the full server pacing hint"
-    );
+    with_env_var_removed("JCODE_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS", || {
+        assert_eq!(
+            retry_after_delay_ms_from_error("Rate limited (retry after 90s)", 10_000),
+            Some(10_000),
+            "same-request retry sleeps should stay bounded by the short retry cap"
+        );
+        assert_eq!(
+            provider_rate_limit_cooldown_delay_ms_for_error(
+                "Rate limited (retry after 90s)",
+                1,
+                1_000,
+                10_000,
+            ),
+            90_000,
+            "shared provider cooldown should honor the full server pacing hint"
+        );
+    });
 }
 
 #[test]
 fn provider_cooldown_delay_caps_extreme_retry_after_hints() {
-    assert_eq!(
-        provider_rate_limit_cooldown_delay_ms_for_error(
-            "HTTP 429 retry-after: 9999",
-            1,
+    with_env_var_removed("JCODE_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS", || {
+        assert_eq!(
+            provider_rate_limit_cooldown_delay_ms_for_error(
+                "HTTP 429 retry-after: 9999",
+                1,
+                1_000,
+                10_000,
+            ),
+            DEFAULT_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS
+        );
+    });
+}
+
+#[test]
+fn provider_cooldown_cap_env_overrides_default() {
+    with_env_var("JCODE_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS", "1500", || {
+        assert_eq!(provider_rate_limit_cooldown_cap_ms(), 1_500);
+        assert_eq!(
+            provider_rate_limit_cooldown_delay_ms_for_error(
+                "Rate limited (retry after 90s)",
+                1,
+                1_000,
+                10_000,
+            ),
+            1_500
+        );
+        let jittered_cooldown = provider_rate_limit_cooldown_delay_ms_for_error(
+            "Rate limited without retry-after",
+            8,
             1_000,
             10_000,
-        ),
-        DEFAULT_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS
-    );
+        );
+        assert!(
+            jittered_cooldown <= 1_500,
+            "fallback jitter cooldown should obey the shared cap: {jittered_cooldown}"
+        );
+    });
+}
+
+#[test]
+fn provider_cooldown_cap_env_invalid_falls_back_to_default() {
+    with_env_var("JCODE_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS", "not-a-number", || {
+        assert_eq!(
+            provider_rate_limit_cooldown_cap_ms(),
+            DEFAULT_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS
+        );
+    });
+}
+
+#[test]
+fn provider_cooldown_cap_env_zero_disables_shared_cooldown() {
+    with_env_var("JCODE_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS", "0", || {
+        clear_provider_rate_limit_cooldown("OpenAI", "gpt-test");
+        assert_eq!(
+            provider_rate_limit_cooldown_delay_ms_for_error(
+                "Rate limited (retry after 90s)",
+                1,
+                1_000,
+                10_000,
+            ),
+            0
+        );
+        assert_eq!(
+            record_provider_rate_limit_cooldown_for_retry(
+                "OpenAI",
+                "gpt-test",
+                "Rate limited (retry after 90s)",
+                1,
+                1_000,
+                10_000,
+            ),
+            None
+        );
+        assert_eq!(
+            provider_rate_limit_cooldown_remaining_ms("OpenAI", "gpt-test"),
+            None
+        );
+    });
 }
 
 #[test]

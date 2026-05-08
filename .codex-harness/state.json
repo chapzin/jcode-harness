@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Commit and push long Retry-After cooldown slice",
+  "focus": "Commit and push configurable provider cooldown cap slice",
   "status": "done",
-  "activeContractId": "2026-05-08-honor-long-retry-after-cooldown-hints-e68e87",
+  "activeContractId": "2026-05-08-configure-provider-rate-limit-cooldown-cap-7a6b56",
   "counters": {
-    "contracts": 54,
-    "traces": 88,
-    "gates": 58,
-    "verifications": 76,
+    "contracts": 55,
+    "traces": 91,
+    "gates": 59,
+    "verifications": 79,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -21,7 +21,7 @@
     {
       "id": "decision-2026-05-06-1c16f8",
       "ts": "2026-05-06T19:09:22.556Z",
-      "text": "Responder ao usu\u00e1rio em portugu\u00eas conforme prefer\u00eancia global registrada."
+      "text": "Responder ao usuário em português conforme preferência global registrada."
     },
     {
       "id": "decision-2026-05-07-f58c86",
@@ -135,81 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T13:54:12.028Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc",
-      "summary": "Make fill_slots operation_id idempotent"
-    },
-    {
-      "ts": "2026-05-08T13:59:09.773Z",
-      "type": "trace_recorded",
-      "traceId": "trace-2026-05-08-7aed4ac7",
-      "contractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc",
-      "kind": "failure",
-      "summary": "Initial fill_slots verification timed out due to one-second wrapper"
-    },
-    {
-      "ts": "2026-05-08T13:59:15.492Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-85797e80",
-      "contractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc",
-      "status": "pass",
-      "summary": "Strict fill_slots operation_id verification passed"
-    },
-    {
-      "ts": "2026-05-08T13:59:31.300Z",
-      "type": "trace_recorded",
-      "traceId": "trace-2026-05-08-7a226260",
-      "contractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc",
-      "kind": "failure",
-      "summary": "fill_slots verification exposed missing test helper imports"
-    },
-    {
-      "ts": "2026-05-08T13:59:37.071Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-20f2eebd",
-      "contractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc",
-      "status": "pass",
-      "summary": "Selfdev build passed for fill_slots operation_id slice"
-    },
-    {
-      "ts": "2026-05-08T13:59:45.476Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc",
-      "gateId": "gate-2026-05-08-3c8861",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-08T13:59:51.792Z",
-      "type": "state_update",
-      "note": "Initial timeout and test import failures were resolved. Strict verification task 657283wpi6, selfdev build task 709588x2nf, reload, and completion gate gate-2026-05-08-3c8861 passed.",
-      "status": "done",
-      "focus": "Commit and push fill_slots operation_id idempotency slice",
-      "activeContractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc"
-    },
-    {
-      "ts": "2026-05-08T14:02:40.794Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e",
-      "summary": "Add coordinator retry for swarm control actions"
-    },
-    {
-      "ts": "2026-05-08T14:06:17.889Z",
-      "type": "trace_recorded",
-      "traceId": "trace-2026-05-08-bb55b53b",
-      "contractId": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e",
-      "kind": "failure",
-      "summary": "Initial coordinator retry verification failed formatting gate"
-    },
-    {
-      "ts": "2026-05-08T14:06:30.213Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-3c4c4f2f",
-      "contractId": "2026-05-08-add-coordinator-retry-for-swarm-control-actions-43ee3e",
-      "status": "pass",
-      "summary": "Focused coordinator retry verification passed"
-    },
     {
       "ts": "2026-05-08T14:06:38.022Z",
       "type": "verification_recorded",
@@ -747,6 +672,51 @@
       "status": "done",
       "focus": "Commit and push long Retry-After cooldown slice",
       "activeContractId": "2026-05-08-honor-long-retry-after-cooldown-hints-e68e87"
+    },
+    {
+      "ts": "2026-05-08T17:04:43.875Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-configure-provider-rate-limit-cooldown-cap-7a6b56",
+      "summary": "Configure provider rate-limit cooldown cap"
+    },
+    {
+      "ts": "2026-05-08T17:08:09.651Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-3d112f3f",
+      "contractId": "2026-05-08-configure-provider-rate-limit-cooldown-cap-7a6b56",
+      "status": "pass",
+      "summary": "Focused configurable provider cooldown cap verification passed."
+    },
+    {
+      "ts": "2026-05-08T17:08:09.651Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-be66ad09",
+      "contractId": "2026-05-08-configure-provider-rate-limit-cooldown-cap-7a6b56",
+      "status": "pass",
+      "summary": "Selfdev build and reload passed for configurable provider cooldown cap slice."
+    },
+    {
+      "ts": "2026-05-08T17:08:09.651Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-configure-provider-rate-limit-cooldown-cap-7a6b56",
+      "gateId": "gate-2026-05-08-e538fc",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T17:08:09.651Z",
+      "type": "state_update",
+      "note": "Focused verification task 966098yql9, selfdev build task 0086612ajd, reload, and completion gate gate-2026-05-08-e538fc passed.",
+      "status": "done",
+      "focus": "Commit and push configurable provider cooldown cap slice",
+      "activeContractId": "2026-05-08-configure-provider-rate-limit-cooldown-cap-7a6b56"
+    },
+    {
+      "ts": "2026-05-08T17:09:57.621Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-ae4df442",
+      "contractId": "2026-05-08-configure-provider-rate-limit-cooldown-cap-7a6b56",
+      "status": "pass",
+      "summary": "Regression provider rate-limit cooldown verification passed."
     }
   ]
 }

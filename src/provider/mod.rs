@@ -54,8 +54,8 @@ pub use route_builders::{
 pub(crate) use routing::{
     DEFAULT_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS, clear_provider_concurrency_limiters,
     clear_provider_rate_limit_cooldown, parse_retry_after_secs,
-    provider_rate_limit_cooldown_delay_ms_for_error, retry_after_delay_ms_from_error,
-    retry_backoff_delay_ms_for_nonce, retry_backoff_max_delay_ms,
+    provider_rate_limit_cooldown_cap_ms, provider_rate_limit_cooldown_delay_ms_for_error,
+    retry_after_delay_ms_from_error, retry_backoff_delay_ms_for_nonce, retry_backoff_max_delay_ms,
 };
 pub(crate) use routing::{
     DEFAULT_RETRY_BACKOFF_CAP_MS, acquire_provider_concurrency_permit,

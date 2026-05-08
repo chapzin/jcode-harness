@@ -84,6 +84,18 @@ fn with_env_var<T>(key: &str, value: &str, f: impl FnOnce() -> T) -> T {
     result
 }
 
+fn with_env_var_removed<T>(key: &str, f: impl FnOnce() -> T) -> T {
+    let prev = std::env::var_os(key);
+    crate::env::remove_var(key);
+    let result = f();
+    if let Some(prev) = prev {
+        crate::env::set_var(key, prev);
+    } else {
+        crate::env::remove_var(key);
+    }
+    result
+}
+
 fn test_multi_provider_with_cursor() -> MultiProvider {
     MultiProvider {
         claude: RwLock::new(None),

@@ -129,18 +129,24 @@ auth notes.
 Live OpenAI, Anthropic, and OpenRouter requests share two in-process rate-limit
 protections per `provider::model`: a short cooldown after retryable 429/rate-limit
 responses and a small concurrency semaphore to avoid local request stampedes. The
-semaphore defaults to **2 concurrent requests per provider/model**.
+cooldown cap defaults to **300000 ms / 5 minutes** and the semaphore defaults to
+**2 concurrent requests per provider/model**.
 
-Tune it with `JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL`:
+Tune them with `JCODE_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS` and
+`JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL`:
 
 ```bash
+JCODE_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS=60000 jcode
+JCODE_PROVIDER_RATE_LIMIT_COOLDOWN_CAP_MS=0 jcode  # disable shared cooldowns
 JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL=1 jcode
 JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL=0 jcode  # disable the semaphore
 ```
 
-Use a lower value when a provider account is rate-limited aggressively or when
+Lower the cooldown cap when a provider returns very long `Retry-After` values
+but you still want the model to become eligible again quickly. Use a lower
+concurrency value when a provider account is rate-limited aggressively or when
 running many swarm/headless sessions against the same model. Use `0` only for
-controlled debugging, because it removes this local backpressure guard while
+controlled debugging, because it removes the corresponding local guard while
 keeping provider-side limits unchanged.
 
 ### Interactive jcode
