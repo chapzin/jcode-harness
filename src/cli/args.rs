@@ -472,6 +472,25 @@ pub(crate) enum EventCommand {
         json: bool,
     },
 
+    /// Export a run's local event log as Server-Sent Events frames
+    Sse {
+        /// Harness run id
+        #[arg(long)]
+        run: String,
+
+        /// Resume after this SSE Last-Event-ID value when it exists in the log
+        #[arg(long)]
+        last_event_id: Option<String>,
+
+        /// EventSource retry delay in milliseconds
+        #[arg(long, default_value_t = 2_000)]
+        retry_ms: u64,
+
+        /// Output file. If omitted, SSE frames are written to stdout.
+        #[arg(long)]
+        output: Option<std::path::PathBuf>,
+    },
+
     /// Run a synthetic harness-events overhead baseline benchmark
     Bench {
         /// Number of synthetic events to emit and process

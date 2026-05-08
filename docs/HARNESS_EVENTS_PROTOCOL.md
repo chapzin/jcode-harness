@@ -25,6 +25,7 @@ RUN_ID=$(jq -r 'select(.type == "start") | .harness_run_id' run.ndjson | head -1
 jcode events show --run "$RUN_ID" --json
 jcode events replay --run "$RUN_ID" > replay.md
 jcode events tail --run "$RUN_ID" --lines 20 --ndjson
+jcode events sse --run "$RUN_ID" --last-event-id hevt_seen > replay.sse
 ```
 
 If you already have a known synthetic or session run id, these commands are safe to run offline:
@@ -183,6 +184,15 @@ source.onerror = () => console.warn("stream reconnecting");
 ```
 
 Reconnect behavior should use `Last-Event-ID` to replay retained local events after the last observed `event_id`, then subscribe to live fan-out. Slow dashboard clients must not block agent execution; lagging in-memory subscribers may miss old events and should use NDJSON replay for durable audit.
+
+Until the authenticated local endpoint lands, scripts and dashboard prototypes can validate the exact wire format from local logs:
+
+```bash
+jcode events sse --run "$RUN_ID" --retry-ms 2000 > replay.sse
+jcode events sse --run "$RUN_ID" --last-event-id hevt_tool > replay-tail.sse
+```
+
+`events sse` is strict like `events export`: malformed NDJSON fails the command so prototypes do not silently consume a damaged stream. Use `events replay --json` when you need tolerant diagnostics for corrupt or partial logs.
 
 ## Choosing a transport
 

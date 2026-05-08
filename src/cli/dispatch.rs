@@ -265,6 +265,14 @@ pub(crate) async fn run_main(mut args: Args) -> Result<()> {
             EventCommand::Export { run, output, json } => {
                 commands::run_events_export_command(&run, output, json)?
             }
+            EventCommand::Sse {
+                run,
+                last_event_id,
+                retry_ms,
+                output,
+            } => {
+                commands::run_events_sse_command(&run, last_event_id.as_deref(), retry_ms, output)?
+            }
             EventCommand::Bench { events, json } => {
                 commands::run_events_bench_command(events, json)?
             }

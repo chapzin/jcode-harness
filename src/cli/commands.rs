@@ -364,6 +364,41 @@ pub fn run_events_export_command(
     Ok(())
 }
 
+pub fn run_events_sse_command(
+    run_id: &str,
+    last_event_id: Option<&str>,
+    retry_ms: u64,
+    output: Option<PathBuf>,
+) -> Result<()> {
+    if retry_ms == 0 {
+        anyhow::bail!("--retry-ms must be greater than zero");
+    }
+
+    let input_path = crate::harness_events::harness_event_log_path(run_id);
+    let events = crate::harness_events::read_harness_event_ndjson(&input_path)?;
+    let selected =
+        crate::harness_events::harness_events_after_last_event_id(&events, last_event_id);
+
+    let mut output_bytes = Vec::new();
+    write_events_sse(&mut output_bytes, selected, retry_ms)?;
+
+    if let Some(output_path) = output {
+        write_output_file(&output_path, &output_bytes)?;
+        println!(
+            "Exported {} SSE harness event frame(s) for run {} to {}",
+            selected.len(),
+            run_id,
+            output_path.display()
+        );
+    } else {
+        let mut stdout = std::io::stdout().lock();
+        stdout.write_all(&output_bytes)?;
+        stdout.flush()?;
+    }
+
+    Ok(())
+}
+
 pub fn run_events_bench_command(events: usize, emit_json: bool) -> Result<()> {
     if events == 0 {
         anyhow::bail!("--events must be greater than zero");
@@ -422,6 +457,17 @@ fn write_events_ndjson(
 ) -> Result<()> {
     for event in events {
         crate::harness_events::write_harness_event_ndjson(writer, event)?;
+    }
+    Ok(())
+}
+
+fn write_events_sse(
+    writer: &mut impl Write,
+    events: &[crate::harness_events::HarnessEvent],
+    retry_ms: u64,
+) -> Result<()> {
+    for event in events {
+        crate::harness_events::write_harness_event_sse(writer, event, Some(retry_ms))?;
     }
     Ok(())
 }

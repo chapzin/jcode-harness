@@ -177,6 +177,7 @@ jcode events tail --run run_123 --lines 50
 jcode events tail --run run_123 --lines 50 --ndjson
 jcode events export --run run_123 --output run.ndjson --json
 jcode events export --run run_123 > run.ndjson
+jcode events sse --run run_123 --last-event-id hevt_seen > run.sse
 jcode events replay --run run_123 > replay.md
 jcode events replay --run run_123 --json > replay.json
 jcode events bench --events 10000 --json > harness-events-bench.json
@@ -188,6 +189,7 @@ jcode events bench --events 10000 --json > harness-events-bench.json
 - `tail --ndjson` writes only raw event NDJSON to stdout.
 - `export` validates each source line as `HarnessEvent` before rewriting normalized NDJSON.
 - `export --json` requires `--output` so stdout remains machine-safe.
+- `sse` validates the local log and writes EventSource-compatible SSE frames to stdout or `--output`; `--last-event-id` emits only events after a retained event id.
 - `replay` reconstructs a local audit timeline as Markdown by default, or JSON with `--json`. Replay output includes phase grouping, elapsed milliseconds, parent event references, child counts, duration hints, and explicit failure points.
 
 Replay and indexing use a tolerant read report for auditability: valid event lines are retained, invalid or truncated lines are surfaced as line-numbered diagnostics, and JSON replay includes a `diagnostics` array alongside `summary`, `timeline`, and `events`. Strict NDJSON consumers such as `tail --ndjson` and `export` still fail on malformed input so automation does not silently consume damaged streams.

@@ -594,6 +594,35 @@ fn events_path_tail_and_export_parse() {
         other => panic!("unexpected command: {:?}", other),
     }
 
+    let args = Args::try_parse_from([
+        "jcode",
+        "events",
+        "sse",
+        "--run",
+        "run_123",
+        "--last-event-id",
+        "hevt_1",
+        "--retry-ms",
+        "1500",
+        "--output",
+        "run.sse",
+    ])
+    .unwrap();
+    match args.command {
+        Some(Command::Events(EventCommand::Sse {
+            run,
+            last_event_id,
+            retry_ms,
+            output,
+        })) => {
+            assert_eq!(run, "run_123");
+            assert_eq!(last_event_id.as_deref(), Some("hevt_1"));
+            assert_eq!(retry_ms, 1500);
+            assert_eq!(output, Some(std::path::PathBuf::from("run.sse")));
+        }
+        other => panic!("unexpected command: {:?}", other),
+    }
+
     let args =
         Args::try_parse_from(["jcode", "events", "bench", "--events", "2500", "--json"]).unwrap();
     match args.command {
