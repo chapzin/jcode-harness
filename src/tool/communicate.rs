@@ -44,6 +44,14 @@ fn explicit_operation_request_nonce(operation_id: Option<&str>) -> Option<String
         .map(|id| format!("op:{}", id.trim()))
 }
 
+fn operation_scoped_run_id(operation_id: Option<&str>) -> Option<String> {
+    explicit_operation_request_nonce(operation_id).map(|nonce| format!("run:{nonce}"))
+}
+
+fn fill_slots_request_nonce(operation_id: Option<&str>, slot_index: usize) -> Option<String> {
+    explicit_operation_request_nonce(operation_id).map(|nonce| format!("{nonce}:slot:{slot_index}"))
+}
+
 fn fresh_swarm_run_id(ctx: &ToolContext) -> String {
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -2153,8 +2161,10 @@ impl Tool for CommunicateTool {
                 let run_id = params
                     .run_id
                     .clone()
+                    .or_else(|| operation_scoped_run_id(params.operation_id.as_deref()))
                     .or_else(|| Some(fresh_swarm_run_id(&ctx)));
-                for _ in 0..available_slots {
+                for slot_offset in 0..available_slots {
+                    let slot_index = active_count + slot_offset;
                     let request = Request::CommAssignNext {
                         id: REQUEST_ID,
                         session_id: ctx.session_id.clone(),
@@ -2163,7 +2173,10 @@ impl Tool for CommunicateTool {
                         prefer_spawn: params.prefer_spawn,
                         spawn_if_needed: params.spawn_if_needed,
                         message: params.message.clone(),
-                        request_nonce: None,
+                        request_nonce: fill_slots_request_nonce(
+                            params.operation_id.as_deref(),
+                            slot_index,
+                        ),
                         run_id: run_id.clone(),
                     };
 

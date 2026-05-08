@@ -163,6 +163,32 @@ fn communicate_input_accepts_operation_id_for_task_control() {
     );
 }
 
+#[test]
+fn fill_slots_operation_id_derives_stable_run_and_slot_nonces() {
+    let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
+        "action": "fill_slots",
+        "concurrency_limit": 3,
+        "operation_id": " issue-13-fill-slots-1 "
+    }))
+    .expect("fill_slots operation_id should deserialize");
+
+    assert_eq!(parsed.operation_id.as_deref(), Some(" issue-13-fill-slots-1 "));
+    assert_eq!(
+        operation_scoped_run_id(parsed.operation_id.as_deref()).as_deref(),
+        Some("run:op:issue-13-fill-slots-1")
+    );
+    assert_eq!(
+        fill_slots_request_nonce(parsed.operation_id.as_deref(), 0).as_deref(),
+        Some("op:issue-13-fill-slots-1:slot:0")
+    );
+    assert_eq!(
+        fill_slots_request_nonce(parsed.operation_id.as_deref(), 2).as_deref(),
+        Some("op:issue-13-fill-slots-1:slot:2")
+    );
+    assert_eq!(fill_slots_request_nonce(None, 0), None);
+    assert_eq!(operation_scoped_run_id(None), None);
+}
+
 fn await_scope_member(
     session_id: &str,
     owner: Option<&str>,

@@ -1,0 +1,45 @@
+{
+  "id": "gate-2026-05-08-3c8861",
+  "ts": "2026-05-08T13:59:45.476Z",
+  "contractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/tool/communicate.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate_tests/input_format.rs",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/state.json",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/traces/2026-05-08.jsonl",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "fill_slots derives deterministic per-slot assign_next request_nonce values from explicit operation_id, preserving retry replay for each slot.",
+    "fill_slots without operation_id preserves existing behavior: request_nonce remains None and fresh run_id fallback is still used when no operation_id is provided.",
+    "fill_slots explicit operation_id uses a stable operation-scoped run_id when run_id is omitted, keeping spawned workers scoped across retries.",
+    "Focused tests prove duplicate fill_slots slot nonces replay original assignments without advancing to extra queued tasks.",
+    "cargo fmt/check/test, git diff --check, selfdev build and reload passed before commit."
+  ],
+  "uncheckedConditions": [
+    "fill_slots without operation_id preserves existing non-idempotent/default behavior and fresh run_id generation.",
+    "fill_slots explicit operation_id uses a stable run_id when run_id is omitted so spawned workers remain scoped across retries.",
+    "Focused tests prove a duplicate fill_slots operation_id does not advance to additional tasks after the first fill.",
+    "cargo fmt/check/test, git diff --check, selfdev build/reload, governance, commit, and push pass."
+  ],
+  "evidence": [
+    "src/tool/communicate.rs adds operation_scoped_run_id and fill_slots_request_nonce helpers, using per-slot nonces only for explicit operation_id.",
+    "src/tool/communicate.rs fill_slots branch now derives stable run_id from operation_id before falling back to fresh run_id, preserving default behavior without operation_id.",
+    "src/tool/communicate_tests/input_format.rs and src/tool/communicate_tests.rs cover trimmed operation_id, stable run_id, and distinct slot nonces.",
+    "src/server/comm_control_tests/assign_next_dependency.rs regression proves retrying slot:0 and slot:1 replays task-one/task-two and leaves task-three unassigned.",
+    "Verification task 657283wpi6 passed focused tests, cargo check and diff check; selfdev build task 709588x2nf passed; reload succeeded."
+  ],
+  "notes": "fill_slots remains a tool-level orchestration loop and reuses the existing CommAssignNext request_nonce idempotency path. No server protocol expansion was needed."
+}

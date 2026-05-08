@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Commit and push assign_task operation_id stability slice",
+  "focus": "Commit and push fill_slots operation_id idempotency slice",
   "status": "done",
-  "activeContractId": "2026-05-08-make-assign-task-operation-id-stable-across-payload-drif-97abe9",
+  "activeContractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc",
   "counters": {
-    "contracts": 37,
-    "traces": 48,
-    "gates": 36,
-    "verifications": 40,
+    "contracts": 38,
+    "traces": 52,
+    "gates": 37,
+    "verifications": 42,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -117,59 +117,14 @@
       "id": "decision-2026-05-08-0335ee",
       "ts": "2026-05-08T13:51:59.046Z",
       "text": "Completed issue #13 assign_task idempotency slice: explicit operation_id/request_nonce now replays the original assign_task assignment across payload drift, while default assign_task remains payload-derived."
+    },
+    {
+      "id": "decision-2026-05-08-5f1d21",
+      "ts": "2026-05-08T13:59:51.791Z",
+      "text": "Completed issue #13 fill_slots idempotency slice: explicit operation_id now derives a stable run scope and per-slot assign_next nonces, so retries replay original slot assignments instead of filling additional tasks."
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-07T21:24:56.488Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-document-reproducible-demo-commands-b0a5fd",
-      "summary": "Document reproducible demo commands"
-    },
-    {
-      "ts": "2026-05-07T21:25:14.317Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-07-document-reproducible-demo-commands-b0a5fd",
-      "gateId": "gate-2026-05-07-1c73d9",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-07T21:27:39.931Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-add-offline-session-list-json-ed330e",
-      "summary": "Add offline session list JSON"
-    },
-    {
-      "ts": "2026-05-07T21:34:19.370Z",
-      "type": "trace_recorded",
-      "traceId": "trace-2026-05-07-d85a18be",
-      "contractId": "2026-05-07-add-offline-session-list-json-ed330e",
-      "kind": "attempt",
-      "summary": "Implemented offline session list JSON slice"
-    },
-    {
-      "ts": "2026-05-07T21:35:06.420Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-07-1cc25189",
-      "contractId": "2026-05-07-add-offline-session-list-json-ed330e",
-      "status": "pass",
-      "summary": "Focused session list validation passed"
-    },
-    {
-      "ts": "2026-05-07T21:37:19.701Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-07-add-offline-session-list-json-ed330e",
-      "gateId": "gate-2026-05-07-08bbd2",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-07T21:37:19.701Z",
-      "type": "state_update",
-      "note": "Implemented and validated offline/read-only session list JSON. Next: commit and push.",
-      "status": "done",
-      "focus": "Issue #4 session list JSON",
-      "activeContractId": "2026-05-07-add-offline-session-list-json-ed330e"
-    },
     {
       "ts": "2026-05-07T21:40:00.110Z",
       "type": "contract_created",
@@ -704,6 +659,59 @@
       "status": "done",
       "focus": "Commit and push assign_task operation_id stability slice",
       "activeContractId": "2026-05-08-make-assign-task-operation-id-stable-across-payload-drif-97abe9"
+    },
+    {
+      "ts": "2026-05-08T13:54:12.028Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc",
+      "summary": "Make fill_slots operation_id idempotent"
+    },
+    {
+      "ts": "2026-05-08T13:59:09.773Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-7aed4ac7",
+      "contractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc",
+      "kind": "failure",
+      "summary": "Initial fill_slots verification timed out due to one-second wrapper"
+    },
+    {
+      "ts": "2026-05-08T13:59:15.492Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-85797e80",
+      "contractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc",
+      "status": "pass",
+      "summary": "Strict fill_slots operation_id verification passed"
+    },
+    {
+      "ts": "2026-05-08T13:59:31.300Z",
+      "type": "trace_recorded",
+      "traceId": "trace-2026-05-08-7a226260",
+      "contractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc",
+      "kind": "failure",
+      "summary": "fill_slots verification exposed missing test helper imports"
+    },
+    {
+      "ts": "2026-05-08T13:59:37.071Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-20f2eebd",
+      "contractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc",
+      "status": "pass",
+      "summary": "Selfdev build passed for fill_slots operation_id slice"
+    },
+    {
+      "ts": "2026-05-08T13:59:45.476Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc",
+      "gateId": "gate-2026-05-08-3c8861",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T13:59:51.792Z",
+      "type": "state_update",
+      "note": "Initial timeout and test import failures were resolved. Strict verification task 657283wpi6, selfdev build task 709588x2nf, reload, and completion gate gate-2026-05-08-3c8861 passed.",
+      "status": "done",
+      "focus": "Commit and push fill_slots operation_id idempotency slice",
+      "activeContractId": "2026-05-08-make-fill-slots-operation-id-idempotent-e954bc"
     }
   ]
 }
