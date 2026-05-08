@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Add provider rate-limit cooldown governor",
+  "focus": "Add provider concurrency backpressure",
   "status": "done",
-  "activeContractId": "2026-05-08-add-provider-rate-limit-cooldown-governor-1fe4ca",
+  "activeContractId": "2026-05-08-add-provider-concurrency-backpressure-7109d5",
   "counters": {
-    "contracts": 48,
-    "traces": 76,
-    "gates": 47,
-    "verifications": 64,
+    "contracts": 49,
+    "traces": 78,
+    "gates": 49,
+    "verifications": 66,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -135,43 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T13:05:18.173Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-53ec7366",
-      "contractId": "2026-05-08-make-spawn-operation-id-ignore-run-drift-e5c780",
-      "status": "pass",
-      "summary": "Focused spawn operation_id run-drift verification passed."
-    },
-    {
-      "ts": "2026-05-08T13:05:27.076Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-8c5c6e0f",
-      "contractId": "2026-05-08-make-spawn-operation-id-ignore-run-drift-e5c780",
-      "status": "pass",
-      "summary": "Self-dev build and reload passed for spawn operation_id run-drift slice."
-    },
-    {
-      "ts": "2026-05-08T13:05:39.518Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-make-spawn-operation-id-ignore-run-drift-e5c780",
-      "gateId": "gate-2026-05-08-3cd0e4",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-08T13:05:48.284Z",
-      "type": "state_update",
-      "note": "Focused verification task 4185264dnc, selfdev build task 468339uarv, reload, and gate gate-2026-05-08-3cd0e4 passed.",
-      "status": "done",
-      "focus": "Commit and push spawn operation_id run-drift slice",
-      "activeContractId": "2026-05-08-make-spawn-operation-id-ignore-run-drift-e5c780"
-    },
-    {
-      "ts": "2026-05-08T13:07:55.273Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-guard-implicit-await-across-run-scopes-f77c5d",
-      "summary": "Guard implicit await across run scopes"
-    },
     {
       "ts": "2026-05-08T13:10:51.514Z",
       "type": "trace_recorded",
@@ -724,6 +687,42 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-08-add-provider-rate-limit-cooldown-governor-1fe4ca",
       "gateId": "gate-2026-05-08-9dff3e",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T16:13:45.777Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-add-provider-concurrency-backpressure-7109d5",
+      "summary": "Add provider concurrency backpressure"
+    },
+    {
+      "ts": "2026-05-08T16:19:45.280Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-b5e1c6ba",
+      "contractId": "2026-05-08-add-provider-concurrency-backpressure-7109d5",
+      "status": "pass",
+      "summary": "Focused provider concurrency backpressure verification passed: formatting, provider_concurrency_backpressure tests, cargo check, and diff whitespace check."
+    },
+    {
+      "ts": "2026-05-08T16:20:51.710Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-fd171f1f",
+      "contractId": "2026-05-08-add-provider-concurrency-backpressure-7109d5",
+      "status": "pass",
+      "summary": "Selfdev build and reload passed for provider concurrency backpressure slice."
+    },
+    {
+      "ts": "2026-05-08T16:21:05.763Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-add-provider-concurrency-backpressure-7109d5",
+      "gateId": "gate-2026-05-08-278188",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T16:21:22.158Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-add-provider-concurrency-backpressure-7109d5",
+      "gateId": "gate-2026-05-08-5ded27",
       "verdict": "pass"
     }
   ]

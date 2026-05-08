@@ -1,0 +1,47 @@
+{
+  "id": "2026-05-08-add-provider-concurrency-backpressure-7109d5",
+  "title": "Add provider concurrency backpressure",
+  "goal": "Add preventive in-process backpressure by limiting concurrent provider/model streams with a lightweight async semaphore.",
+  "createdAt": "2026-05-08T16:13:45.776Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 8,
+    "maxMinutes": 45,
+    "maxToolCalls": 30
+  },
+  "permissions": [
+    "modify source",
+    "run focused tests",
+    "run selfdev build",
+    "commit and push"
+  ],
+  "completionConditions": [
+    "Shared provider/model concurrency helper gates active provider calls with an async semaphore and exposes wait metadata for status/logging.",
+    "OpenAI, Anthropic, and OpenRouter acquire the shared permit after rate-limit cooldown and before outbound retry loop execution.",
+    "Tests cover limit-one contention and release behavior for scoped provider/model concurrency.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "outputPaths": [
+    "src/provider/routing.rs",
+    "src/provider/mod.rs",
+    "src/provider/openai_provider_impl.rs",
+    "src/provider/anthropic.rs",
+    "src/provider/openrouter_sse_stream.rs",
+    "src/provider/tests/fallback_failover.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode provider_concurrency_backpressure --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build --target tui"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "deadlock",
+    "provider_stream_regression"
+  ],
+  "notes": "Issue #27 follow-up after reactive cooldown. Keep default small and env-configurable; avoid cross-process/distributed limiter scope."
+}

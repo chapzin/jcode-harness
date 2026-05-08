@@ -51,16 +51,18 @@ pub use route_builders::{
     listable_model_names_from_routes, openrouter_catalog_model_id,
 };
 pub(crate) use routing::{
-    DEFAULT_RETRY_BACKOFF_CAP_MS, anthropic_api_key_route_availability,
-    anthropic_oauth_route_availability, is_transient_transport_error,
-    provider_rate_limit_cooldown_remaining_ms, record_provider_rate_limit_cooldown_for_error,
-    retry_after_secs_from_headers, retry_after_suffix, retry_backoff_delay_ms,
-    retry_delay_ms_for_error, should_eager_detect_copilot_tier,
+    DEFAULT_RETRY_BACKOFF_CAP_MS, acquire_provider_concurrency_permit,
+    anthropic_api_key_route_availability, anthropic_oauth_route_availability,
+    is_transient_transport_error, provider_rate_limit_cooldown_remaining_ms,
+    record_provider_rate_limit_cooldown_for_error, retry_after_secs_from_headers,
+    retry_after_suffix, retry_backoff_delay_ms, retry_delay_ms_for_error,
+    should_eager_detect_copilot_tier,
 };
 #[cfg(test)]
 pub(crate) use routing::{
-    clear_provider_rate_limit_cooldown, parse_retry_after_secs, retry_after_delay_ms_from_error,
-    retry_backoff_delay_ms_for_nonce, retry_backoff_max_delay_ms,
+    clear_provider_concurrency_limiters, clear_provider_rate_limit_cooldown,
+    parse_retry_after_secs, retry_after_delay_ms_from_error, retry_backoff_delay_ms_for_nonce,
+    retry_backoff_max_delay_ms,
 };
 
 pub fn set_model_with_auth_refresh(provider: &dyn Provider, model: &str) -> Result<()> {

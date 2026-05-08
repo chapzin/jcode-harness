@@ -130,36 +130,60 @@ impl Provider for OpenAIProvider {
                 let mut force_https_for_request = false;
                 let mut skip_backoff_once = false;
 
+                if let Some(delay) = crate::provider::provider_rate_limit_cooldown_remaining_ms(
+                    "openai",
+                    &model_for_transport,
+                ) {
+                    emit_connection_phase(
+                        &tx,
+                        crate::message::ConnectionPhase::Retrying {
+                            attempt: 1,
+                            max: MAX_RETRIES,
+                        },
+                    )
+                    .await;
+                    emit_status_detail(
+                        &tx,
+                        format!(
+                            "rate-limit cooldown {}",
+                            format_status_duration(Duration::from_millis(delay))
+                        ),
+                    )
+                    .await;
+                    crate::logging::info(&format!(
+                        "OpenAI provider rate-limit cooldown active for model='{}' ({}ms remaining)",
+                        model_for_transport, delay
+                    ));
+                    tokio::time::sleep(Duration::from_millis(delay)).await;
+                }
+
+                let _provider_concurrency_permit =
+                    crate::provider::acquire_provider_concurrency_permit(
+                        "openai",
+                        &model_for_transport,
+                    )
+                    .await;
+                if let Some(permit) = _provider_concurrency_permit.as_ref()
+                    && permit.waited_ms() > 0
+                {
+                    emit_status_detail(
+                        &tx,
+                        format!(
+                            "provider backpressure {}",
+                            format_status_duration(Duration::from_millis(permit.waited_ms()))
+                        ),
+                    )
+                    .await;
+                    crate::logging::info(&format!(
+                        "{} provider backpressure waited {}ms for model='{}' (limit={})",
+                        permit.provider(),
+                        permit.waited_ms(),
+                        permit.model(),
+                        permit.limit()
+                    ));
+                }
+
                 for attempt in 0..MAX_RETRIES {
-                    if attempt == 0
-                        && let Some(delay) =
-                            crate::provider::provider_rate_limit_cooldown_remaining_ms(
-                                "openai",
-                                &model_for_transport,
-                            )
-                    {
-                        emit_connection_phase(
-                            &tx,
-                            crate::message::ConnectionPhase::Retrying {
-                                attempt: 1,
-                                max: MAX_RETRIES,
-                            },
-                        )
-                        .await;
-                        emit_status_detail(
-                            &tx,
-                            format!(
-                                "rate-limit cooldown {}",
-                                format_status_duration(Duration::from_millis(delay))
-                            ),
-                        )
-                        .await;
-                        crate::logging::info(&format!(
-                            "OpenAI provider rate-limit cooldown active for model='{}' ({}ms remaining)",
-                            model_for_transport, delay
-                        ));
-                        tokio::time::sleep(Duration::from_millis(delay)).await;
-                    }
                     if attempt > 0 {
                         emit_connection_phase(
                             &tx,

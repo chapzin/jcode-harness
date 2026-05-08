@@ -1,0 +1,51 @@
+{
+  "id": "gate-2026-05-08-5ded27",
+  "ts": "2026-05-08T16:21:22.158Z",
+  "contractId": "2026-05-08-add-provider-concurrency-backpressure-7109d5",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/provider/routing.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/mod.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openai_provider_impl.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/anthropic.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openrouter_sse_stream.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/tests/fallback_failover.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Shared provider/model concurrency helper gates active provider calls with an async semaphore and records wait metadata.",
+    "OpenAI, Anthropic, and OpenRouter acquire the shared permit after rate-limit cooldown and before outbound retry loop execution.",
+    "Focused provider_concurrency_backpressure tests passed.",
+    "cargo fmt --check, cargo check -p jcode --lib, and git diff --check passed.",
+    "Selfdev build and reload passed."
+  ],
+  "uncheckedConditions": [
+    "Shared provider/model concurrency helper gates active provider calls with an async semaphore and exposes wait metadata for status/logging.",
+    "Tests cover limit-one contention and release behavior for scoped provider/model concurrency.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/132541cq8q.output",
+    "/tmp/jcode-bg-tasks/1922232yay.output",
+    "trace-2026-05-08-b5e1c6ba",
+    "trace-2026-05-08-fd171f1f"
+  ],
+  "notes": "Backpressure is in-process, provider/model scoped, default limit 2, and can be disabled with JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL=0."
+}

@@ -189,6 +189,54 @@ fn provider_rate_limit_cooldown_ignores_non_rate_limit_errors() {
 }
 
 #[test]
+fn provider_concurrency_backpressure_limit_one_blocks_until_release() {
+    with_env_var("JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL", "1", || {
+        clear_provider_concurrency_limiters();
+        enter_test_runtime().block_on(async {
+            let first = acquire_provider_concurrency_permit("OpenAI", "gpt-test")
+                .await
+                .expect("first permit should acquire immediately");
+            assert_eq!(first.provider(), "OpenAI");
+            assert_eq!(first.model(), "gpt-test");
+            assert_eq!(first.limit(), 1);
+
+            let blocked = tokio::time::timeout(
+                std::time::Duration::from_millis(20),
+                acquire_provider_concurrency_permit("openai", "gpt-test"),
+            )
+            .await;
+            assert!(blocked.is_err(), "second scoped permit should wait");
+
+            drop(first);
+            let second = tokio::time::timeout(
+                std::time::Duration::from_secs(1),
+                acquire_provider_concurrency_permit("openai", "gpt-test"),
+            )
+            .await
+            .expect("released permit should unblock")
+            .expect("second permit should acquire");
+            assert_eq!(second.limit(), 1);
+        });
+        clear_provider_concurrency_limiters();
+    });
+}
+
+#[test]
+fn provider_concurrency_backpressure_zero_disables_permit() {
+    with_env_var("JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL", "0", || {
+        clear_provider_concurrency_limiters();
+        enter_test_runtime().block_on(async {
+            assert!(
+                acquire_provider_concurrency_permit("openai", "gpt-test")
+                    .await
+                    .is_none()
+            );
+        });
+        clear_provider_concurrency_limiters();
+    });
+}
+
+#[test]
 fn test_parse_provider_hint_supports_known_values() {
     assert_eq!(
         MultiProvider::parse_provider_hint("claude"),

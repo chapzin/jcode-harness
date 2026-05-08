@@ -24,25 +24,44 @@ pub(super) async fn run_stream_with_retries(
 ) {
     let mut last_error = None;
 
+    if let Some(delay) =
+        crate::provider::provider_rate_limit_cooldown_remaining_ms("openrouter", &model)
+    {
+        let _ = tx
+            .send(Ok(StreamEvent::ConnectionPhase {
+                phase: crate::message::ConnectionPhase::Retrying {
+                    attempt: 1,
+                    max: MAX_RETRIES,
+                },
+            }))
+            .await;
+        crate::logging::info(&format!(
+            "OpenRouter provider rate-limit cooldown active for model='{}' ({}ms remaining)",
+            model, delay
+        ));
+        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+    }
+
+    let _provider_concurrency_permit =
+        crate::provider::acquire_provider_concurrency_permit("openrouter", &model).await;
+    if let Some(permit) = _provider_concurrency_permit.as_ref()
+        && permit.waited_ms() > 0
+    {
+        let _ = tx
+            .send(Ok(StreamEvent::StatusDetail {
+                detail: format!("provider backpressure {}ms", permit.waited_ms()),
+            }))
+            .await;
+        crate::logging::info(&format!(
+            "{} provider backpressure waited {}ms for model='{}' (limit={})",
+            permit.provider(),
+            permit.waited_ms(),
+            permit.model(),
+            permit.limit()
+        ));
+    }
+
     for attempt in 0..MAX_RETRIES {
-        if attempt == 0
-            && let Some(delay) =
-                crate::provider::provider_rate_limit_cooldown_remaining_ms("openrouter", &model)
-        {
-            let _ = tx
-                .send(Ok(StreamEvent::ConnectionPhase {
-                    phase: crate::message::ConnectionPhase::Retrying {
-                        attempt: 1,
-                        max: MAX_RETRIES,
-                    },
-                }))
-                .await;
-            crate::logging::info(&format!(
-                "OpenRouter provider rate-limit cooldown active for model='{}' ({}ms remaining)",
-                model, delay
-            ));
-            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
-        }
         if attempt > 0 {
             let delay = last_error
                 .as_ref()

@@ -1,15 +1,19 @@
 use reqwest::header::{HeaderMap, RETRY_AFTER};
 use std::collections::HashMap;
 use std::sync::{
-    LazyLock, Mutex,
+    Arc, LazyLock, Mutex,
     atomic::{AtomicU64, Ordering},
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 pub(crate) const DEFAULT_RETRY_BACKOFF_CAP_MS: u64 = 10_000;
+pub(crate) const DEFAULT_PROVIDER_CONCURRENCY_LIMIT: usize = 2;
 
 static RETRY_JITTER_COUNTER: AtomicU64 = AtomicU64::new(1);
 static PROVIDER_RATE_LIMIT_COOLDOWNS: LazyLock<Mutex<HashMap<String, Instant>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+static PROVIDER_CONCURRENCY_LIMITERS: LazyLock<Mutex<HashMap<String, Arc<Semaphore>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub(crate) fn should_eager_detect_copilot_tier() -> bool {
@@ -137,6 +141,76 @@ pub(crate) fn clear_provider_rate_limit_cooldown(provider: &str, model: &str) {
     }
 }
 
+pub(crate) struct ProviderConcurrencyPermit {
+    provider: String,
+    model: String,
+    limit: usize,
+    waited_ms: u64,
+    _permit: OwnedSemaphorePermit,
+}
+
+impl ProviderConcurrencyPermit {
+    pub(crate) fn provider(&self) -> &str {
+        &self.provider
+    }
+
+    pub(crate) fn model(&self) -> &str {
+        &self.model
+    }
+
+    pub(crate) fn limit(&self) -> usize {
+        self.limit
+    }
+
+    pub(crate) fn waited_ms(&self) -> u64 {
+        self.waited_ms
+    }
+}
+
+pub(crate) async fn acquire_provider_concurrency_permit(
+    provider: &str,
+    model: &str,
+) -> Option<ProviderConcurrencyPermit> {
+    let limit = provider_concurrency_limit();
+    if limit == 0 {
+        return None;
+    }
+
+    let key = provider_rate_limit_key(provider, model)?;
+    let semaphore = {
+        let mut guard = PROVIDER_CONCURRENCY_LIMITERS.lock().ok()?;
+        Arc::clone(
+            guard
+                .entry(key)
+                .or_insert_with(|| Arc::new(Semaphore::new(limit))),
+        )
+    };
+
+    let wait_started = Instant::now();
+    let permit = semaphore.acquire_owned().await.ok()?;
+    Some(ProviderConcurrencyPermit {
+        provider: provider.trim().to_string(),
+        model: model.trim().to_string(),
+        limit,
+        waited_ms: duration_to_ms_floor(wait_started.elapsed()),
+        _permit: permit,
+    })
+}
+
+fn provider_concurrency_limit() -> usize {
+    std::env::var("JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL")
+        .ok()
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .unwrap_or(DEFAULT_PROVIDER_CONCURRENCY_LIMIT)
+}
+
+#[cfg(test)]
+pub(crate) fn clear_provider_concurrency_limiters() {
+    if let Ok(mut guard) = PROVIDER_CONCURRENCY_LIMITERS.lock() {
+        guard.clear();
+    }
+}
+
 fn record_provider_rate_limit_cooldown_ms(
     provider: &str,
     model: &str,
@@ -183,6 +257,10 @@ fn duration_to_ms_ceil(duration: Duration) -> u64 {
         return 1;
     }
     millis.try_into().unwrap_or(u64::MAX)
+}
+
+fn duration_to_ms_floor(duration: Duration) -> u64 {
+    duration.as_millis().try_into().unwrap_or(u64::MAX)
 }
 
 pub(crate) fn retry_backoff_max_delay_ms(
