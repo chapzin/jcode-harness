@@ -91,6 +91,20 @@ pub struct HarnessEventLogSummary {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct HarnessEventReadDiagnostic {
+    pub line: usize,
+    pub message: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct HarnessEventReadReport {
+    pub path: String,
+    pub events: Vec<HarnessEvent>,
+    pub diagnostics: Vec<HarnessEventReadDiagnostic>,
+    pub partial: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct HarnessEventTimelineItem {
     pub ordinal: usize,
     pub sequence: u64,
@@ -360,7 +374,9 @@ pub fn append_harness_event_ndjson(
     write_harness_event_ndjson(&mut file, event)
 }
 
-pub fn read_harness_event_ndjson(path: impl AsRef<Path>) -> anyhow::Result<Vec<HarnessEvent>> {
+pub fn read_harness_event_ndjson_report(
+    path: impl AsRef<Path>,
+) -> anyhow::Result<HarnessEventReadReport> {
     let path = path.as_ref();
     let file = std::fs::File::open(path).map_err(|err| {
         anyhow::anyhow!(
@@ -371,44 +387,104 @@ pub fn read_harness_event_ndjson(path: impl AsRef<Path>) -> anyhow::Result<Vec<H
     })?;
     let reader = BufReader::new(file);
     let mut events = Vec::new();
+    let mut diagnostics = Vec::new();
 
     for (line_index, line) in reader.lines().enumerate() {
         let line_number = line_index + 1;
-        let line = line.map_err(|err| {
-            anyhow::anyhow!(
-                "failed to read harness event log {} line {}: {}",
-                path.display(),
-                line_number,
-                err
-            )
-        })?;
+        let line = match line {
+            Ok(line) => line,
+            Err(err) => {
+                diagnostics.push(HarnessEventReadDiagnostic {
+                    line: line_number,
+                    message: format!(
+                        "failed to read harness event log {} line {}: {}",
+                        path.display(),
+                        line_number,
+                        err
+                    ),
+                });
+                continue;
+            }
+        };
         if line.trim().is_empty() {
-            anyhow::bail!(
-                "invalid harness event NDJSON at {} line {}: blank line",
-                path.display(),
-                line_number
-            );
+            diagnostics.push(HarnessEventReadDiagnostic {
+                line: line_number,
+                message: format!(
+                    "invalid harness event NDJSON at {} line {}: blank line",
+                    path.display(),
+                    line_number
+                ),
+            });
+            continue;
         }
-        let event = serde_json::from_str::<HarnessEvent>(&line).map_err(|err| {
-            anyhow::anyhow!(
-                "invalid harness event NDJSON at {} line {}: {}",
-                path.display(),
-                line_number,
-                err
-            )
-        })?;
-        events.push(event);
+        match serde_json::from_str::<HarnessEvent>(&line) {
+            Ok(event) => events.push(event),
+            Err(err) => diagnostics.push(HarnessEventReadDiagnostic {
+                line: line_number,
+                message: format!(
+                    "invalid harness event NDJSON at {} line {}: {}",
+                    path.display(),
+                    line_number,
+                    err
+                ),
+            }),
+        }
     }
 
-    Ok(events)
+    Ok(HarnessEventReadReport {
+        path: path.display().to_string(),
+        events,
+        partial: !diagnostics.is_empty(),
+        diagnostics,
+    })
+}
+
+pub fn read_harness_event_ndjson(path: impl AsRef<Path>) -> anyhow::Result<Vec<HarnessEvent>> {
+    let report = read_harness_event_ndjson_report(path)?;
+
+    if let Some(first) = report.diagnostics.first() {
+        anyhow::bail!("{}", first.message);
+    }
+
+    Ok(report.events)
+}
+
+pub fn summarize_harness_event_read_report(
+    report: &HarnessEventReadReport,
+) -> HarnessEventLogSummary {
+    let mut summary = summarize_harness_events(&report.path, &report.events);
+    if !report.diagnostics.is_empty() {
+        if report.events.is_empty() {
+            summary.status = "corrupt".to_string();
+        } else if summary.status != "failed" {
+            summary.status = "partial".to_string();
+        }
+        summary.error = Some(format_harness_event_read_diagnostics(&report.diagnostics));
+    }
+    summary
+}
+
+fn format_harness_event_read_diagnostics(diagnostics: &[HarnessEventReadDiagnostic]) -> String {
+    let mut message = diagnostics
+        .iter()
+        .take(3)
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("; ");
+    if diagnostics.len() > 3 {
+        message.push_str(&format!(
+            "; ... {} more diagnostic(s)",
+            diagnostics.len() - 3
+        ));
+    }
+    message
 }
 
 pub fn summarize_harness_event_log(
     path: impl AsRef<Path>,
 ) -> anyhow::Result<HarnessEventLogSummary> {
-    let path = path.as_ref();
-    let events = read_harness_event_ndjson(path)?;
-    Ok(summarize_harness_events(path, &events))
+    let report = read_harness_event_ndjson_report(path)?;
+    Ok(summarize_harness_event_read_report(&report))
 }
 
 pub fn summarize_harness_events(
@@ -477,6 +553,14 @@ pub fn list_harness_event_logs() -> anyhow::Result<Vec<HarnessEventLogSummary>> 
 
 pub fn render_harness_event_replay_markdown(events: &[HarnessEvent]) -> String {
     let summary = summarize_harness_events("<memory>", events);
+    render_harness_event_replay_markdown_with_summary(&summary, events, &[])
+}
+
+pub fn render_harness_event_replay_markdown_with_summary(
+    summary: &HarnessEventLogSummary,
+    events: &[HarnessEvent],
+    diagnostics: &[HarnessEventReadDiagnostic],
+) -> String {
     let timeline = build_harness_event_timeline(events);
     let mut output = String::new();
     output.push_str(&format!("# Harness event replay: {}\n\n", summary.run_id));
@@ -492,6 +576,26 @@ pub fn render_harness_event_replay_markdown(events: &[HarnessEvent]) -> String {
     if let Some(duration_ms) = summary.duration_ms {
         output.push_str(&format!("- Duration: {} ms\n", duration_ms));
     }
+    if let Some(error) = summary.error.as_deref() {
+        output.push_str(&format!(
+            "- Diagnostics: {}\n",
+            escape_markdown_table_cell(error)
+        ));
+    }
+
+    output.push_str("\n## Diagnostics\n\n");
+    if diagnostics.is_empty() {
+        output.push_str("- None\n");
+    } else {
+        for diagnostic in diagnostics {
+            output.push_str(&format!(
+                "- line {}: {}\n",
+                diagnostic.line,
+                escape_markdown_table_cell(&diagnostic.message)
+            ));
+        }
+    }
+
     output.push_str("\n## Failure points\n\n");
     let failures = timeline
         .iter()
@@ -1104,6 +1208,79 @@ mod tests {
     }
 
     #[test]
+    fn ndjson_report_preserves_valid_events_after_corrupt_line() {
+        let temp = tempfile::Builder::new()
+            .prefix("jcode-harness-events-partial-")
+            .tempdir()
+            .unwrap();
+        let path = temp.path().join("run.ndjson");
+        let bus = HarnessEventBus::with_capacity(8);
+        let first = bus.publish(HarnessEventDraft::run_started("run_partial"));
+        let second = bus.publish(HarnessEventDraft::run_completed("run_partial"));
+
+        append_harness_event_ndjson(&path, &first).unwrap();
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .unwrap()
+            .write_all(b"not-json\n")
+            .unwrap();
+        append_harness_event_ndjson(&path, &second).unwrap();
+
+        let report = read_harness_event_ndjson_report(&path).unwrap();
+        assert!(report.partial);
+        assert_eq!(report.events, vec![first, second]);
+        assert_eq!(report.diagnostics.len(), 1);
+        assert_eq!(report.diagnostics[0].line, 2);
+        assert!(report.diagnostics[0].message.contains("line 2"));
+
+        let err = read_harness_event_ndjson(&path).unwrap_err().to_string();
+        assert!(err.contains("line 2"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn summary_and_replay_surface_truncated_stream_diagnostics() {
+        let temp = tempfile::Builder::new()
+            .prefix("jcode-harness-events-truncated-")
+            .tempdir()
+            .unwrap();
+        let path = temp.path().join("run.ndjson");
+        let bus = HarnessEventBus::with_capacity(8);
+        let started = bus.publish(HarnessEventDraft::run_started("run_truncated"));
+
+        append_harness_event_ndjson(&path, &started).unwrap();
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .unwrap()
+            .write_all(b"{\"schema_version\":1")
+            .unwrap();
+
+        let report = read_harness_event_ndjson_report(&path).unwrap();
+        let summary = summarize_harness_event_read_report(&report);
+        let markdown = render_harness_event_replay_markdown_with_summary(
+            &summary,
+            &report.events,
+            &report.diagnostics,
+        );
+
+        assert_eq!(summary.run_id, "run_truncated");
+        assert_eq!(summary.events, 1);
+        assert_eq!(summary.status, "partial");
+        assert!(
+            summary
+                .error
+                .as_deref()
+                .unwrap_or_default()
+                .contains("line 2")
+        );
+        assert!(markdown.contains("## Diagnostics"));
+        assert!(markdown.contains("line 2"));
+        assert!(markdown.contains("invalid harness event NDJSON"));
+        assert!(markdown.contains("### Run"));
+    }
+
+    #[test]
     fn event_log_path_sanitizes_run_id() {
         let path = harness_event_log_path("run/with spaces/and:*chars");
         let file_name = path.file_name().and_then(|name| name.to_str()).unwrap();
@@ -1214,6 +1391,53 @@ mod tests {
             "| Seq | +ms | Level | Kind | Event | Parent | Children | Status | Details |"
         ));
         assert!(markdown.contains("tool=cargo test"));
+    }
+
+    #[test]
+    fn replay_markdown_matches_stable_snapshot() {
+        let event = HarnessEvent::new(
+            "hevt_tool",
+            "run_replay_snapshot",
+            DateTime::parse_from_rfc3339("2026-05-08T03:41:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            1,
+            HarnessEventLevel::Info,
+            HarnessEventKind::ToolFinished,
+            json!({"tool": "cargo test", "status": "ok"}),
+        );
+
+        let markdown = render_harness_event_replay_markdown(&[event]);
+
+        assert_eq!(
+            markdown,
+            "# Harness event replay: run_replay_snapshot\n\
+\n\
+## Summary\n\
+\n\
+- Status: `partial`\n\
+- Events: 1\n\
+- Started: `2026-05-08 03:41:00 UTC`\n\
+- Last event: `2026-05-08 03:41:00 UTC`\n\
+- Duration: 0 ms\n\
+\n\
+## Diagnostics\n\
+\n\
+- None\n\
+\n\
+## Failure points\n\
+\n\
+- None\n\
+\n\
+## Timeline by phase\n\
+\n\
+### Tool Execution\n\
+\n\
+| Seq | +ms | Level | Kind | Event | Parent | Children | Status | Details |\n\
+| ---: | ---: | --- | --- | --- | --- | ---: | --- | --- |\n\
+| 1 | 0 | `info` | `tool_finished` | `hevt_tool` |  | 0 | `completed` | status=ok, tool=cargo test |\n\
+\n"
+        );
     }
 
     #[test]

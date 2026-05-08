@@ -154,6 +154,8 @@ jcode events replay --run run_123 --json > replay.json
 - `export --json` requires `--output` so stdout remains machine-safe.
 - `replay` reconstructs a local audit timeline as Markdown by default, or JSON with `--json`. Replay output includes phase grouping, elapsed milliseconds, parent event references, child counts, duration hints, and explicit failure points.
 
+Replay and indexing use a tolerant read report for auditability: valid event lines are retained, invalid or truncated lines are surfaced as line-numbered diagnostics, and JSON replay includes a `diagnostics` array alongside `summary`, `timeline`, and `events`. Strict NDJSON consumers such as `tail --ndjson` and `export` still fail on malformed input so automation does not silently consume damaged streams.
+
 ## Minimal producer usage
 
 ```rust

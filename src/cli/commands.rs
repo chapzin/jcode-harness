@@ -165,6 +165,7 @@ struct HarnessEventExportReport {
 struct HarnessEventReplayOutput {
     summary: crate::harness_events::HarnessEventLogSummary,
     timeline: Vec<crate::harness_events::HarnessEventTimelineItem>,
+    diagnostics: Vec<crate::harness_events::HarnessEventReadDiagnostic>,
     events: Vec<crate::harness_events::HarnessEvent>,
 }
 
@@ -220,6 +221,9 @@ pub fn run_events_show_command(run_id: &str, emit_json: bool) -> Result<()> {
     if let Some(duration_ms) = summary.duration_ms {
         println!("Duration: {} ms", duration_ms);
     }
+    if let Some(error) = summary.error.as_deref() {
+        println!("Diagnostics: {}", error);
+    }
     println!("Path: {}", summary.path);
 
     Ok(())
@@ -231,18 +235,23 @@ pub fn run_events_replay_command(
     output: Option<PathBuf>,
 ) -> Result<()> {
     let path = crate::harness_events::harness_event_log_path(run_id);
-    let events = crate::harness_events::read_harness_event_ndjson(&path)?;
-    let summary = crate::harness_events::summarize_harness_events(&path, &events);
-    let timeline = crate::harness_events::build_harness_event_timeline(&events);
+    let report = crate::harness_events::read_harness_event_ndjson_report(&path)?;
+    let summary = crate::harness_events::summarize_harness_event_read_report(&report);
+    let timeline = crate::harness_events::build_harness_event_timeline(&report.events);
 
     let content = if emit_json {
         serde_json::to_string_pretty(&HarnessEventReplayOutput {
             summary,
             timeline,
-            events,
+            diagnostics: report.diagnostics,
+            events: report.events,
         })?
     } else {
-        crate::harness_events::render_harness_event_replay_markdown(&events)
+        crate::harness_events::render_harness_event_replay_markdown_with_summary(
+            &summary,
+            &report.events,
+            &report.diagnostics,
+        )
     };
 
     if let Some(output_path) = output {
