@@ -25,6 +25,24 @@ pub(super) async fn run_stream_with_retries(
     let mut last_error = None;
 
     for attempt in 0..MAX_RETRIES {
+        if attempt == 0
+            && let Some(delay) =
+                crate::provider::provider_rate_limit_cooldown_remaining_ms("openrouter", &model)
+        {
+            let _ = tx
+                .send(Ok(StreamEvent::ConnectionPhase {
+                    phase: crate::message::ConnectionPhase::Retrying {
+                        attempt: 1,
+                        max: MAX_RETRIES,
+                    },
+                }))
+                .await;
+            crate::logging::info(&format!(
+                "OpenRouter provider rate-limit cooldown active for model='{}' ({}ms remaining)",
+                model, delay
+            ));
+            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+        }
         if attempt > 0 {
             let delay = last_error
                 .as_ref()
@@ -78,6 +96,25 @@ pub(super) async fn run_stream_with_retries(
             Err(e) => {
                 let error_str = e.to_string().to_lowercase();
                 if is_retryable_error(&error_str) && attempt + 1 < MAX_RETRIES {
+                    let next_delay = crate::provider::retry_delay_ms_for_error(
+                        attempt + 1,
+                        RETRY_BASE_DELAY_MS,
+                        crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
+                        &error_str,
+                    );
+                    if let Some(cooldown) =
+                        crate::provider::record_provider_rate_limit_cooldown_for_error(
+                            "openrouter",
+                            &model,
+                            &error_str,
+                            next_delay,
+                        )
+                    {
+                        crate::logging::info(&format!(
+                            "Recorded OpenRouter provider rate-limit cooldown for model='{}' ({}ms)",
+                            model, cooldown
+                        ));
+                    }
                     crate::logging::info(&format!("Transient API error, will retry: {}", e));
                     last_error = Some(e);
                     continue;

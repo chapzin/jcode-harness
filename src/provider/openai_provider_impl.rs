@@ -131,6 +131,35 @@ impl Provider for OpenAIProvider {
                 let mut skip_backoff_once = false;
 
                 for attempt in 0..MAX_RETRIES {
+                    if attempt == 0
+                        && let Some(delay) =
+                            crate::provider::provider_rate_limit_cooldown_remaining_ms(
+                                "openai",
+                                &model_for_transport,
+                            )
+                    {
+                        emit_connection_phase(
+                            &tx,
+                            crate::message::ConnectionPhase::Retrying {
+                                attempt: 1,
+                                max: MAX_RETRIES,
+                            },
+                        )
+                        .await;
+                        emit_status_detail(
+                            &tx,
+                            format!(
+                                "rate-limit cooldown {}",
+                                format_status_duration(Duration::from_millis(delay))
+                            ),
+                        )
+                        .await;
+                        crate::logging::info(&format!(
+                            "OpenAI provider rate-limit cooldown active for model='{}' ({}ms remaining)",
+                            model_for_transport, delay
+                        ));
+                        tokio::time::sleep(Duration::from_millis(delay)).await;
+                    }
                     if attempt > 0 {
                         emit_connection_phase(
                             &tx,
@@ -306,6 +335,25 @@ impl Provider for OpenAIProvider {
                             let elapsed_ms = attempt_started.elapsed().as_millis();
                             let error_str = error.to_string().to_lowercase();
                             if is_retryable_error(&error_str) && attempt + 1 < MAX_RETRIES {
+                                let next_delay = crate::provider::retry_delay_ms_for_error(
+                                    attempt + 1,
+                                    RETRY_BASE_DELAY_MS,
+                                    crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
+                                    &error_str,
+                                );
+                                if let Some(cooldown) =
+                                    crate::provider::record_provider_rate_limit_cooldown_for_error(
+                                        "openai",
+                                        &model_for_transport,
+                                        &error_str,
+                                        next_delay,
+                                    )
+                                {
+                                    crate::logging::info(&format!(
+                                        "Recorded OpenAI provider rate-limit cooldown for model='{}' ({}ms)",
+                                        model_for_transport, cooldown
+                                    ));
+                                }
                                 crate::logging::info(&format!(
                                     "Transient error after {}ms, will retry: {}",
                                     elapsed_ms, error

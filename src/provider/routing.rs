@@ -1,10 +1,16 @@
 use reqwest::header::{HeaderMap, RETRY_AFTER};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::collections::HashMap;
+use std::sync::{
+    LazyLock, Mutex,
+    atomic::{AtomicU64, Ordering},
+};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 pub(crate) const DEFAULT_RETRY_BACKOFF_CAP_MS: u64 = 10_000;
 
 static RETRY_JITTER_COUNTER: AtomicU64 = AtomicU64::new(1);
+static PROVIDER_RATE_LIMIT_COOLDOWNS: LazyLock<Mutex<HashMap<String, Instant>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub(crate) fn should_eager_detect_copilot_tier() -> bool {
     std::env::var("JCODE_NON_INTERACTIVE").is_err()
@@ -90,6 +96,93 @@ pub(crate) fn retry_delay_ms_for_error(
 pub(crate) fn retry_after_delay_ms_from_error(error_str: &str, cap_delay_ms: u64) -> Option<u64> {
     retry_after_secs_from_error(error_str)
         .map(|seconds| seconds.saturating_mul(1_000).min(cap_delay_ms))
+}
+
+pub(crate) fn provider_rate_limit_cooldown_remaining_ms(
+    provider: &str,
+    model: &str,
+) -> Option<u64> {
+    let key = provider_rate_limit_key(provider, model)?;
+    let now = Instant::now();
+    let mut guard = PROVIDER_RATE_LIMIT_COOLDOWNS.lock().ok()?;
+    let until = guard.get(&key).copied()?;
+    if until <= now {
+        guard.remove(&key);
+        return None;
+    }
+
+    Some(duration_to_ms_ceil(until.duration_since(now)))
+}
+
+pub(crate) fn record_provider_rate_limit_cooldown_for_error(
+    provider: &str,
+    model: &str,
+    error_str: &str,
+    delay_ms: u64,
+) -> Option<u64> {
+    if !error_has_rate_limit_signal(error_str) {
+        return None;
+    }
+
+    record_provider_rate_limit_cooldown_ms(provider, model, delay_ms)
+}
+
+#[cfg(test)]
+pub(crate) fn clear_provider_rate_limit_cooldown(provider: &str, model: &str) {
+    let Some(key) = provider_rate_limit_key(provider, model) else {
+        return;
+    };
+    if let Ok(mut guard) = PROVIDER_RATE_LIMIT_COOLDOWNS.lock() {
+        guard.remove(&key);
+    }
+}
+
+fn record_provider_rate_limit_cooldown_ms(
+    provider: &str,
+    model: &str,
+    delay_ms: u64,
+) -> Option<u64> {
+    if delay_ms == 0 {
+        return None;
+    }
+    let key = provider_rate_limit_key(provider, model)?;
+    let until = Instant::now() + Duration::from_millis(delay_ms);
+    let mut guard = PROVIDER_RATE_LIMIT_COOLDOWNS.lock().ok()?;
+    guard
+        .entry(key)
+        .and_modify(|existing| {
+            if *existing < until {
+                *existing = until;
+            }
+        })
+        .or_insert(until);
+    Some(delay_ms)
+}
+
+fn provider_rate_limit_key(provider: &str, model: &str) -> Option<String> {
+    let provider = provider.trim().to_ascii_lowercase();
+    let model = model.trim().to_ascii_lowercase();
+    if provider.is_empty() || model.is_empty() {
+        return None;
+    }
+    Some(format!("{provider}::{model}"))
+}
+
+fn error_has_rate_limit_signal(error_str: &str) -> bool {
+    let lower = error_str.to_ascii_lowercase();
+    lower.contains("429")
+        || lower.contains("too many requests")
+        || lower.contains("rate limited")
+        || lower.contains("rate_limit")
+        || lower.contains("rate limit")
+}
+
+fn duration_to_ms_ceil(duration: Duration) -> u64 {
+    let millis = duration.as_millis();
+    if millis == 0 && !duration.is_zero() {
+        return 1;
+    }
+    millis.try_into().unwrap_or(u64::MAX)
 }
 
 pub(crate) fn retry_backoff_max_delay_ms(

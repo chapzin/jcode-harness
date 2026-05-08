@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Honor provider Retry-After delays",
+  "focus": "Add provider rate-limit cooldown governor",
   "status": "done",
-  "activeContractId": "2026-05-08-honor-provider-retry-after-delays-2832c1",
+  "activeContractId": "2026-05-08-add-provider-rate-limit-cooldown-governor-1fe4ca",
   "counters": {
-    "contracts": 47,
-    "traces": 74,
-    "gates": 46,
-    "verifications": 62,
+    "contracts": 48,
+    "traces": 76,
+    "gates": 47,
+    "verifications": 64,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -135,35 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T12:19:53.643Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-3e2493a7",
-      "contractId": "2026-05-08-use-resolved-stop-mutation-identity-6fcfb0",
-      "status": "pass",
-      "summary": "Self-dev build and subsequent reload passed for the resolved stop mutation identity slice."
-    },
-    {
-      "ts": "2026-05-08T12:20:01.723Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-use-resolved-stop-mutation-identity-6fcfb0",
-      "gateId": "gate-2026-05-08-30d95e",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-08T12:20:07.164Z",
-      "type": "state_update",
-      "note": "Verification task 6351036hah passed, selfdev build task 693895a8qc passed, reload succeeded, and completion gate gate-2026-05-08-30d95e passed.",
-      "status": "done",
-      "focus": "Finalize resolved stop mutation identity slice",
-      "activeContractId": "2026-05-08-use-resolved-stop-mutation-identity-6fcfb0"
-    },
-    {
-      "ts": "2026-05-08T13:03:10.434Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-make-spawn-operation-id-ignore-run-drift-e5c780",
-      "summary": "Make spawn operation_id ignore run drift"
-    },
     {
       "ts": "2026-05-08T13:05:18.173Z",
       "type": "verification_recorded",
@@ -724,6 +695,35 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-08-honor-provider-retry-after-delays-2832c1",
       "gateId": "gate-2026-05-08-403515",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T16:04:40.840Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-add-provider-rate-limit-cooldown-governor-1fe4ca",
+      "summary": "Add provider rate-limit cooldown governor"
+    },
+    {
+      "ts": "2026-05-08T16:08:58.608Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-eb37c623",
+      "contractId": "2026-05-08-add-provider-rate-limit-cooldown-governor-1fe4ca",
+      "status": "pass",
+      "summary": "Focused provider rate-limit cooldown governor verification passed: formatting, provider_rate_limit_cooldown tests, cargo check, and diff whitespace check."
+    },
+    {
+      "ts": "2026-05-08T16:09:57.553Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-f8fa7ee8",
+      "contractId": "2026-05-08-add-provider-rate-limit-cooldown-governor-1fe4ca",
+      "status": "pass",
+      "summary": "Selfdev build and reload passed for provider rate-limit cooldown governor slice."
+    },
+    {
+      "ts": "2026-05-08T16:10:04.183Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-add-provider-rate-limit-cooldown-governor-1fe4ca",
+      "gateId": "gate-2026-05-08-9dff3e",
       "verdict": "pass"
     }
   ]

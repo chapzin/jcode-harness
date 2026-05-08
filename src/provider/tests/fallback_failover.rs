@@ -139,6 +139,56 @@ fn provider_retry_delay_caps_retry_after_and_ignores_missing_hint() {
 }
 
 #[test]
+fn provider_rate_limit_cooldown_records_and_clears_scoped_delay() {
+    clear_provider_rate_limit_cooldown("OpenAI", "gpt-test");
+    assert_eq!(
+        provider_rate_limit_cooldown_remaining_ms("openai", "gpt-test"),
+        None
+    );
+
+    assert_eq!(
+        record_provider_rate_limit_cooldown_for_error(
+            "OpenAI",
+            "gpt-test",
+            "Rate limited (retry after 2s): slow down",
+            2_000,
+        ),
+        Some(2_000)
+    );
+
+    let remaining = provider_rate_limit_cooldown_remaining_ms("openai", "gpt-test")
+        .expect("cooldown should be visible for same normalized scope");
+    assert!(
+        (1..=2_000).contains(&remaining),
+        "unexpected cooldown remaining: {remaining}"
+    );
+
+    clear_provider_rate_limit_cooldown("openai", "gpt-test");
+    assert_eq!(
+        provider_rate_limit_cooldown_remaining_ms("openai", "gpt-test"),
+        None
+    );
+}
+
+#[test]
+fn provider_rate_limit_cooldown_ignores_non_rate_limit_errors() {
+    clear_provider_rate_limit_cooldown("anthropic", "claude-test");
+    assert_eq!(
+        record_provider_rate_limit_cooldown_for_error(
+            "anthropic",
+            "claude-test",
+            "transient timeout without explicit throttling",
+            1_000,
+        ),
+        None
+    );
+    assert_eq!(
+        provider_rate_limit_cooldown_remaining_ms("anthropic", "claude-test"),
+        None
+    );
+}
+
+#[test]
 fn test_parse_provider_hint_supports_known_values() {
     assert_eq!(
         MultiProvider::parse_provider_hint("claude"),

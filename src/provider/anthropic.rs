@@ -1162,6 +1162,24 @@ async fn run_stream_with_retries(
     let mut attempted_forced_refresh = false;
 
     for attempt in 0..MAX_RETRIES {
+        if attempt == 0
+            && let Some(delay) =
+                crate::provider::provider_rate_limit_cooldown_remaining_ms("anthropic", &model_name)
+        {
+            let _ = tx
+                .send(Ok(StreamEvent::ConnectionPhase {
+                    phase: crate::message::ConnectionPhase::Retrying {
+                        attempt: 1,
+                        max: MAX_RETRIES,
+                    },
+                }))
+                .await;
+            crate::logging::info(&format!(
+                "Anthropic provider rate-limit cooldown active for model='{}' ({}ms remaining)",
+                model_name, delay
+            ));
+            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+        }
         if attempt > 0 {
             let delay = last_error
                 .as_ref()
@@ -1247,6 +1265,25 @@ async fn run_stream_with_retries(
 
                 // Check if this is a transient/retryable error
                 if is_retryable_error(&error_str) && attempt + 1 < MAX_RETRIES {
+                    let next_delay = crate::provider::retry_delay_ms_for_error(
+                        attempt + 1,
+                        RETRY_BASE_DELAY_MS,
+                        crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
+                        &error_str,
+                    );
+                    if let Some(cooldown) =
+                        crate::provider::record_provider_rate_limit_cooldown_for_error(
+                            "anthropic",
+                            &model_name,
+                            &error_str,
+                            next_delay,
+                        )
+                    {
+                        crate::logging::info(&format!(
+                            "Recorded Anthropic provider rate-limit cooldown for model='{}' ({}ms)",
+                            model_name, cooldown
+                        ));
+                    }
                     crate::logging::info(&format!("Transient error, will retry: {}", e));
                     last_error = Some(e);
                     continue;
