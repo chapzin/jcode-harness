@@ -70,10 +70,12 @@ fn communicate_input_accepts_cleanup_lifecycle_flags() {
     let parsed: CommunicateInput = serde_json::from_value(serde_json::json!({
         "action": "run_plan",
         "force": true,
+        "dry_run": true,
         "retain_agents": true
     }))
     .expect("lifecycle flags should deserialize");
     assert_eq!(parsed.force, Some(true));
+    assert_eq!(parsed.dry_run, Some(true));
     assert_eq!(parsed.retain_agents, Some(true));
 }
 
@@ -312,6 +314,48 @@ fn cleanup_candidates_can_be_scoped_by_run_id() {
         ),
         vec!["current-run".to_string()]
     );
+}
+
+#[test]
+fn cleanup_dry_run_lists_scoped_candidates_without_stopping() {
+    let members = vec![AgentInfo {
+        session_id: "done-worker".to_string(),
+        friendly_name: Some("done".to_string()),
+        files_touched: vec![],
+        status: Some("ready".to_string()),
+        detail: None,
+        role: Some("agent".to_string()),
+        is_headless: Some(true),
+        report_back_to_session_id: Some("coord".to_string()),
+        run_id: Some("run-clean".to_string()),
+        latest_completion_report: None,
+        live_attachments: Some(0),
+        status_age_secs: Some(30),
+    }];
+    let candidates = vec!["done-worker".to_string()];
+    let target_status = vec!["ready".to_string(), "crashed".to_string()];
+
+    let output = format_cleanup_dry_run(
+        &members,
+        &candidates,
+        &target_status,
+        false,
+        Some("run-clean"),
+    );
+
+    assert!(output.contains("Dry-run cleanup for run_id=run-clean: 1 candidate(s)"));
+    assert!(output.contains("force=false"));
+    assert!(output.contains("target_status=[ready, crashed]"));
+    assert!(output.contains("Would stop:"));
+    assert!(output.contains("done-worker (name=done, status=ready, run_id=run-clean, owner=coord)"));
+}
+
+#[test]
+fn cleanup_dry_run_reports_empty_scope() {
+    let output = format_cleanup_dry_run(&[], &[], &["ready".to_string()], false, Some("run-empty"));
+
+    assert!(output.contains("Dry-run cleanup for run_id=run-empty: 0 candidate(s)"));
+    assert!(output.contains("No agents would be stopped."));
 }
 
 #[test]

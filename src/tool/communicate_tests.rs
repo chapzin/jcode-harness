@@ -1,10 +1,10 @@
 use super::{
     CommunicateInput, CommunicateTool, cleanup_candidate_session_ids,
     default_await_target_statuses, default_cleanup_target_statuses, format_awaited_members,
-    format_awaited_members_with_reports, format_members, format_members_for_run,
-    format_plan_status, format_swarm_health, format_swarm_health_for_run, format_swarm_reconcile,
-    latest_assistant_report, resolve_optional_target_session, spawn_requires_coordinator,
-    spawn_self_promote_failure_message,
+    format_awaited_members_with_reports, format_cleanup_dry_run, format_members,
+    format_members_for_run, format_plan_status, format_swarm_health, format_swarm_health_for_run,
+    format_swarm_reconcile, latest_assistant_report, resolve_optional_target_session,
+    spawn_requires_coordinator, spawn_self_promote_failure_message,
 };
 use crate::message::{Message, StreamEvent, ToolDefinition};
 use crate::protocol::{
@@ -195,6 +195,7 @@ fn schema_advertises_supported_swarm_fields() {
     assert!(props.contains_key("plan_items"));
     assert!(props.contains_key("initial_message"));
     assert!(props.contains_key("force"));
+    assert!(props.contains_key("dry_run"));
     assert!(props.contains_key("retain_agents"));
     assert!(props.contains_key("run_id"));
     assert!(props.contains_key("operation_id"));

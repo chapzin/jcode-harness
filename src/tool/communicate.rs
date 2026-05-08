@@ -171,6 +171,57 @@ fn cleanup_candidate_session_ids(
     ids
 }
 
+fn cleanup_candidate_label(members: &[AgentInfo], session_id: &str) -> String {
+    let Some(member) = members
+        .iter()
+        .find(|member| member.session_id == session_id)
+    else {
+        return session_id.to_string();
+    };
+    let mut parts = Vec::new();
+    if let Some(name) = member.friendly_name.as_deref() {
+        parts.push(format!("name={name}"));
+    }
+    parts.push(format!("status={}", health_member_status(member)));
+    if let Some(run_id) = member.run_id.as_deref() {
+        parts.push(format!("run_id={run_id}"));
+    }
+    if let Some(owner) = member.report_back_to_session_id.as_deref() {
+        parts.push(format!("owner={owner}"));
+    }
+    format!("{} ({})", session_id, parts.join(", "))
+}
+
+fn format_cleanup_dry_run(
+    members: &[AgentInfo],
+    candidates: &[String],
+    target_status: &[String],
+    force: bool,
+    run_id_scope: Option<&str>,
+) -> String {
+    let scope_suffix = run_id_scope
+        .map(|run_id| format!(" for run_id={run_id}"))
+        .unwrap_or_default();
+    let mut output = format!(
+        "Dry-run cleanup{scope_suffix}: {} candidate(s); force={}; target_status=[{}]",
+        candidates.len(),
+        force,
+        target_status.join(", ")
+    );
+    if candidates.is_empty() {
+        output.push_str("\nNo agents would be stopped.");
+    } else {
+        output.push_str("\nWould stop:");
+        for candidate in candidates {
+            output.push_str(&format!(
+                "\n- {}",
+                cleanup_candidate_label(members, candidate)
+            ));
+        }
+    }
+    output
+}
+
 async fn ensure_cleanup_coordinator(ctx: &ToolContext) -> Result<()> {
     let request = Request::CommAssignRole {
         id: REQUEST_ID,
@@ -245,6 +296,16 @@ async fn cleanup_swarm_workers_with_run_id(
         return Ok(format!(
             "No cleanup candidates found{scope_suffix}. Default cleanup only stops terminal/stale sessions spawned by this coordinator with status in [{}].",
             target_status.join(", ")
+        ));
+    }
+
+    if params.dry_run.unwrap_or(false) {
+        return Ok(format_cleanup_dry_run(
+            &members,
+            &candidates,
+            &target_status,
+            force,
+            run_id_scope,
         ));
     }
 
@@ -1158,6 +1219,8 @@ struct CommunicateInput {
     #[serde(default)]
     retain_agents: Option<bool>,
     #[serde(default)]
+    dry_run: Option<bool>,
+    #[serde(default)]
     run_id: Option<String>,
     #[serde(default)]
     operation_id: Option<String>,
@@ -1186,7 +1249,7 @@ impl Tool for CommunicateTool {
     }
 
     fn parameters_schema(&self) -> Value {
-        json!({
+        let mut schema = json!({
             "type": "object",
             "required": ["action"],
             "properties": {
@@ -1321,7 +1384,12 @@ impl Tool for CommunicateTool {
                     }
                 }
             }
-        })
+        });
+        schema["properties"]["dry_run"] = json!({
+            "type": "boolean",
+            "description": "For cleanup: preview scoped agents that would be stopped without sending stop requests."
+        });
+        schema
     }
 
     async fn execute(&self, input: Value, ctx: ToolContext) -> Result<ToolOutput> {
