@@ -124,6 +124,25 @@ OpenAI/Codex OAuth uses the local callback URI
 jcode falls back to a manual paste flow. See `OAUTH.md` for the full provider
 auth notes.
 
+### Provider runtime backpressure
+
+Live OpenAI, Anthropic, and OpenRouter requests share two in-process rate-limit
+protections per `provider::model`: a short cooldown after retryable 429/rate-limit
+responses and a small concurrency semaphore to avoid local request stampedes. The
+semaphore defaults to **2 concurrent requests per provider/model**.
+
+Tune it with `JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL`:
+
+```bash
+JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL=1 jcode
+JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL=0 jcode  # disable the semaphore
+```
+
+Use a lower value when a provider account is rate-limited aggressively or when
+running many swarm/headless sessions against the same model. Use `0` only for
+controlled debugging, because it removes this local backpressure guard while
+keeping provider-side limits unchanged.
+
 ### Interactive jcode
 
 ```bash

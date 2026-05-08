@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Gate OpenAI persistent WebSocket attempts",
+  "focus": "Document provider backpressure configuration",
   "status": "done",
-  "activeContractId": "2026-05-08-gate-openai-persistent-websocket-attempts-22186b",
+  "activeContractId": "2026-05-08-document-provider-backpressure-configuration-b88554",
   "counters": {
-    "contracts": 50,
-    "traces": 80,
-    "gates": 51,
-    "verifications": 68,
+    "contracts": 51,
+    "traces": 82,
+    "gates": 53,
+    "verifications": 70,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -135,43 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T13:16:31.798Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-make-assign-next-operation-id-idempotent-086ab7",
-      "summary": "Make assign_next operation_id idempotent"
-    },
-    {
-      "ts": "2026-05-08T13:26:46.037Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-1aba8fe0",
-      "contractId": "2026-05-08-make-assign-next-operation-id-idempotent-086ab7",
-      "status": "pass",
-      "summary": "Focused assign_next operation_id idempotency verification passed."
-    },
-    {
-      "ts": "2026-05-08T13:26:46.040Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-5bce68cb",
-      "contractId": "2026-05-08-make-assign-next-operation-id-idempotent-086ab7",
-      "status": "pass",
-      "summary": "Coordinated selfdev build and reload passed for assign_next idempotency."
-    },
-    {
-      "ts": "2026-05-08T13:26:46.042Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-make-assign-next-operation-id-idempotent-086ab7",
-      "gateId": "gate-2026-05-08-e11618",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-08T13:26:46.046Z",
-      "type": "state_update",
-      "note": "Gate PASS. Commit and push assign_next operation_id idempotency slice next.",
-      "status": "done",
-      "focus": "Commit and push assign_next operation_id idempotency",
-      "activeContractId": "2026-05-08-make-assign-next-operation-id-idempotent-086ab7"
-    },
     {
       "ts": "2026-05-08T13:30:10.696Z",
       "type": "contract_created",
@@ -720,6 +683,42 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-08-gate-openai-persistent-websocket-attempts-22186b",
       "gateId": "gate-2026-05-08-1d23a9",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T16:33:01.130Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-document-provider-backpressure-configuration-b88554",
+      "summary": "Document provider backpressure configuration"
+    },
+    {
+      "ts": "2026-05-08T16:35:34.038Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-fc01f1b5",
+      "contractId": "2026-05-08-document-provider-backpressure-configuration-b88554",
+      "status": "pass",
+      "summary": "README provider backpressure documentation verification passed."
+    },
+    {
+      "ts": "2026-05-08T16:36:30.217Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-c2f4fd18",
+      "contractId": "2026-05-08-document-provider-backpressure-configuration-b88554",
+      "status": "pass",
+      "summary": "Selfdev build and reload passed for provider backpressure docs slice."
+    },
+    {
+      "ts": "2026-05-08T16:36:40.606Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-document-provider-backpressure-configuration-b88554",
+      "gateId": "gate-2026-05-08-7b82fd",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T16:36:58.967Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-document-provider-backpressure-configuration-b88554",
+      "gateId": "gate-2026-05-08-eede82",
       "verdict": "pass"
     }
   ]

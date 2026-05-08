@@ -1,0 +1,26 @@
+{
+  "id": "gate-2026-05-08-eede82",
+  "ts": "2026-05-08T16:36:58.967Z",
+  "contractId": "2026-05-08-document-provider-backpressure-configuration-b88554",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "README.md",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "A user-facing configuration document mentions JCODE_PROVIDER_MAX_CONCURRENT_PER_MODEL.",
+    "The documentation explains default behavior, how to disable the semaphore with 0, and the scope as per provider/model.",
+    "The change is verified with formatting/markdown-safe checks and git diff checks.",
+    "Governance passes before commit/push."
+  ],
+  "uncheckedConditions": [],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/10224003zl.output",
+    "/tmp/jcode-bg-tasks/148728ox7a.output",
+    "README.md",
+    "harness_audit_governance status=pass at 2026-05-08T16:36:49Z"
+  ],
+  "notes": "All literal completion conditions are satisfied. README.md documents the env var, default, per provider/model scope, and disable-with-0 behavior. Verification and governance passed before commit/push."
+}
