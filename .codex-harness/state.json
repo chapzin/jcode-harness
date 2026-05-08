@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "commit swarm event member metadata slice",
+  "focus": "commit swarm list run-group summary slice",
   "status": "done",
-  "activeContractId": "2026-05-08-expose-swarm-event-member-metadata-6abff3",
+  "activeContractId": "2026-05-08-show-swarm-list-run-groups-cadff9",
   "counters": {
-    "contracts": 28,
-    "traces": 27,
-    "gates": 27,
-    "verifications": 23,
+    "contracts": 29,
+    "traces": 28,
+    "gates": 28,
+    "verifications": 24,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -72,37 +72,14 @@
       "id": "decision-2026-05-08-5a16d0",
       "ts": "2026-05-08T11:43:01.247Z",
       "text": "Completed issue #13 observability slice: structured swarm events now carry member run_id, role, status, and working_dir metadata when recorded for known members, and debug recent/since/subscribe expose those fields additively."
+    },
+    {
+      "id": "decision-2026-05-08-134767",
+      "ts": "2026-05-08T11:53:09.078Z",
+      "text": "Completed issue #13 UX slice: default swarm list output now summarizes run groups, including mixed run IDs and unscoped legacy members, with a scoped-list hint while preserving scoped run output behavior."
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-06T22:52:09.408Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-06-fix-minimax-endpoint-5cce11",
-      "gateId": "gate-2026-05-06-96841d",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-06T22:54:43.489Z",
-      "type": "contract_created",
-      "contractId": "2026-05-06-set-openai-reasoning-effort-max-2224b3",
-      "summary": "Set OpenAI reasoning effort max"
-    },
-    {
-      "ts": "2026-05-06T22:58:18.222Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-06-a8fae51a",
-      "contractId": "2026-05-06-set-openai-reasoning-effort-max-2224b3",
-      "status": "pass",
-      "summary": "OpenAI reasoning max default and alias validated successfully"
-    },
-    {
-      "ts": "2026-05-06T22:58:24.908Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-06-set-openai-reasoning-effort-max-2224b3",
-      "gateId": "gate-2026-05-06-75e856",
-      "verdict": "pass"
-    },
     {
       "ts": "2026-05-06T23:07:53.464Z",
       "type": "contract_created",
@@ -645,6 +622,35 @@
       "status": "done",
       "focus": "commit swarm event member metadata slice",
       "activeContractId": "2026-05-08-expose-swarm-event-member-metadata-6abff3"
+    },
+    {
+      "ts": "2026-05-08T11:47:14.597Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-show-swarm-list-run-groups-cadff9",
+      "summary": "Show swarm list run groups"
+    },
+    {
+      "ts": "2026-05-08T11:52:56.321Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-3b400218",
+      "contractId": "2026-05-08-show-swarm-list-run-groups-cadff9",
+      "status": "pass",
+      "summary": "Swarm list run-group summary strict verification and final selfdev build passed"
+    },
+    {
+      "ts": "2026-05-08T11:53:03.382Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-show-swarm-list-run-groups-cadff9",
+      "gateId": "gate-2026-05-08-6020c8",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T11:53:09.078Z",
+      "type": "state_update",
+      "note": "Strict verification task 0883109ng0 and final selfdev build task 127571xs06 passed; completion gate gate-2026-05-08-6020c8 passed.",
+      "status": "done",
+      "focus": "commit swarm list run-group summary slice",
+      "activeContractId": "2026-05-08-show-swarm-list-run-groups-cadff9"
     }
   ]
 }

@@ -821,6 +821,123 @@ fn format_members_can_be_scoped_to_one_run_id() {
 }
 
 #[test]
+fn format_members_summarizes_run_groups_when_runs_are_mixed() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let members = vec![
+        AgentInfo {
+            session_id: "current-worker".to_string(),
+            friendly_name: Some("current".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(3),
+        },
+        AgentInfo {
+            session_id: "old-worker".to_string(),
+            friendly_name: Some("old".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-old".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(10),
+        },
+        AgentInfo {
+            session_id: "legacy-worker".to_string(),
+            friendly_name: Some("legacy".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: None,
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(60),
+        },
+    ];
+
+    let output = format_members(&ctx, &members).output;
+
+    assert!(
+        output.contains("Run groups: run-current=1, run-old=1, unscoped=1"),
+        "output was: {output}"
+    );
+    assert!(output.contains("swarm list run_id=<id>"));
+    assert!(output.contains("current"));
+    assert!(output.contains("old"));
+    assert!(output.contains("legacy"));
+}
+
+#[test]
+fn format_members_omits_run_group_summary_for_single_run() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let output = format_members(
+        &ctx,
+        &[AgentInfo {
+            session_id: "current-worker".to_string(),
+            friendly_name: Some("current".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: Some("run-current".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(3),
+        }],
+    )
+    .output;
+
+    assert!(!output.contains("Run groups:"));
+    assert!(output.contains("run_id=run-current"));
+}
+
+#[test]
+fn format_members_summarizes_unscoped_legacy_members() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let output = format_members(
+        &ctx,
+        &[AgentInfo {
+            session_id: "legacy-worker".to_string(),
+            friendly_name: Some("legacy".to_string()),
+            files_touched: vec![],
+            working_dir: None,
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            run_id: None,
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(60),
+        }],
+    )
+    .output;
+
+    assert!(output.contains("Run groups: unscoped=1"));
+    assert!(output.contains("swarm list run_id=<id>"));
+}
+
+#[test]
 fn format_members_disambiguates_duplicate_friendly_names() {
     let ctx = test_ctx(
         "session_self_1234567890_deadbeefcafebabe",

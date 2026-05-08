@@ -1,0 +1,37 @@
+{
+  "id": "gate-2026-05-08-6020c8",
+  "ts": "2026-05-08T11:53:03.382Z",
+  "contractId": "2026-05-08-show-swarm-list-run-groups-cadff9",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/tool/communicate.rs",
+      "exists": true
+    },
+    {
+      "path": "src/tool/communicate_tests/input_format.rs",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/state.json",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/traces/2026-05-08.jsonl",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Default `swarm list` output includes a compact run-group summary when members span run IDs or include unscoped members.",
+    "The run-group summary includes counts by run_id, a count for unscoped members when present, and an actionable scoped-list hint.",
+    "Existing `swarm list run_id=<id>` behavior and empty-run response remain unchanged.",
+    "Focused formatter tests, cargo fmt/check, and selfdev build pass."
+  ],
+  "uncheckedConditions": [],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/0883109ng0.output: cargo fmt, cargo fmt --check, six format_members tests, cargo check -p jcode --lib, and git diff --check passed.",
+    "/tmp/jcode-bg-tasks/127571xs06.output: final selfdev build passed.",
+    "Manual diff review confirmed this is formatter-only in src/tool/communicate.rs plus tests."
+  ],
+  "notes": "Implemented default list run grouping summary for mixed run IDs and all-unscoped legacy members. Scoped run list behavior still bypasses summary and keeps existing empty-run response."
+}

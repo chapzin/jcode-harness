@@ -577,6 +577,40 @@ fn run_scoped_members(members: &[AgentInfo], run_id: Option<&str>) -> Vec<AgentI
     }
 }
 
+fn format_member_run_group_summary(members: &[AgentInfo]) -> Option<String> {
+    if members.is_empty() {
+        return None;
+    }
+
+    let mut run_counts = BTreeMap::<String, usize>::new();
+    let mut unscoped_count = 0usize;
+    for member in members {
+        match member.run_id.as_deref() {
+            Some(run_id) if !run_id.trim().is_empty() => {
+                *run_counts.entry(run_id.to_string()).or_default() += 1;
+            }
+            _ => unscoped_count += 1,
+        }
+    }
+
+    if run_counts.len() <= 1 && unscoped_count == 0 {
+        return None;
+    }
+
+    let mut groups = run_counts
+        .into_iter()
+        .map(|(run_id, count)| format!("{run_id}={count}"))
+        .collect::<Vec<_>>();
+    if unscoped_count > 0 {
+        groups.push(format!("unscoped={unscoped_count}"));
+    }
+
+    Some(format!(
+        "Run groups: {}\nTip: use `swarm list run_id=<id>` to focus one run before await/cleanup.\n",
+        groups.join(", ")
+    ))
+}
+
 fn format_members(ctx: &ToolContext, members: &[AgentInfo]) -> ToolOutput {
     format_members_for_run(ctx, members, None)
 }
@@ -601,6 +635,9 @@ fn format_members_for_run(
             scoped.len(),
             members.len()
         );
+    } else if let Some(summary) = format_member_run_group_summary(&scoped) {
+        output.push_str(&summary);
+        output.push('\n');
     }
     output.push_str(&format_comm_members(&ctx.session_id, &scoped));
     ToolOutput::new(output)
