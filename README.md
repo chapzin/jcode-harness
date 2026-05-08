@@ -151,6 +151,8 @@ jcode-harness session show <session-id> --json
 jcode-harness session show <session-id> --preview 3 --json
 jcode-harness session resume <session-id> --dry-run --json
 jcode-harness session resume <session-id> --dry-run --ndjson
+jcode-harness session cancel <session-id> --dry-run --json
+jcode-harness session cancel <session-id> --dry-run --ndjson
 jcode-harness safe-eval
 jcode-harness safe-eval --json
 jcode-harness doctor
@@ -224,6 +226,8 @@ jcode-harness session show <session-id> --json
 jcode-harness session show <session-id> --preview 3 --json
 jcode-harness session resume <session-id> --dry-run --json
 jcode-harness session resume <session-id> --dry-run --ndjson
+jcode-harness session cancel <session-id> --dry-run --json
+jcode-harness session cancel <session-id> --dry-run --ndjson
 ```
 
 `session spawn --dry-run --json` returns a safe `jcode run --json <goal>`
@@ -236,7 +240,7 @@ the current safe attach envelope for an operator-selected execution surface
 without starting the TUI/provider flow or emitting transcript content. Omitting
 `--dry-run` fails safely because the harness does not execute attach flows yet.
 
-`session spawn|attach|resume --dry-run --ndjson` emits deterministic
+`session spawn|attach|resume|cancel --dry-run --ndjson` emits deterministic
 newline-delimited `start`, `envelope`, and `done` events for dashboards and
 external orchestrators while preserving the same offline/read-only safety
 guarantees as `--json`.
@@ -250,9 +254,17 @@ the exact `jcode --resume <id>` argv/cwd envelope without starting the TUI,
 provider flow, network, or credentials. Omitting `--dry-run` fails safely because
 the harness does not execute resume flows yet.
 
-The commands are offline/read-only, hide debug and canary sessions by default, and
-support `--include-test`, `--source all|jcode|claude-code|codex|pi|opencode`, and
-`--limit N` for deterministic automation.
+`session cancel --dry-run --json` records an offline cancellation intent envelope
+for a known or unknown local session id. It does not contact running sessions,
+providers, tools, the network, credentials, or the TUI; optional `--request-id`
+and `--reason` values are echoed for external orchestrators. Omitting
+`--dry-run` fails safely because live cancellation is reserved for a later
+runtime slice.
+
+The session commands are offline/read-only. The inventory command hides debug and
+canary sessions by default, and supports `--include-test`,
+`--source all|jcode|claude-code|codex|pi|opencode`, and `--limit N` for
+deterministic automation.
 
 ### ACP preview
 
@@ -270,8 +282,8 @@ registry gaps. `acp serve --stdio` speaks newline-delimited JSON-RPC 2.0 for the
 implemented `initialize`, `initialized` notification, `shutdown`, and safe
 offline `jcode/session.list|show|spawn|attach|resume|cancel` request methods,
 plus the standards-friendly `$/cancelRequest` notification as an offline no-op.
-Session methods reuse the same read-only/dry-run envelopes as the CLI where a
-CLI surface exists and still avoid starting providers, tools, network,
+Session methods reuse the same read-only/dry-run envelopes as the CLI and still
+avoid starting providers, tools, network,
 credentials, or the TUI. `jcode/session.cancel` returns a structured offline
 control envelope for known or unknown sessions without contacting live provider
 or session processes. `acp fixture --json` prints a versioned conformance

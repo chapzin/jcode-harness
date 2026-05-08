@@ -232,6 +232,8 @@ enum SessionCommand {
     Show(SessionShowArgs),
     /// Validate and print a safe resume plan without starting the TUI
     Resume(SessionResumeArgs),
+    /// Validate and print an offline cancellation intent envelope without contacting providers
+    Cancel(SessionCancelArgs),
 }
 
 #[derive(Parser)]
@@ -311,6 +313,27 @@ struct SessionResumeArgs {
     /// Validate and print the resume plan without executing it
     #[arg(long)]
     dry_run: bool,
+    /// Emit JSON report
+    #[arg(long, conflicts_with = "ndjson")]
+    json: bool,
+    /// Emit newline-delimited JSON events for the dry-run envelope
+    #[arg(long, conflicts_with = "json")]
+    ndjson: bool,
+}
+
+#[derive(Parser)]
+struct SessionCancelArgs {
+    /// Local jcode session id to cancel or acknowledge offline
+    id: String,
+    /// Validate and print the cancellation plan without contacting live sessions/providers
+    #[arg(long)]
+    dry_run: bool,
+    /// Optional upstream JSON-RPC or orchestration request id to echo in the envelope
+    #[arg(long)]
+    request_id: Option<String>,
+    /// Human-readable cancellation reason for operators and external orchestrators
+    #[arg(long)]
+    reason: Option<String>,
     /// Emit JSON report
     #[arg(long, conflicts_with = "ndjson")]
     json: bool,
@@ -822,7 +845,7 @@ fn acp_capabilities_json() -> serde_json::Value {
             "attach": {"status": "implemented_offline_dry_run", "method": "jcode/session.attach", "command": "jcode-harness session attach <id> --dry-run --json|--ndjson"},
             "show": {"status": "implemented_offline", "method": "jcode/session.show", "command": "jcode-harness session show <id> --json"},
             "resume": {"status": "implemented_offline_dry_run", "method": "jcode/session.resume", "command": "jcode-harness session resume <id> --dry-run --json|--ndjson"},
-            "cancel": {"status": "implemented_offline_control", "method": "jcode/session.cancel"}
+            "cancel": {"status": "implemented_offline_control", "method": "jcode/session.cancel", "command": "jcode-harness session cancel <id> --dry-run --json|--ndjson"}
         },
         "control": {
             "cancel_request_notification": {"status": "implemented_offline_noop", "method": "$/cancelRequest"},
@@ -1596,6 +1619,7 @@ fn run_session(args: SessionArgs) -> Result<()> {
         SessionCommand::Attach(args) => run_session_attach(args),
         SessionCommand::Show(args) => run_session_show(args),
         SessionCommand::Resume(args) => run_session_resume(args),
+        SessionCommand::Cancel(args) => run_session_cancel(args),
     }
 }
 
@@ -2006,6 +2030,39 @@ fn session_resume_report(id: &str) -> Result<serde_json::Value> {
     }))
 }
 
+fn run_session_cancel(args: SessionCancelArgs) -> Result<()> {
+    if !args.dry_run {
+        anyhow::bail!(
+            "session cancel execution is not supported by jcode-harness yet; rerun with --dry-run to inspect the offline cancellation envelope"
+        );
+    }
+
+    let request_id = args
+        .request_id
+        .as_deref()
+        .map(|value| json!(value.trim()))
+        .filter(|value| !value.as_str().unwrap_or_default().is_empty());
+    let report = session_cancel_report(&args.id, request_id, args.reason.as_deref())?;
+
+    if print_session_dry_run_report(&report, args.json, args.ndjson)? {
+        return Ok(());
+    }
+
+    let session_id = report["id"].as_str().unwrap_or(&args.id);
+    let outcome = report["cancel"]["outcome"]
+        .as_str()
+        .unwrap_or("offline_session_acknowledged");
+
+    println!("jcode-harness session cancel dry-run: {session_id}");
+    println!("Offline: true");
+    println!("Read only: true");
+    println!("Executed: false");
+    println!("Outcome: {outcome}");
+    println!("Live provider cancel attempted: false");
+
+    Ok(())
+}
+
 fn session_cancel_report(
     id: &str,
     request_id: Option<serde_json::Value>,
@@ -2077,7 +2134,7 @@ fn session_cancel_report(
             "starts_provider": false,
             "network_required_for_dry_run": false,
             "credentials_required_for_dry_run": false,
-            "note": "Offline ACP preview records cancellation intent only; no provider, session process, tools, network, or TUI are contacted."
+            "note": "Offline cancellation preview records cancellation intent only; no provider, session process, tools, network, or TUI are contacted."
         },
     }))
 }

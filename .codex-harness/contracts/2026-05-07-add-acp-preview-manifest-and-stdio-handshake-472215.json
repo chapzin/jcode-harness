@@ -32,7 +32,10 @@
     "docs/JCODE_HARNESS_INNOVATION_ROADMAP.md",
     "docs/JCODE_HARNESS_RELEASE_GATES.md",
     "docs/SKILLS_HARNESS_STATUS.md",
-    ".codex-harness/**"
+    ".codex-harness/state.json",
+    ".codex-harness/traces/2026-05-08.jsonl",
+    ".codex-harness/gates/gate-2026-05-08-5daeb0.json",
+    ".codex-harness/gates/gate-2026-05-08-5daeb0.md"
   ],
   "verificationCommands": [
     "cargo fmt --check",

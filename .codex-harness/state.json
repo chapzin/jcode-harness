@@ -2,13 +2,13 @@
   "version": 5,
   "projectName": "jcode-harness",
   "focus": "Add ACP preview manifest and stdio handshake",
-  "status": "executing",
+  "status": "done",
   "activeContractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
   "counters": {
     "contracts": 26,
-    "traces": 23,
-    "gates": 22,
-    "verifications": 19,
+    "traces": 24,
+    "gates": 23,
+    "verifications": 20,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -65,21 +65,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-06T19:15:02.032Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-06-51f08970",
-      "contractId": "2026-05-06-cli-quality-security-ux-optimization-50bbc2",
-      "status": "pass",
-      "summary": "Testes do crate de estilo, check do CLI e build selfdev passaram."
-    },
-    {
-      "ts": "2026-05-06T19:15:23.060Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-06-cli-quality-security-ux-optimization-50bbc2",
-      "gateId": "gate-2026-05-06-5c9d00",
-      "verdict": "pass"
-    },
     {
       "ts": "2026-05-06T22:32:31.224Z",
       "type": "contract_created",
@@ -632,6 +617,21 @@
       "type": "contract_created",
       "contractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
       "summary": "Add ACP preview manifest and stdio handshake"
+    },
+    {
+      "ts": "2026-05-08T11:09:16.707Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-3e6d53c1",
+      "contractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
+      "status": "pass",
+      "summary": "session cancel CLI headless slice validation passed"
+    },
+    {
+      "ts": "2026-05-08T11:09:36.661Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
+      "gateId": "gate-2026-05-08-5daeb0",
+      "verdict": "pass"
     }
   ]
 }

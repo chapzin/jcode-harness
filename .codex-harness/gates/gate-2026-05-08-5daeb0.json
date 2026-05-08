@@ -1,0 +1,58 @@
+{
+  "id": "gate-2026-05-08-5daeb0",
+  "ts": "2026-05-08T11:09:36.661Z",
+  "contractId": "2026-05-07-add-acp-preview-manifest-and-stdio-handshake-472215",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/bin/harness.rs",
+      "exists": true
+    },
+    {
+      "path": "tests/e2e/harness_cli.rs",
+      "exists": true
+    },
+    {
+      "path": "docs/JCODE_HARNESS_JSON_SCHEMAS.md",
+      "exists": true
+    },
+    {
+      "path": "README.md",
+      "exists": true
+    },
+    {
+      "path": "docs/JCODE_HARNESS_INNOVATION_ROADMAP.md",
+      "exists": true
+    },
+    {
+      "path": "docs/JCODE_HARNESS_RELEASE_GATES.md",
+      "exists": true
+    },
+    {
+      "path": "docs/SKILLS_HARNESS_STATUS.md",
+      "exists": true
+    },
+    {
+      "path": ".codex-harness/**",
+      "exists": false
+    }
+  ],
+  "checkedConditions": [
+    "`jcode-harness acp manifest --json` emits a stable offline preview manifest",
+    "`jcode-harness acp serve --stdio` handles JSON-RPC initialize and shutdown over newline-delimited stdio",
+    "Unsupported methods return JSON-RPC method-not-found errors without panicking",
+    "Focused e2e, fmt/check, selfdev build, commit and push pass through local verification stage before commit"
+  ],
+  "uncheckedConditions": [
+    "Focused e2e, fmt/check, selfdev build, commit and push pass"
+  ],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/041448ihbt.output: ACP manifest/fixture/stdio unsupported-method/cargo check suite passed",
+    "/tmp/jcode-bg-tasks/433183yr58.output: session cancel CLI/NDJSON/ACP regression/cargo check suite passed",
+    "/tmp/jcode-bg-tasks/505405yacz.output: jcode-harness selfdev build passed",
+    "src/bin/harness.rs",
+    "tests/e2e/harness_cli.rs",
+    "docs/JCODE_HARNESS_JSON_SCHEMAS.md"
+  ],
+  "notes": "Local verification for ACP and the follow-up headless session cancel surface is complete. Commit/push remains the next externalization step after selective staging."
+}

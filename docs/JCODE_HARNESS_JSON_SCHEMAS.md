@@ -76,7 +76,7 @@ Shape:
       "attach": { "status": "implemented_offline_dry_run", "method": "jcode/session.attach" },
       "show": { "status": "implemented_offline", "method": "jcode/session.show" },
       "resume": { "status": "implemented_offline_dry_run", "method": "jcode/session.resume" },
-      "cancel": { "status": "implemented_offline_control", "method": "jcode/session.cancel" }
+      "cancel": { "status": "implemented_offline_control", "method": "jcode/session.cancel", "command": "jcode-harness session cancel <id> --dry-run --json|--ndjson" }
     },
     "control": {
       "cancel_request_notification": { "status": "implemented_offline_noop", "method": "$/cancelRequest" },
@@ -570,6 +570,7 @@ Commands:
 jcode-harness session spawn "draft the release plan" --dry-run --ndjson
 jcode-harness session attach session_visible --dry-run --ndjson
 jcode-harness session resume session_visible --dry-run --ndjson
+jcode-harness session cancel session_visible --dry-run --ndjson
 ```
 
 Shape:
@@ -582,11 +583,11 @@ Shape:
 
 Guarantees:
 
-- `--ndjson` is available for dry-run `session spawn`, `session attach`, and `session resume`; it is mutually exclusive with `--json`.
+- `--ndjson` is available for dry-run `session spawn`, `session attach`, `session resume`, and `session cancel`; it is mutually exclusive with `--json`.
 - The second event's `envelope` value is the same stable object emitted by the matching `--json` command, except compacted onto one JSON line.
 - Events are deterministic and newline-delimited: `start`, `envelope`, then `done`.
 - NDJSON dry-run output does not start the TUI, providers, servers, network-backed integrations, or credential prompts.
-- Attach/resume NDJSON envelopes reuse metadata-only session objects and intentionally exclude transcript content.
+- Attach/resume/cancel NDJSON envelopes reuse metadata-only session objects and intentionally exclude transcript content.
 
 ## `session show --json`
 
@@ -737,6 +738,81 @@ Guarantees:
 - `resume.argv` and `resume.cwd` are execution hints for an operator-selected surface. They are not executed by the harness.
 - `resume.cwd_source` is `session` when the saved session has a non-empty `working_dir`; otherwise it is `current_dir`.
 - `safety.writes`, `network_required_for_dry_run`, and `credentials_required_for_dry_run` are always `false` for the dry-run report.
+
+## `session cancel --dry-run --json`
+
+Command:
+
+```bash
+jcode-harness session cancel session_visible --request-id req-42 --reason "operator requested stop" --dry-run --json
+```
+
+Shape:
+
+```json
+{
+  "status": "ok",
+  "command": "session cancel",
+  "offline": true,
+  "read_only": true,
+  "dry_run": true,
+  "executed": false,
+  "source": "jcode",
+  "id": "session_visible",
+  "session_path": "/home/user/.jcode/sessions/session_visible.json",
+  "session_exists": true,
+  "journal_path": "/home/user/.jcode/sessions/session_visible.journal.jsonl",
+  "journal_exists": false,
+  "metadata": {
+    "id": "session_visible",
+    "display_name": "visible",
+    "title": "Visible local session",
+    "working_dir": "/repo",
+    "model": "gpt-test",
+    "provider_key": "openai",
+    "status": "active",
+    "stored_message_count": 4,
+    "user_message_count": 2,
+    "assistant_message_count": 1,
+    "saved": true
+  },
+  "metadata_error": null,
+  "cancel": {
+    "requested": true,
+    "accepted": true,
+    "cancelled": false,
+    "outcome": "offline_session_acknowledged",
+    "mode": "offline_control_envelope",
+    "request_id": "req-42",
+    "reason": "operator requested stop",
+    "notification_method": "$/cancelRequest",
+    "request_method": "jcode/session.cancel",
+    "live_session_detection": "not_attempted_offline_control",
+    "execution_supported_by_harness": false,
+    "provider_cancel_attempted": false,
+    "provider_cancelled": false
+  },
+  "safety": {
+    "executed": false,
+    "writes": false,
+    "starts_tui": false,
+    "starts_provider": false,
+    "network_required_for_dry_run": false,
+    "credentials_required_for_dry_run": false,
+    "note": "Offline cancellation preview records cancellation intent only; no provider, session process, tools, network, or TUI are contacted."
+  }
+}
+```
+
+Guarantees:
+
+- `session cancel` is dry-run only in `jcode-harness`; omitting `--dry-run` fails before any live session or provider cancellation is attempted.
+- `offline`, `read_only`, `dry_run`, and `executed` describe the harness command itself: it records cancellation intent in the returned envelope and performs no writes or live control calls.
+- `session_exists` may be `false`; unknown session ids still return an accepted offline envelope with `cancel.outcome = "unknown_session_offline_acknowledged"` so external orchestrators can keep deterministic control flow.
+- `metadata` reuses the same metadata object as `session show --json` when the local session exists and intentionally excludes transcript content. `metadata_error` is populated only if the snapshot exists but cannot be loaded.
+- `cancel.request_id` echoes `--request-id` when supplied, otherwise `null`; `cancel.reason` echoes `--reason` when supplied, otherwise `null`.
+- `cancel.cancelled`, `provider_cancel_attempted`, and `provider_cancelled` are always `false` in this offline slice. Live cancellation is reserved for a future runtime/control-plane slice.
+- `safety.writes`, `starts_tui`, `starts_provider`, `network_required_for_dry_run`, and `credentials_required_for_dry_run` are always `false` for the dry-run report.
 
 ## Shared skill entry
 

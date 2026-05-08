@@ -82,7 +82,16 @@ docs/JCODE_HARNESS_RELEASE_GATES.md
 docs/SKILLS_HARNESS_STATUS.md
 </untrusted-data>
 - <untrusted-data source="contract.outputPaths[7]">
-.codex-harness/**
+.codex-harness/state.json
+</untrusted-data>
+- <untrusted-data source="contract.outputPaths[8]">
+.codex-harness/traces/2026-05-08.jsonl
+</untrusted-data>
+- <untrusted-data source="contract.outputPaths[9]">
+.codex-harness/gates/gate-2026-05-08-5daeb0.json
+</untrusted-data>
+- <untrusted-data source="contract.outputPaths[10]">
+.codex-harness/gates/gate-2026-05-08-5daeb0.md
 </untrusted-data>
 
 ## Verification Commands

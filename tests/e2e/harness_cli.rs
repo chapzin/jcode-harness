@@ -1439,6 +1439,42 @@ fn harness_session_dry_run_ndjson_envelopes() -> Result<()> {
         &vec!["jcode", "--resume", "session_ndjson"]
     );
 
+    let cancel_output = harness_command(&home, &cwd)
+        .args([
+            "session",
+            "cancel",
+            "session_ndjson",
+            "--request-id",
+            "req-ndjson",
+            "--reason",
+            "operator requested stop",
+            "--dry-run",
+            "--ndjson",
+        ])
+        .output()?;
+    let cancel_stdout = stdout_text(&cancel_output);
+    assert!(
+        cancel_output.status.success(),
+        "stderr: {}",
+        stderr_text(&cancel_output)
+    );
+    assert!(
+        !cancel_stdout.contains("ndjson transcript should stay hidden"),
+        "cancel ndjson must not emit transcript content: {cancel_stdout}"
+    );
+    let cancel_events = parse_ndjson(&cancel_output)?;
+    assert_eq!(cancel_events.len(), 3);
+    assert_eq!(cancel_events[1]["envelope"]["command"], "session cancel");
+    assert_eq!(cancel_events[1]["envelope"]["cancel"]["requested"], true);
+    assert_eq!(
+        cancel_events[1]["envelope"]["cancel"]["request_id"],
+        "req-ndjson"
+    );
+    assert_eq!(
+        cancel_events[1]["envelope"]["cancel"]["provider_cancel_attempted"],
+        false
+    );
+
     Ok(())
 }
 
@@ -1637,6 +1673,125 @@ fn harness_session_resume_dry_run_json_returns_safe_envelope() -> Result<()> {
     assert_eq!(report["safety"]["writes"], false);
     assert_eq!(report["safety"]["network_required_for_dry_run"], false);
     assert_eq!(report["safety"]["credentials_required_for_dry_run"], false);
+
+    Ok(())
+}
+
+#[test]
+fn harness_session_cancel_dry_run_json_returns_offline_control_envelope() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-session-cancel-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    let sessions_dir = home.join("sessions");
+    std::fs::create_dir_all(&sessions_dir)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    std::fs::write(
+        sessions_dir.join("session_cancel.json"),
+        serde_json::json!({
+            "id": "session_cancel",
+            "title": "Cancel local session",
+            "created_at": "2026-05-07T21:30:00Z",
+            "updated_at": "2026-05-07T21:35:00Z",
+            "last_active_at": "2026-05-07T21:36:00Z",
+            "working_dir": cwd,
+            "short_name": "canceller",
+            "provider_key": "openai",
+            "model": "gpt-test",
+            "status": "Active",
+            "messages": [
+                {"id": "m1", "role": "user", "content": [{"type": "text", "text": "cancel transcript should stay hidden"}]},
+                {"id": "m2", "role": "assistant", "content": [{"type": "text", "text": "cancel answer should stay hidden"}]}
+            ]
+        })
+        .to_string(),
+    )?;
+
+    let blocked = harness_command(&home, &cwd)
+        .args(["session", "cancel", "session_cancel", "--json"])
+        .output()?;
+    assert!(
+        !blocked.status.success(),
+        "cancel execution should require --dry-run"
+    );
+    assert!(
+        stderr_text(&blocked).contains("--dry-run"),
+        "stderr: {}",
+        stderr_text(&blocked)
+    );
+
+    let output = harness_command(&home, &cwd)
+        .args([
+            "session",
+            "cancel",
+            "session_cancel",
+            "--request-id",
+            "req-42",
+            "--reason",
+            "operator requested stop",
+            "--dry-run",
+            "--json",
+        ])
+        .output()?;
+    let stdout = stdout_text(&output);
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    assert!(
+        !stdout.contains("cancel transcript should stay hidden")
+            && !stdout.contains("cancel answer should stay hidden"),
+        "cancel dry-run must not emit transcript content. stdout: {stdout}"
+    );
+    let report: Value = serde_json::from_str(&stdout)?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["command"], "session cancel");
+    assert_eq!(report["offline"], true);
+    assert_eq!(report["read_only"], true);
+    assert_eq!(report["dry_run"], true);
+    assert_eq!(report["executed"], false);
+    assert_eq!(report["source"], "jcode");
+    assert_eq!(report["id"], "session_cancel");
+    assert_eq!(report["session_exists"], true);
+    assert_eq!(report["metadata"]["display_name"], "canceller");
+    assert_eq!(report["metadata"]["status"], "active");
+    assert_eq!(report["cancel"]["requested"], true);
+    assert_eq!(report["cancel"]["accepted"], true);
+    assert_eq!(report["cancel"]["cancelled"], false);
+    assert_eq!(report["cancel"]["outcome"], "offline_session_acknowledged");
+    assert_eq!(report["cancel"]["mode"], "offline_control_envelope");
+    assert_eq!(report["cancel"]["request_id"], "req-42");
+    assert_eq!(report["cancel"]["reason"], "operator requested stop");
+    assert_eq!(report["cancel"]["request_method"], "jcode/session.cancel");
+    assert_eq!(report["cancel"]["provider_cancel_attempted"], false);
+    assert_eq!(report["cancel"]["provider_cancelled"], false);
+    assert_eq!(report["safety"]["executed"], false);
+    assert_eq!(report["safety"]["writes"], false);
+    assert_eq!(report["safety"]["starts_tui"], false);
+    assert_eq!(report["safety"]["starts_provider"], false);
+    assert_eq!(report["safety"]["network_required_for_dry_run"], false);
+    assert_eq!(report["safety"]["credentials_required_for_dry_run"], false);
+
+    let unknown = harness_command(&home, &cwd)
+        .args([
+            "session",
+            "cancel",
+            "session_missing",
+            "--dry-run",
+            "--json",
+        ])
+        .output()?;
+    assert!(
+        unknown.status.success(),
+        "stderr: {}",
+        stderr_text(&unknown)
+    );
+    let unknown_report: Value = serde_json::from_str(&stdout_text(&unknown))?;
+    assert_eq!(unknown_report["session_exists"], false);
+    assert_eq!(
+        unknown_report["cancel"]["outcome"],
+        "unknown_session_offline_acknowledged"
+    );
 
     Ok(())
 }
