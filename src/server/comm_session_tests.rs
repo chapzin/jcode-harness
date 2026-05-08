@@ -338,6 +338,122 @@ async fn stop_replay_does_not_send_duplicate_close_request() {
 }
 
 #[tokio::test]
+async fn stop_friendly_name_reuse_uses_current_resolved_target() {
+    let _guard = crate::storage::lock_test_env();
+    let temp_home = tempfile::TempDir::new().expect("temp home");
+    crate::env::set_var("JCODE_HOME", temp_home.path());
+
+    let sessions = Arc::new(RwLock::new(HashMap::new()));
+    let soft_interrupt_queues: SessionInterruptQueues = Arc::new(RwLock::new(HashMap::new()));
+    let swarm_members = Arc::new(RwLock::new(HashMap::new()));
+    let swarms_by_id = Arc::new(RwLock::new(HashMap::from([(
+        "swarm-1".to_string(),
+        HashSet::from(["coord".to_string(), "worker-old".to_string()]),
+    )])));
+    let swarm_coordinators = Arc::new(RwLock::new(HashMap::from([(
+        "swarm-1".to_string(),
+        "coord".to_string(),
+    )])));
+    let swarm_plans = Arc::new(RwLock::new(HashMap::<String, VersionedPlan>::new()));
+    let channel_subscriptions = Arc::new(RwLock::new(HashMap::new()));
+    let channel_subscriptions_by_session = Arc::new(RwLock::new(HashMap::new()));
+    let event_history = Arc::new(RwLock::new(VecDeque::new()));
+    let event_counter = Arc::new(AtomicU64::new(0));
+    let (swarm_event_tx, _swarm_event_rx) = broadcast::channel(8);
+    let swarm_mutation_runtime = SwarmMutationRuntime::default();
+    let (client_event_tx, mut client_event_rx) = mpsc::unbounded_channel();
+
+    let (coord, _coord_rx) = member("coord", Some("swarm-1"), "coordinator");
+    let (mut old_worker, mut old_worker_rx) = member("worker-old", Some("swarm-1"), "agent");
+    old_worker.friendly_name = Some("bear".to_string());
+    old_worker.report_back_to_session_id = Some("coord".to_string());
+    swarm_members.write().await.extend([
+        ("coord".to_string(), coord),
+        ("worker-old".to_string(), old_worker),
+    ]);
+
+    handle_comm_stop(
+        1,
+        "coord".to_string(),
+        "bear".to_string(),
+        false,
+        &client_event_tx,
+        &sessions,
+        &swarm_members,
+        &swarms_by_id,
+        &swarm_coordinators,
+        &swarm_plans,
+        &channel_subscriptions,
+        &channel_subscriptions_by_session,
+        &event_history,
+        &event_counter,
+        &swarm_event_tx,
+        &soft_interrupt_queues,
+        &swarm_mutation_runtime,
+    )
+    .await;
+    assert!(matches!(
+        old_worker_rx.recv().await,
+        Some(ServerEvent::SessionCloseRequested { .. })
+    ));
+    assert!(matches!(
+        client_event_rx.recv().await,
+        Some(ServerEvent::Done { id: 1 })
+    ));
+
+    let (mut new_worker, mut new_worker_rx) = member("worker-new", Some("swarm-1"), "agent");
+    new_worker.friendly_name = Some("bear".to_string());
+    new_worker.report_back_to_session_id = Some("coord".to_string());
+    swarm_members
+        .write()
+        .await
+        .insert("worker-new".to_string(), new_worker);
+    swarms_by_id
+        .write()
+        .await
+        .entry("swarm-1".to_string())
+        .or_default()
+        .insert("worker-new".to_string());
+
+    handle_comm_stop(
+        2,
+        "coord".to_string(),
+        "bear".to_string(),
+        false,
+        &client_event_tx,
+        &sessions,
+        &swarm_members,
+        &swarms_by_id,
+        &swarm_coordinators,
+        &swarm_plans,
+        &channel_subscriptions,
+        &channel_subscriptions_by_session,
+        &event_history,
+        &event_counter,
+        &swarm_event_tx,
+        &soft_interrupt_queues,
+        &swarm_mutation_runtime,
+    )
+    .await;
+
+    assert!(matches!(
+        new_worker_rx.recv().await,
+        Some(ServerEvent::SessionCloseRequested { reason })
+            if reason == "Stopped by coordinator coord"
+    ));
+    assert!(matches!(
+        client_event_rx.recv().await,
+        Some(ServerEvent::Done { id: 2 })
+    ));
+    assert!(
+        !swarm_members.read().await.contains_key("worker-new"),
+        "friendly-name reuse should resolve and stop the current matching member"
+    );
+
+    crate::env::remove_var("JCODE_HOME");
+}
+
+#[tokio::test]
 async fn register_visible_spawned_member_marks_startup_as_running() {
     let swarm_members = Arc::new(RwLock::new(HashMap::new()));
     let swarms_by_id = Arc::new(RwLock::new(HashMap::new()));

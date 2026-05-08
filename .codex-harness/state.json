@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "commit and push stop side-effect idempotency slice",
+  "focus": "Finalize resolved stop mutation identity slice",
   "status": "done",
-  "activeContractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede",
+  "activeContractId": "2026-05-08-use-resolved-stop-mutation-identity-6fcfb0",
   "counters": {
-    "contracts": 31,
-    "traces": 34,
-    "gates": 30,
-    "verifications": 28,
+    "contracts": 32,
+    "traces": 36,
+    "gates": 31,
+    "verifications": 30,
     "knowledgeItems": 0,
     "knowledgeQueries": 0,
     "evalCases": 0,
@@ -87,45 +87,14 @@
       "id": "decision-2026-05-08-651880",
       "ts": "2026-05-08T12:13:13.823Z",
       "text": "Completed issue #13 stop idempotency slice: stop now replays persisted final responses before target lookup and begins mutation before emitting close/removal side effects, preventing duplicate close requests on retry."
+    },
+    {
+      "id": "decision-2026-05-08-da8746",
+      "ts": "2026-05-08T12:20:07.164Z",
+      "text": "Completed issue #13 resolved stop identity slice: live stop mutations now use resolved target session IDs, preserving exact-ID replay while preventing reused aliases from replaying stale stop results."
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-07T20:18:17.344Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-07-8f1f1a03",
-      "contractId": "2026-05-07-document-init-and-clean-code-json-schemas-8680dc",
-      "status": "pass",
-      "summary": "Selfdev build passed for schemas JSON dirty fingerprint 7a69e4555fa6."
-    },
-    {
-      "ts": "2026-05-07T20:18:32.378Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-07-document-init-and-clean-code-json-schemas-8680dc",
-      "gateId": "gate-2026-05-07-d0c848",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-07T20:21:05.851Z",
-      "type": "contract_created",
-      "contractId": "2026-05-07-sync-release-gates-and-product-plan-2d0524",
-      "summary": "Sync release gates and product plan"
-    },
-    {
-      "ts": "2026-05-07T20:22:47.187Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-07-3199dbf0",
-      "contractId": "2026-05-07-sync-release-gates-and-product-plan-2d0524",
-      "status": "pass",
-      "summary": "Docs-only static validation passed."
-    },
-    {
-      "ts": "2026-05-07T20:24:23.588Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-07-sync-release-gates-and-product-plan-2d0524",
-      "gateId": "gate-2026-05-07-f4650c",
-      "verdict": "pass"
-    },
     {
       "ts": "2026-05-07T20:29:37.822Z",
       "type": "contract_created",
@@ -670,6 +639,43 @@
       "status": "done",
       "focus": "commit and push stop side-effect idempotency slice",
       "activeContractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede"
+    },
+    {
+      "ts": "2026-05-08T12:16:04.124Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-use-resolved-stop-mutation-identity-6fcfb0",
+      "summary": "Use resolved stop mutation identity"
+    },
+    {
+      "ts": "2026-05-08T12:19:42.643Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-42bf9bf9",
+      "contractId": "2026-05-08-use-resolved-stop-mutation-identity-6fcfb0",
+      "status": "pass",
+      "summary": "Focused resolved stop identity tests, formatting, cargo check, and diff whitespace verification passed."
+    },
+    {
+      "ts": "2026-05-08T12:19:53.643Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-3e2493a7",
+      "contractId": "2026-05-08-use-resolved-stop-mutation-identity-6fcfb0",
+      "status": "pass",
+      "summary": "Self-dev build and subsequent reload passed for the resolved stop mutation identity slice."
+    },
+    {
+      "ts": "2026-05-08T12:20:01.723Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-use-resolved-stop-mutation-identity-6fcfb0",
+      "gateId": "gate-2026-05-08-30d95e",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T12:20:07.164Z",
+      "type": "state_update",
+      "note": "Verification task 6351036hah passed, selfdev build task 693895a8qc passed, reload succeeded, and completion gate gate-2026-05-08-30d95e passed.",
+      "status": "done",
+      "focus": "Finalize resolved stop mutation identity slice",
+      "activeContractId": "2026-05-08-use-resolved-stop-mutation-identity-6fcfb0"
     }
   ]
 }

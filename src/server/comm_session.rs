@@ -617,9 +617,9 @@ pub(super) async fn handle_comm_stop(
     };
 
     let target_key = target_session.trim().to_string();
-    let mutation_key = request_key(&req_session_id, "stop", &[swarm_id.clone(), target_key]);
+    let replay_key = request_key(&req_session_id, "stop", &[swarm_id.clone(), target_key]);
     if let Some(final_response) =
-        load_swarm_mutation_state(&mutation_key).and_then(|state| state.final_response)
+        load_swarm_mutation_state(&replay_key).and_then(|state| state.final_response)
     {
         let _ = client_event_tx.send(final_response.into_server_event(id, &req_session_id));
         return;
@@ -655,6 +655,12 @@ pub(super) async fn handle_comm_stop(
         });
         return;
     }
+
+    let mutation_key = request_key(
+        &req_session_id,
+        "stop",
+        &[swarm_id.clone(), target_session.clone()],
+    );
 
     let Some(mutation_state) = begin_or_replay(
         swarm_mutation_runtime,
