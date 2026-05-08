@@ -30,6 +30,15 @@ async fn wait_for_reloading_server() -> bool {
             ));
             false
         }
+        crate::server::ReloadWaitStatus::TimedOut(detail) => {
+            logging::warn(&format!(
+                "Reload handoff timed out while resuming self-dev session on {}: {}; recent_state={}",
+                crate::server::socket_path().display(),
+                detail,
+                crate::server::reload_state_summary(std::time::Duration::from_secs(60))
+            ));
+            false
+        }
         crate::server::ReloadWaitStatus::Idle => false,
         crate::server::ReloadWaitStatus::Waiting { .. } => false,
     }

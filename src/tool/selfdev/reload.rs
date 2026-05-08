@@ -373,6 +373,17 @@ impl SelfDevTool {
                             server::reload_state_summary(std::time::Duration::from_secs(60))
                         ))
                     }
+                    server::ReloadWaitStatus::TimedOut(detail) => {
+                        let _ = build::rollback_pending_activation_for_session(session_id);
+                        Err(anyhow::anyhow!(
+                            "Reload was acknowledged for build {}, but the replacement server did not become ready within {}s on {}: {}; recent_state={}",
+                            ack.hash,
+                            timeout.as_secs(),
+                            server::socket_path().display(),
+                            detail,
+                            server::reload_state_summary(std::time::Duration::from_secs(60))
+                        ))
+                    }
                     server::ReloadWaitStatus::Idle | server::ReloadWaitStatus::Waiting { .. } => {
                         let _ = build::rollback_pending_activation_for_session(session_id);
                         Err(anyhow::anyhow!(

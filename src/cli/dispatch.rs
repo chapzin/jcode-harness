@@ -601,6 +601,15 @@ pub(crate) async fn wait_for_reloading_server() -> bool {
             ));
             false
         }
+        server::ReloadWaitStatus::TimedOut(detail) => {
+            crate::logging::warn(&format!(
+                "Reload handoff timed out while waiting for server on {}: {}; recent_state={}",
+                server::socket_path().display(),
+                detail,
+                server::reload_state_summary(std::time::Duration::from_secs(60))
+            ));
+            false
+        }
         server::ReloadWaitStatus::Idle => false,
         server::ReloadWaitStatus::Waiting { .. } => false,
     }

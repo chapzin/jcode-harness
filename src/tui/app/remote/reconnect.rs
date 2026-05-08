@@ -189,6 +189,19 @@ pub(in crate::tui::app) fn reload_handoff_active(state: &RemoteRunState) -> bool
     state.server_reload_in_progress || super::session_persistence::reload_marker_active()
 }
 
+fn reload_handoff_timeout_detail(state: &RemoteRunState) -> Option<String> {
+    let elapsed = state.disconnect_start?.elapsed();
+    if elapsed < RELOAD_MARKER_MAX_AGE {
+        return None;
+    }
+
+    Some(format!(
+        "reload handoff timed out after {}s; starting replacement server. recent_state={}",
+        elapsed.as_secs(),
+        crate::server::reload_state_summary(RELOAD_MARKER_MAX_AGE)
+    ))
+}
+
 pub(in crate::tui::app) fn should_use_same_session_fast_path(
     reconnected_after_disconnect: bool,
     session_to_resume: Option<&str>,
@@ -226,6 +239,18 @@ async fn wait_for_reload_handoff_before_reconnect(
     terminal.draw(|frame| crate::tui::ui::draw(frame, app))?;
 
     let socket_path = crate::server::socket_path();
+    if let Some(detail) = reload_handoff_timeout_detail(state) {
+        crate::logging::warn(&format!(
+            "Reconnect reload handoff pre-check: timed out detail={} state={}",
+            detail,
+            crate::server::reload_state_summary(RELOAD_MARKER_MAX_AGE)
+        ));
+        if recover_reloading_server(app, terminal, state, &detail).await? {
+            return Ok(Some(ConnectOutcome::Retry));
+        }
+        return Ok(None);
+    }
+
     match crate::server::inspect_reload_wait_status(
         &socket_path,
         RELOAD_MARKER_MAX_AGE,
@@ -250,6 +275,18 @@ async fn wait_for_reload_handoff_before_reconnect(
                 "reload failed before the replacement server became ready; starting replacement server"
                     .to_string()
             });
+            if recover_reloading_server(app, terminal, state, &detail).await? {
+                Ok(Some(ConnectOutcome::Retry))
+            } else {
+                Ok(None)
+            }
+        }
+        crate::server::ReloadWaitStatus::TimedOut(detail) => {
+            crate::logging::warn(&format!(
+                "Reconnect reload handoff pre-check: timed out detail={} state={}",
+                detail,
+                crate::server::reload_state_summary(RELOAD_MARKER_MAX_AGE)
+            ));
             if recover_reloading_server(app, terminal, state, &detail).await? {
                 Ok(Some(ConnectOutcome::Retry))
             } else {
@@ -459,6 +496,17 @@ pub(in crate::tui::app) async fn connect_with_retry(
 
             if reload_handoff_active(state) {
                 let socket_path = crate::server::socket_path();
+                if let Some(detail) = reload_handoff_timeout_detail(state) {
+                    crate::logging::warn(&format!(
+                        "Reconnect reload handoff: timed out detail={} state={}",
+                        detail,
+                        crate::server::reload_state_summary(RELOAD_MARKER_MAX_AGE)
+                    ));
+                    if recover_reloading_server(app, terminal, state, &detail).await? {
+                        return Ok(ConnectOutcome::Retry);
+                    }
+                }
+
                 match crate::server::inspect_reload_wait_status(
                     &socket_path,
                     RELOAD_MARKER_MAX_AGE,
@@ -483,6 +531,16 @@ pub(in crate::tui::app) async fn connect_with_retry(
                             "reload failed before the replacement server became ready; starting replacement server"
                                 .to_string()
                         });
+                        if recover_reloading_server(app, terminal, state, &detail).await? {
+                            return Ok(ConnectOutcome::Retry);
+                        }
+                    }
+                    crate::server::ReloadWaitStatus::TimedOut(detail) => {
+                        crate::logging::warn(&format!(
+                            "Reconnect reload handoff: timed out detail={} state={}",
+                            detail,
+                            crate::server::reload_state_summary(RELOAD_MARKER_MAX_AGE)
+                        ));
                         if recover_reloading_server(app, terminal, state, &detail).await? {
                             return Ok(ConnectOutcome::Retry);
                         }
