@@ -145,6 +145,82 @@ fn cleanup_candidates_default_to_owned_terminal_workers() {
 }
 
 #[test]
+fn format_swarm_health_summarizes_freshness_and_stale_members() {
+    let ctx = test_ctx("coord", std::path::Path::new("."));
+    let members = vec![
+        AgentInfo {
+            session_id: "coord".to_string(),
+            friendly_name: Some("coord".to_string()),
+            files_touched: vec![],
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("coordinator".to_string()),
+            is_headless: Some(false),
+            report_back_to_session_id: None,
+            latest_completion_report: None,
+            live_attachments: Some(1),
+            status_age_secs: Some(1),
+        },
+        AgentInfo {
+            session_id: "owned-running".to_string(),
+            friendly_name: Some("worker".to_string()),
+            files_touched: vec![],
+            status: Some("running".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(3),
+        },
+        AgentInfo {
+            session_id: "owned-ready".to_string(),
+            friendly_name: Some("done".to_string()),
+            files_touched: vec![],
+            status: Some("ready".to_string()),
+            detail: None,
+            role: Some("agent".to_string()),
+            is_headless: Some(true),
+            report_back_to_session_id: Some("coord".to_string()),
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(10),
+        },
+        AgentInfo {
+            session_id: "legacy".to_string(),
+            friendly_name: Some("old-coord".to_string()),
+            files_touched: vec![],
+            status: Some("crashed".to_string()),
+            detail: None,
+            role: Some("coordinator".to_string()),
+            is_headless: Some(false),
+            report_back_to_session_id: None,
+            latest_completion_report: None,
+            live_attachments: Some(0),
+            status_age_secs: Some(99),
+        },
+    ];
+
+    let output = format_swarm_health(
+        &ctx,
+        std::path::Path::new("/tmp/jcode.sock"),
+        &[1234],
+        &members,
+    )
+    .output;
+
+    assert!(output.contains("Swarm health"));
+    assert!(output.contains("socket: /tmp/jcode.sock"));
+    assert!(output.contains("server listener pid(s): 1234"));
+    assert!(output.contains("members: total=4 owned=2 owned_active=1 owned_terminal=1 stale=1 foreign=1"));
+    assert!(output.contains("statuses: crashed=1, ready=1, running=2"));
+    assert!(output.contains("scoped await default: 1 active owned candidate(s)"));
+    assert!(output.contains("owned terminal members: done(ready)"));
+    assert!(output.contains("stale members: old-coord(crashed)"));
+}
+
+#[test]
 fn format_tool_summary_includes_call_count() {
     let output = super::format_tool_summary(
         "session-123",

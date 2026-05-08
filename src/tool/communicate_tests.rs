@@ -1,7 +1,7 @@
 use super::{
     CommunicateInput, CommunicateTool, cleanup_candidate_session_ids,
     default_await_target_statuses, default_cleanup_target_statuses, format_awaited_members,
-    format_awaited_members_with_reports, format_members, format_plan_status,
+    format_awaited_members_with_reports, format_members, format_plan_status, format_swarm_health,
     latest_assistant_report, resolve_optional_target_session,
 };
 use crate::message::{Message, StreamEvent, ToolDefinition};
@@ -185,6 +185,12 @@ fn schema_advertises_supported_swarm_fields() {
             .as_array()
             .expect("action enum")
             .contains(&json!("status"))
+    );
+    assert!(
+        schema["properties"]["action"]["enum"]
+            .as_array()
+            .expect("action enum")
+            .contains(&json!("health"))
     );
     assert!(
         schema["properties"]["action"]["enum"]

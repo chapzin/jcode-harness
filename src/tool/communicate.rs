@@ -16,7 +16,9 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use std::fmt::Write as _;
+use std::path::Path;
 
 const REQUEST_ID: u64 = 1;
 
@@ -468,6 +470,210 @@ fn default_await_target_statuses() -> Vec<String> {
     default_comm_await_target_statuses()
 }
 
+fn health_member_status(member: &AgentInfo) -> &str {
+    member.status.as_deref().unwrap_or("unknown")
+}
+
+fn health_member_name(member: &AgentInfo) -> String {
+    member
+        .friendly_name
+        .clone()
+        .unwrap_or_else(|| member.session_id.clone())
+}
+
+fn health_is_owned_by(member: &AgentInfo, session_id: &str) -> bool {
+    member.report_back_to_session_id.as_deref() == Some(session_id)
+}
+
+fn health_is_terminal_status(status: &str) -> bool {
+    matches!(status, "ready" | "completed" | "stopped" | "failed")
+}
+
+fn health_is_stale_status(status: &str) -> bool {
+    matches!(
+        status,
+        "crashed" | "closed" | "disconnected" | "running_stale"
+    )
+}
+
+fn format_named_members(members: Vec<String>, fallback: &str) -> String {
+    if members.is_empty() {
+        return fallback.to_string();
+    }
+    let mut listed = members.into_iter().take(8).collect::<Vec<_>>();
+    listed.sort();
+    listed.join(", ")
+}
+
+fn format_swarm_health(
+    ctx: &ToolContext,
+    socket_path: &Path,
+    listener_pids: &[u32],
+    members: &[AgentInfo],
+) -> ToolOutput {
+    let mut statuses = BTreeMap::<String, usize>::new();
+    let mut roles = BTreeMap::<String, usize>::new();
+    let mut owned = 0usize;
+    let mut owned_active = 0usize;
+    let mut owned_terminal = 0usize;
+    let mut foreign = 0usize;
+    let mut stale = 0usize;
+    let mut stale_members = Vec::new();
+    let mut owned_terminal_members = Vec::new();
+
+    for member in members {
+        let status = health_member_status(member);
+        *statuses.entry(status.to_string()).or_default() += 1;
+        *roles
+            .entry(member.role.as_deref().unwrap_or("unknown").to_string())
+            .or_default() += 1;
+
+        let is_self = member.session_id == ctx.session_id;
+        let is_owned = health_is_owned_by(member, &ctx.session_id);
+        let is_terminal = health_is_terminal_status(status);
+        let is_stale = health_is_stale_status(status);
+
+        if is_owned {
+            owned += 1;
+            if is_terminal {
+                owned_terminal += 1;
+                owned_terminal_members.push(format!("{}({status})", health_member_name(member)));
+            } else if !is_stale {
+                owned_active += 1;
+            }
+        } else if !is_self {
+            foreign += 1;
+        }
+
+        if is_stale {
+            stale += 1;
+            stale_members.push(format!("{}({status})", health_member_name(member)));
+        }
+    }
+
+    let status_summary = statuses
+        .into_iter()
+        .map(|(status, count)| format!("{status}={count}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let role_summary = roles
+        .into_iter()
+        .map(|(role, count)| format!("{role}={count}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let pid_summary = if listener_pids.is_empty() {
+        "unknown".to_string()
+    } else {
+        listener_pids
+            .iter()
+            .map(u32::to_string)
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+
+    let mut output = String::new();
+    let _ = writeln!(output, "Swarm health");
+    let _ = writeln!(output, "- build version: {}", env!("JCODE_VERSION"));
+    let _ = writeln!(output, "- socket: {}", socket_path.display());
+    let _ = writeln!(output, "- server listener pid(s): {pid_summary}");
+    let _ = writeln!(output, "- current session: {}", ctx.session_id);
+    let _ = writeln!(
+        output,
+        "- members: total={} owned={} owned_active={} owned_terminal={} stale={} foreign={}",
+        members.len(),
+        owned,
+        owned_active,
+        owned_terminal,
+        stale,
+        foreign
+    );
+    let _ = writeln!(
+        output,
+        "- statuses: {}",
+        if status_summary.is_empty() {
+            "none"
+        } else {
+            &status_summary
+        }
+    );
+    let _ = writeln!(
+        output,
+        "- roles: {}",
+        if role_summary.is_empty() {
+            "none"
+        } else {
+            &role_summary
+        }
+    );
+    let _ = writeln!(
+        output,
+        "- scoped await default: {} active owned candidate(s)",
+        owned_active
+    );
+    let _ = writeln!(
+        output,
+        "- owned terminal members: {}",
+        format_named_members(owned_terminal_members, "none")
+    );
+    let _ = writeln!(
+        output,
+        "- stale members: {}",
+        format_named_members(stale_members, "none")
+    );
+
+    ToolOutput::new(output)
+}
+
+#[cfg(unix)]
+fn unix_socket_inode(socket_path: &Path) -> Option<String> {
+    let socket_path = socket_path.to_string_lossy();
+    let table = std::fs::read_to_string("/proc/net/unix").ok()?;
+    for line in table.lines().skip(1) {
+        let parts = line.split_whitespace().collect::<Vec<_>>();
+        if parts.last().copied() == Some(socket_path.as_ref()) {
+            return parts.get(6).map(|inode| (*inode).to_string());
+        }
+    }
+    None
+}
+
+#[cfg(unix)]
+fn listener_pids_for_unix_socket(socket_path: &Path) -> Vec<u32> {
+    let Some(inode) = unix_socket_inode(socket_path) else {
+        return Vec::new();
+    };
+    let target = format!("socket:[{inode}]");
+    let mut pids = Vec::new();
+    let Ok(proc_entries) = std::fs::read_dir("/proc") else {
+        return pids;
+    };
+    for entry in proc_entries.flatten() {
+        let pid = entry.file_name().to_string_lossy().parse::<u32>();
+        let Ok(pid) = pid else {
+            continue;
+        };
+        let fd_dir = entry.path().join("fd");
+        let Ok(fd_entries) = std::fs::read_dir(fd_dir) else {
+            continue;
+        };
+        if fd_entries.flatten().any(|fd| {
+            std::fs::read_link(fd.path())
+                .ok()
+                .is_some_and(|link| link.to_string_lossy() == target)
+        }) {
+            pids.push(pid);
+        }
+    }
+    pids.sort_unstable();
+    pids.dedup();
+    pids
+}
+
+#[cfg(not(unix))]
+fn listener_pids_for_unix_socket(_socket_path: &Path) -> Vec<u32> {
+    Vec::new()
+}
+
 fn format_channels(channels: &[SwarmChannelInfo]) -> ToolOutput {
     ToolOutput::new(format_comm_channels(channels))
 }
@@ -569,7 +775,7 @@ impl Tool for CommunicateTool {
                     "type": "string",
                     "enum": ["share", "share_append", "read", "message", "broadcast", "dm", "channel", "list", "list_channels", "channel_members",
                              "propose_plan", "approve_plan", "reject_plan", "spawn", "stop", "assign_role",
-                             "status", "report", "plan_status", "summary", "read_context", "resync_plan", "assign_task", "assign_next", "fill_slots", "run_plan", "cleanup",
+                             "status", "health", "report", "plan_status", "summary", "read_context", "resync_plan", "assign_task", "assign_next", "fill_slots", "run_plan", "cleanup",
                              "start", "start_task", "wake", "resume", "retry", "reassign", "replace", "salvage",
                              "subscribe_channel", "unsubscribe_channel", "await_members"],
                     "description": "Action. For spawn, prefer including prompt with the initial task so the new agent starts useful work immediately."
@@ -846,6 +1052,18 @@ impl Tool for CommunicateTool {
                     }
                     Err(e) => Err(anyhow::anyhow!("Failed to list agents: {}", e)),
                 }
+            }
+
+            "health" => {
+                let members = fetch_swarm_members(&ctx.session_id).await?;
+                let socket_path = crate::server::socket_path();
+                let listener_pids = listener_pids_for_unix_socket(&socket_path);
+                Ok(format_swarm_health(
+                    &ctx,
+                    &socket_path,
+                    &listener_pids,
+                    &members,
+                ))
             }
 
             "list_channels" => {
@@ -1524,7 +1742,7 @@ impl Tool for CommunicateTool {
 
             _ => Err(anyhow::anyhow!(
                 "Unknown action '{}'. Valid actions: share, share_append, read, message, broadcast, dm, channel, list, list_channels, channel_members, \
-                 propose_plan, approve_plan, reject_plan, spawn, stop, assign_role, status, plan_status, summary, read_context, \
+                 propose_plan, approve_plan, reject_plan, spawn, stop, assign_role, status, health, plan_status, summary, read_context, \
                  resync_plan, assign_task, assign_next, fill_slots, run_plan, cleanup, start, start_task, wake, resume, retry, reassign, replace, salvage, subscribe_channel, unsubscribe_channel, await_members",
                 params.action
             )),
