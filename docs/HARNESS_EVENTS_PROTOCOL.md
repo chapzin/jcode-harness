@@ -225,6 +225,41 @@ Endpoint details:
 
 Start with NDJSON/replay. Add SSE when you need live visual progress. Use WebSocket only when the UI must send real-time control messages.
 
+## WebSocket control command core
+
+The #24 control-channel foundation is transport-neutral: a WebSocket client sends a JSON command, the gateway validates read/write authorization, and the core converts the command into a redacted audit event. This keeps dashboard control auditable even before a full browser UI exists.
+
+Command envelope examples:
+
+```json
+{"command":"subscribe_events","run_id":"run_demo","last_event_id":"hevt_seen"}
+```
+
+```json
+{
+  "command": "resolve_human_approval",
+  "run_id": "run_demo",
+  "approval_id": "approval_deploy",
+  "decision": "approved",
+  "actor": "dashboard",
+  "reason": "user clicked approve",
+  "client_command_id": "cmd_1"
+}
+```
+
+Supported MVP commands:
+
+| Command | Authorization | Audit event |
+| --- | --- | --- |
+| `subscribe_events` | read-only | `control_command_received` |
+| `resolve_human_approval` | write | `human_approval_resolved` when authorized |
+| `pause_run` | write | `control_command_received` |
+| `resume_run` | write | `control_command_received` |
+| `cancel_run` | write | `control_command_received` |
+| `ui_command` | write | `control_command_received` |
+
+Unauthorized write commands must be rejected by the gateway and audited as `control_command_rejected` at `warn` level. Approval reasons are intentionally summarized as `reason_present` instead of copied verbatim, and all command metadata still passes through the normal payload redaction path.
+
 ## CI recipe
 
 A GitHub Actions-style workflow can collect event evidence as artifacts:

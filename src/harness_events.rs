@@ -75,6 +75,9 @@ pub enum HarnessEventKind {
     GatePassed,
     GateFailed,
     HumanApprovalRequired,
+    HumanApprovalResolved,
+    ControlCommandReceived,
+    ControlCommandRejected,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -236,6 +239,69 @@ impl Default for HarnessEventSamplingPolicy {
 pub struct HarnessEventSamplingDecision {
     pub record: bool,
     pub reason: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HarnessApprovalDecision {
+    Approved,
+    Denied,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(tag = "command", rename_all = "snake_case")]
+pub enum HarnessControlCommand {
+    SubscribeEvents {
+        run_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        last_event_id: Option<String>,
+    },
+    ResolveHumanApproval {
+        run_id: String,
+        approval_id: String,
+        decision: HarnessApprovalDecision,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        actor: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        client_command_id: Option<String>,
+    },
+    PauseRun {
+        run_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        actor: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        client_command_id: Option<String>,
+    },
+    ResumeRun {
+        run_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        actor: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        client_command_id: Option<String>,
+    },
+    CancelRun {
+        run_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        actor: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        client_command_id: Option<String>,
+    },
+    UiCommand {
+        run_id: String,
+        name: String,
+        #[serde(default)]
+        args: Value,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        client_command_id: Option<String>,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -420,6 +486,206 @@ impl HarnessEventSamplingPolicy {
             reason: None,
         }
     }
+}
+
+impl HarnessControlCommand {
+    pub fn parse_json(input: &str) -> anyhow::Result<Self> {
+        let command = serde_json::from_str::<Self>(input)
+            .map_err(|err| anyhow::anyhow!("invalid harness control command JSON: {err}"))?;
+        command.validate()?;
+        Ok(command)
+    }
+
+    pub fn validate(&self) -> anyhow::Result<()> {
+        require_control_field("run_id", self.run_id())?;
+        match self {
+            Self::SubscribeEvents { last_event_id, .. } => {
+                if let Some(last_event_id) = last_event_id {
+                    require_control_field("last_event_id", last_event_id)?;
+                }
+            }
+            Self::ResolveHumanApproval {
+                approval_id,
+                actor,
+                reason,
+                client_command_id,
+                ..
+            } => {
+                require_control_field("approval_id", approval_id)?;
+                validate_optional_control_field("actor", actor)?;
+                validate_optional_control_field("reason", reason)?;
+                validate_optional_control_field("client_command_id", client_command_id)?;
+            }
+            Self::PauseRun {
+                actor,
+                reason,
+                client_command_id,
+                ..
+            }
+            | Self::ResumeRun {
+                actor,
+                reason,
+                client_command_id,
+                ..
+            }
+            | Self::CancelRun {
+                actor,
+                reason,
+                client_command_id,
+                ..
+            } => {
+                validate_optional_control_field("actor", actor)?;
+                validate_optional_control_field("reason", reason)?;
+                validate_optional_control_field("client_command_id", client_command_id)?;
+            }
+            Self::UiCommand {
+                name,
+                client_command_id,
+                ..
+            } => {
+                require_control_field("name", name)?;
+                validate_optional_control_field("client_command_id", client_command_id)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn run_id(&self) -> &str {
+        match self {
+            Self::SubscribeEvents { run_id, .. }
+            | Self::ResolveHumanApproval { run_id, .. }
+            | Self::PauseRun { run_id, .. }
+            | Self::ResumeRun { run_id, .. }
+            | Self::CancelRun { run_id, .. }
+            | Self::UiCommand { run_id, .. } => run_id,
+        }
+    }
+
+    pub fn command_name(&self) -> &'static str {
+        match self {
+            Self::SubscribeEvents { .. } => "subscribe_events",
+            Self::ResolveHumanApproval { .. } => "resolve_human_approval",
+            Self::PauseRun { .. } => "pause_run",
+            Self::ResumeRun { .. } => "resume_run",
+            Self::CancelRun { .. } => "cancel_run",
+            Self::UiCommand { .. } => "ui_command",
+        }
+    }
+
+    pub fn client_command_id(&self) -> Option<&str> {
+        match self {
+            Self::SubscribeEvents { .. } => None,
+            Self::ResolveHumanApproval {
+                client_command_id, ..
+            }
+            | Self::PauseRun {
+                client_command_id, ..
+            }
+            | Self::ResumeRun {
+                client_command_id, ..
+            }
+            | Self::CancelRun {
+                client_command_id, ..
+            }
+            | Self::UiCommand {
+                client_command_id, ..
+            } => client_command_id.as_deref(),
+        }
+    }
+
+    pub fn requires_write_authorization(&self) -> bool {
+        !matches!(self, Self::SubscribeEvents { .. })
+    }
+}
+
+pub fn harness_control_command_event_draft(
+    command: &HarnessControlCommand,
+    write_authorized: bool,
+) -> HarnessEventDraft {
+    let authorized = write_authorized || !command.requires_write_authorization();
+    let mut payload = json!({
+        "command": command.command_name(),
+        "authorized": authorized,
+    });
+
+    if let Some(client_command_id) = command.client_command_id() {
+        payload["client_command_id"] = Value::String(client_command_id.to_string());
+    }
+
+    let (kind, level, status) = if !authorized {
+        (
+            HarnessEventKind::ControlCommandRejected,
+            HarnessEventLevel::Warn,
+            "rejected",
+        )
+    } else if matches!(command, HarnessControlCommand::ResolveHumanApproval { .. }) {
+        (
+            HarnessEventKind::HumanApprovalResolved,
+            HarnessEventLevel::Info,
+            "resolved",
+        )
+    } else {
+        (
+            HarnessEventKind::ControlCommandReceived,
+            HarnessEventLevel::Info,
+            "accepted",
+        )
+    };
+    payload["status"] = Value::String(status.to_string());
+
+    match command {
+        HarnessControlCommand::SubscribeEvents { last_event_id, .. } => {
+            if let Some(last_event_id) = last_event_id {
+                payload["last_event_id"] = Value::String(last_event_id.clone());
+            }
+        }
+        HarnessControlCommand::ResolveHumanApproval {
+            approval_id,
+            decision,
+            actor,
+            reason,
+            ..
+        } => {
+            payload["approval_id"] = Value::String(approval_id.clone());
+            payload["decision"] = json!(decision);
+            payload["approved"] =
+                Value::Bool(matches!(decision, HarnessApprovalDecision::Approved));
+            if let Some(actor) = actor {
+                payload["actor"] = Value::String(actor.clone());
+            }
+            payload["reason_present"] = Value::Bool(reason.is_some());
+        }
+        HarnessControlCommand::PauseRun { actor, reason, .. }
+        | HarnessControlCommand::ResumeRun { actor, reason, .. }
+        | HarnessControlCommand::CancelRun { actor, reason, .. } => {
+            if let Some(actor) = actor {
+                payload["actor"] = Value::String(actor.clone());
+            }
+            payload["reason_present"] = Value::Bool(reason.is_some());
+        }
+        HarnessControlCommand::UiCommand { name, args, .. } => {
+            payload["name"] = Value::String(name.clone());
+            payload["args"] = args.clone();
+        }
+    }
+
+    HarnessEventDraft::new(command.run_id(), kind)
+        .with_level(level)
+        .with_payload(payload)
+}
+
+fn require_control_field(name: &str, value: &str) -> anyhow::Result<()> {
+    if value.trim().is_empty() {
+        anyhow::bail!("invalid harness control command: {name} must not be empty");
+    }
+    Ok(())
+}
+
+fn validate_optional_control_field(name: &str, value: &Option<String>) -> anyhow::Result<()> {
+    if let Some(value) = value {
+        require_control_field(name, value)?;
+    }
+    Ok(())
 }
 
 fn is_tool_sampling_kind(kind: HarnessEventKind) -> bool {
@@ -1154,7 +1420,12 @@ fn event_phase(kind: HarnessEventKind) -> &'static str {
         | HarnessEventKind::TestPassed
         | HarnessEventKind::TestFailed => "tests",
         HarnessEventKind::GatePassed | HarnessEventKind::GateFailed => "gates",
-        HarnessEventKind::HumanApprovalRequired => "approval",
+        HarnessEventKind::HumanApprovalRequired | HarnessEventKind::HumanApprovalResolved => {
+            "approval"
+        }
+        HarnessEventKind::ControlCommandReceived | HarnessEventKind::ControlCommandRejected => {
+            "control"
+        }
     }
 }
 
@@ -1167,6 +1438,7 @@ fn timeline_phase_order(timeline: &[HarnessEventTimelineItem]) -> Vec<String> {
         "files",
         "tests",
         "gates",
+        "control",
         "approval",
         "completion",
     ];
@@ -1219,6 +1491,9 @@ fn event_status(event: &HarnessEvent) -> &'static str {
             | HarnessEventKind::TestPassed
             | HarnessEventKind::GatePassed => "completed",
             HarnessEventKind::HumanApprovalRequired => "attention_required",
+            HarnessEventKind::HumanApprovalResolved => "resolved",
+            HarnessEventKind::ControlCommandReceived => "accepted",
+            HarnessEventKind::ControlCommandRejected => "rejected",
             _ => "info",
         }
     }
@@ -2274,6 +2549,77 @@ mod tests {
             .expect("lagged receiver should recover")
             .expect("retained tail event should be readable");
         assert!(retained.sequence > 28);
+    }
+
+    #[test]
+    fn control_command_parser_accepts_subscribe_and_rejects_empty_fields() {
+        let subscribe = HarnessControlCommand::parse_json(
+            r#"{"command":"subscribe_events","run_id":"run_ws","last_event_id":"hevt_1"}"#,
+        )
+        .unwrap();
+        assert_eq!(subscribe.run_id(), "run_ws");
+        assert_eq!(subscribe.command_name(), "subscribe_events");
+        assert!(!subscribe.requires_write_authorization());
+
+        let err = HarnessControlCommand::parse_json(
+            r#"{"command":"resolve_human_approval","run_id":" ","approval_id":"approval_1","decision":"approved"}"#,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("run_id must not be empty"));
+    }
+
+    #[tokio::test]
+    async fn approval_control_command_creates_auditable_resolution_event() {
+        let bus = HarnessEventBus::with_capacity(8);
+        let command = HarnessControlCommand::parse_json(
+            r#"{
+                "command":"resolve_human_approval",
+                "run_id":"run_approval_ws",
+                "approval_id":"approval_deploy",
+                "decision":"approved",
+                "actor":"dashboard",
+                "reason":"user clicked approve",
+                "client_command_id":"cmd_1"
+            }"#,
+        )
+        .unwrap();
+
+        let event = bus.publish(harness_control_command_event_draft(&command, true));
+
+        assert_eq!(event.kind, HarnessEventKind::HumanApprovalResolved);
+        assert_eq!(event.level, HarnessEventLevel::Info);
+        assert_eq!(event.run_id, "run_approval_ws");
+        assert_eq!(event.payload["command"], "resolve_human_approval");
+        assert_eq!(event.payload["approval_id"], "approval_deploy");
+        assert_eq!(event.payload["decision"], "approved");
+        assert_eq!(event.payload["approved"], true);
+        assert_eq!(event.payload["actor"], "dashboard");
+        assert_eq!(event.payload["reason_present"], true);
+        assert_eq!(event.payload["client_command_id"], "cmd_1");
+        assert_eq!(event.payload["status"], "resolved");
+    }
+
+    #[tokio::test]
+    async fn unauthorized_control_command_is_rejected_and_redacted() {
+        let bus = HarnessEventBus::with_capacity(8);
+        let command = HarnessControlCommand::UiCommand {
+            run_id: "run_control_reject".to_string(),
+            name: "set_filter".to_string(),
+            args: json!({"api_key": "sk-should-not-leak", "panel": "timeline"}),
+            client_command_id: Some("cmd_reject".to_string()),
+        };
+
+        let event = bus.publish(harness_control_command_event_draft(&command, false));
+        let serialized = serde_json::to_string(&event).unwrap();
+
+        assert_eq!(event.kind, HarnessEventKind::ControlCommandRejected);
+        assert_eq!(event.level, HarnessEventLevel::Warn);
+        assert_eq!(event.payload["command"], "ui_command");
+        assert_eq!(event.payload["status"], "rejected");
+        assert_eq!(event.payload["authorized"], false);
+        assert_eq!(event.payload["args"]["panel"], "timeline");
+        assert_eq!(event.payload["args"]["api_key"], HARNESS_EVENT_REDACTED);
+        assert!(!serialized.contains("sk-should-not-leak"));
     }
 
     #[test]

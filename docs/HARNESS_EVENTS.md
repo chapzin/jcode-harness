@@ -10,15 +10,16 @@ Implemented in `src/harness_events.rs`:
 
 - `HARNESS_EVENT_SCHEMA_VERSION = 1`.
 - `HarnessEventLevel` with `trace`, `debug`, `info`, `warn`, and `error`.
-- `HarnessEventKind` with initial run, skill, memory, tool, file, test, gate, and approval events.
+- `HarnessEventKind` with run, skill, memory, tool, file, test, gate, approval, and control-command events.
 - `HarnessEventPayloadClass` with `safe_metadata`, `sensitive_metadata`, `secret`, `user_content`, and `artifact_reference`.
 - `HarnessEvent` as the serialized object.
 - `HarnessEventDraft` for producer-side construction.
 - `HarnessEventBus` for in-process pub/sub fan-out.
 - Default payload redaction before events leave the bus.
 - Local NDJSON writer/append helpers for already-redacted `HarnessEvent` objects.
+- `HarnessControlCommand` plus `harness_control_command_event_draft` for auditable dashboard/WebSocket control commands.
 
-External transports are out of scope for this first slice. Consumers should subscribe to the in-process bus first, then later attach sinks such as NDJSON or SSE.
+Consumers should subscribe to the in-process bus first, then attach sinks such as NDJSON, SSE, or future WebSocket/broker adapters.
 
 ## Event object
 
@@ -191,6 +192,33 @@ events.onerror = () => console.warn("event stream reconnecting");
 ```
 
 The gateway endpoint is exposed at `GET /events/runs/{urlencoded_run_id}/stream` for paired clients. It reuses `write_harness_event_sse`, `render_harness_event_sse`, and `harness_events_after_last_event_id` so `Last-Event-ID` replays retained local events before subscribing to live fan-out. Use `?replay=only` for scripts/tests that want the retained tail and a closed connection.
+
+## WebSocket control protocol core
+
+The first #24 slice defines the bidirectional command envelope that a WebSocket UI can send without scraping terminal text. Commands are parsed and validated by `HarnessControlCommand`, then converted into redacted/auditable `HarnessEventDraft` values with `harness_control_command_event_draft`.
+
+Example approval resolution command:
+
+```json
+{
+  "command": "resolve_human_approval",
+  "run_id": "run_demo",
+  "approval_id": "approval_deploy",
+  "decision": "approved",
+  "actor": "dashboard",
+  "reason": "user clicked approve",
+  "client_command_id": "cmd_1"
+}
+```
+
+Auditing behavior:
+
+- `subscribe_events` is read-only and does not require write authorization.
+- `resolve_human_approval`, `pause_run`, `resume_run`, `cancel_run`, and `ui_command` require write authorization from the gateway/client layer.
+- authorized approval resolutions emit `human_approval_resolved` with `approval_id`, `decision`, `actor`, `reason_present`, and `client_command_id` metadata;
+- unauthorized write commands emit `control_command_rejected` at `warn` level;
+- free-form reasons are not copied into the audit payload, only `reason_present`, to avoid leaking user text;
+- command `args` still pass through the normal redaction rules before publication.
 
 ### CLI helpers
 
