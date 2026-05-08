@@ -111,6 +111,34 @@ fn provider_retry_backoff_full_jitter_stays_within_cap() {
 }
 
 #[test]
+fn provider_retry_delay_extracts_retry_after_hint_from_errors() {
+    assert_eq!(
+        retry_after_delay_ms_from_error("Rate limited (retry after 17s): slow down", 60_000),
+        Some(17_000)
+    );
+    assert_eq!(
+        retry_after_delay_ms_from_error("HTTP 429 retry-after: 2", 60_000),
+        Some(2_000)
+    );
+    assert_eq!(
+        retry_after_delay_ms_from_error("status=429 retry_after=4 seconds", 60_000),
+        Some(4_000)
+    );
+}
+
+#[test]
+fn provider_retry_delay_caps_retry_after_and_ignores_missing_hint() {
+    assert_eq!(
+        retry_after_delay_ms_from_error("Rate limited (retry after 90s)", 10_000),
+        Some(10_000)
+    );
+    assert_eq!(
+        retry_after_delay_ms_from_error("transient timeout without server pacing", 10_000),
+        None
+    );
+}
+
+#[test]
 fn test_parse_provider_hint_supports_known_values() {
     assert_eq!(
         MultiProvider::parse_provider_hint("claude"),

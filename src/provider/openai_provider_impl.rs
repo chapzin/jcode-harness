@@ -142,11 +142,23 @@ impl Provider for OpenAIProvider {
                         .await;
                     }
                     if attempt > 0 && !skip_backoff_once {
-                        let delay = crate::provider::retry_backoff_delay_ms(
-                            attempt,
-                            RETRY_BASE_DELAY_MS,
-                            crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
-                        );
+                        let delay = last_error
+                            .as_ref()
+                            .map(|error: &anyhow::Error| {
+                                crate::provider::retry_delay_ms_for_error(
+                                    attempt,
+                                    RETRY_BASE_DELAY_MS,
+                                    crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
+                                    &error.to_string(),
+                                )
+                            })
+                            .unwrap_or_else(|| {
+                                crate::provider::retry_backoff_delay_ms(
+                                    attempt,
+                                    RETRY_BASE_DELAY_MS,
+                                    crate::provider::DEFAULT_RETRY_BACKOFF_CAP_MS,
+                                )
+                            });
                         tokio::time::sleep(Duration::from_millis(delay)).await;
                         crate::logging::info(&format!(
                             "Retrying OpenAI API request after {}ms (attempt {}/{})",

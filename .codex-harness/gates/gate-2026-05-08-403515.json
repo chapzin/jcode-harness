@@ -1,0 +1,52 @@
+{
+  "id": "gate-2026-05-08-403515",
+  "ts": "2026-05-08T16:02:16.578Z",
+  "contractId": "2026-05-08-honor-provider-retry-after-delays-2832c1",
+  "verdict": "pass",
+  "outputChecks": [
+    {
+      "path": "src/provider/routing.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/mod.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openai_provider_impl.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/anthropic.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/openrouter_sse_stream.rs",
+      "exists": true
+    },
+    {
+      "path": "src/provider/tests/fallback_failover.rs",
+      "exists": true
+    }
+  ],
+  "checkedConditions": [
+    "Shared helper chooses Retry-After-derived delays from retryable error messages and caps them to the provider retry cap.",
+    "OpenAI, Anthropic, and OpenRouter retry loops compute retry sleep from last retryable error before falling back to jitter.",
+    "Focused provider_retry_delay tests passed.",
+    "cargo fmt --check, cargo check -p jcode --lib, and git diff --check passed.",
+    "Selfdev build and reload passed."
+  ],
+  "uncheckedConditions": [
+    "Shared helper chooses Retry-After-derived delay when retryable provider errors include a valid retry-after hint, capped to the provider retry cap.",
+    "OpenAI, Anthropic, and OpenRouter retry loops use Retry-After-aware delay with jitter fallback.",
+    "Tests cover parsing delay hints from retryable error messages and fallback/cap behavior.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "evidence": [
+    "/tmp/jcode-bg-tasks/002081xa9o.output",
+    "/tmp/jcode-bg-tasks/073015v31b.output",
+    "trace-2026-05-08-74a03326",
+    "trace-2026-05-08-4d349be2"
+  ],
+  "notes": "Retry delay selection now honors Retry-After hints embedded by provider HTTP error formatters, with capped delay and jitter fallback when no hint exists."
+}

@@ -1,14 +1,14 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Share provider retry backoff jitter",
+  "focus": "Honor provider Retry-After delays",
   "status": "done",
-  "activeContractId": "2026-05-08-share-provider-retry-backoff-jitter-00ac72",
+  "activeContractId": "2026-05-08-honor-provider-retry-after-delays-2832c1",
   "counters": {
-    "contracts": 46,
-    "traces": 72,
-    "gates": 45,
-    "verifications": 60,
+    "contracts": 47,
+    "traces": 74,
+    "gates": 46,
+    "verifications": 62,
     "knowledgeItems": 0,
     "knowledgeQueries": 1,
     "evalCases": 0,
@@ -135,36 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T12:13:13.823Z",
-      "type": "state_update",
-      "note": "Focused verification task 24633590gw, selfdev build task 2928649o70, reload, and gate gate-2026-05-08-8e36d1 passed. Broad filter task 089226mvm0 timed out only because it selected unrelated long-running tests after the new focused test passed.",
-      "status": "verifying",
-      "focus": "commit and push stop side-effect idempotency slice",
-      "activeContractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede"
-    },
-    {
-      "ts": "2026-05-08T12:13:30.405Z",
-      "type": "state_update",
-      "note": "Governance audit passed with gate gate-2026-05-08-8e36d1. Ready to commit and push.",
-      "status": "done",
-      "focus": "commit and push stop side-effect idempotency slice",
-      "activeContractId": "2026-05-08-deduplicate-swarm-stop-side-effects-78dede"
-    },
-    {
-      "ts": "2026-05-08T12:16:04.124Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-use-resolved-stop-mutation-identity-6fcfb0",
-      "summary": "Use resolved stop mutation identity"
-    },
-    {
-      "ts": "2026-05-08T12:19:42.643Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-42bf9bf9",
-      "contractId": "2026-05-08-use-resolved-stop-mutation-identity-6fcfb0",
-      "status": "pass",
-      "summary": "Focused resolved stop identity tests, formatting, cargo check, and diff whitespace verification passed."
-    },
     {
       "ts": "2026-05-08T12:19:53.643Z",
       "type": "verification_recorded",
@@ -725,6 +695,35 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-08-share-provider-retry-backoff-jitter-00ac72",
       "gateId": "gate-2026-05-08-9b63e1",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T15:58:03.923Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-honor-provider-retry-after-delays-2832c1",
+      "summary": "Honor provider Retry-After delays"
+    },
+    {
+      "ts": "2026-05-08T16:01:07.065Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-74a03326",
+      "contractId": "2026-05-08-honor-provider-retry-after-delays-2832c1",
+      "status": "pass",
+      "summary": "Focused Retry-After delay verification passed: formatting, provider_retry_delay tests, cargo check, and diff whitespace check."
+    },
+    {
+      "ts": "2026-05-08T16:02:04.908Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-4d349be2",
+      "contractId": "2026-05-08-honor-provider-retry-after-delays-2832c1",
+      "status": "pass",
+      "summary": "Selfdev build and reload passed for Retry-After-aware provider retry delay slice."
+    },
+    {
+      "ts": "2026-05-08T16:02:16.578Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-honor-provider-retry-after-delays-2832c1",
+      "gateId": "gate-2026-05-08-403515",
       "verdict": "pass"
     }
   ]

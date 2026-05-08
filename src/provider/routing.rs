@@ -73,6 +73,25 @@ pub(crate) fn retry_backoff_delay_ms(attempt: u32, base_delay_ms: u64, cap_delay
     retry_backoff_delay_ms_for_nonce(attempt, base_delay_ms, cap_delay_ms, retry_jitter_nonce())
 }
 
+pub(crate) fn retry_delay_ms_for_error(
+    attempt: u32,
+    base_delay_ms: u64,
+    cap_delay_ms: u64,
+    error_str: &str,
+) -> u64 {
+    if attempt == 0 {
+        return 0;
+    }
+
+    retry_after_delay_ms_from_error(error_str, cap_delay_ms)
+        .unwrap_or_else(|| retry_backoff_delay_ms(attempt, base_delay_ms, cap_delay_ms))
+}
+
+pub(crate) fn retry_after_delay_ms_from_error(error_str: &str, cap_delay_ms: u64) -> Option<u64> {
+    retry_after_secs_from_error(error_str)
+        .map(|seconds| seconds.saturating_mul(1_000).min(cap_delay_ms))
+}
+
 pub(crate) fn retry_backoff_max_delay_ms(
     attempt: u32,
     base_delay_ms: u64,
@@ -108,6 +127,25 @@ fn retry_jitter_nonce() -> u64 {
         .map(|duration| duration.as_nanos() as u64)
         .unwrap_or_default();
     counter ^ nanos.rotate_left(17)
+}
+
+fn retry_after_secs_from_error(error_str: &str) -> Option<u64> {
+    let lower = error_str.to_ascii_lowercase();
+    ["retry after", "retry-after", "retry_after"]
+        .iter()
+        .find_map(|marker| parse_retry_after_secs_after_marker(&lower, marker))
+}
+
+fn parse_retry_after_secs_after_marker(error_str: &str, marker: &str) -> Option<u64> {
+    let (_, tail) = error_str.split_once(marker)?;
+    let tail = tail
+        .trim_start_matches(|ch: char| ch.is_ascii_whitespace() || matches!(ch, ':' | '=' | '('));
+    let digits: String = tail.chars().take_while(|ch| ch.is_ascii_digit()).collect();
+    if digits.is_empty() {
+        return None;
+    }
+
+    digits.parse::<u64>().ok()
 }
 
 fn splitmix64(mut value: u64) -> u64 {
