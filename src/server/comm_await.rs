@@ -114,7 +114,7 @@ fn no_scoped_candidates_summary() -> String {
 
 fn no_run_candidates_summary(run_id: &str) -> String {
     format!(
-        "No scoped await_members candidates found for run_id={run_id}. Pass explicit session_ids or omit run_id to await a broader set of agents."
+        "No active await_members candidates found for run_id={run_id}. The run may already be complete or only have terminal/stale workers. Use `swarm list run_id={run_id}` or `swarm health run_id={run_id}` to inspect it, `swarm cleanup run_id={run_id}` to clear terminal workers, or `swarm retry`/`swarm reassign` for stale tasks."
     )
 }
 
@@ -316,13 +316,17 @@ pub(super) async fn handle_comm_await_members(
             )
             .await;
             if requested_ids.is_empty() {
+                let summary = run_id
+                    .as_deref()
+                    .map(no_run_candidates_summary)
+                    .unwrap_or_else(no_scoped_candidates_summary);
                 let _ = ctx
                     .client_event_tx
                     .send(ServerEvent::CommAwaitMembersResponse {
                         id,
                         completed: true,
                         members: vec![],
-                        summary: no_scoped_candidates_summary(),
+                        summary,
                     });
                 return;
             }

@@ -1,0 +1,43 @@
+{
+  "id": "2026-05-08-run-scoped-await-no-candidates-guidance-bbd166",
+  "title": "Run scoped await no-candidates guidance",
+  "goal": "Improve reactive await_members feedback for operation-scoped runs with only terminal/stale workers.",
+  "createdAt": "2026-05-08T14:30:15.439Z",
+  "status": "active",
+  "requiredInputs": [],
+  "budget": {
+    "maxSteps": 7,
+    "maxMinutes": 35,
+    "maxToolCalls": 24
+  },
+  "permissions": [
+    "modify source",
+    "run focused tests",
+    "run selfdev build",
+    "commit and push"
+  ],
+  "completionConditions": [
+    "await_members owned_only + run_id empty snapshot uses run-specific guidance instead of generic scoped default text.",
+    "Guidance mentions run_id and actionable list/health/cleanup/retry next steps.",
+    "Existing generic owned_only behavior without run_id remains unchanged.",
+    "Focused tests, cargo check, selfdev build/reload, governance, commit and push pass."
+  ],
+  "outputPaths": [
+    "src/server/comm_await.rs",
+    "src/server/comm_control_tests/await_late_joiners.rs"
+  ],
+  "verificationCommands": [
+    "cargo fmt --check",
+    "cargo test -p jcode await_members_owned_only_run_id_empty_snapshot_reports_run_scope --lib -- --test-threads=1 --nocapture",
+    "cargo check -p jcode --lib",
+    "git diff --check",
+    "selfdev build --target tui"
+  ],
+  "failureTaxonomy": [
+    "compile_error",
+    "test_failure",
+    "misleading_summary",
+    "await_regression"
+  ],
+  "notes": "Continuation of operation_id run-scoped follow-up work. Small UX/recovery improvement, no protocol changes."
+}

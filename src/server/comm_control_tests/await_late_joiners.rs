@@ -386,3 +386,91 @@ async fn await_members_owned_only_empty_snapshot_does_not_fall_back_to_whole_swa
         other => panic!("expected CommAwaitMembersResponse, got {other:?}"),
     }
 }
+
+#[tokio::test]
+async fn await_members_owned_only_run_id_empty_snapshot_reports_run_scope() {
+    let (_env, _runtime) = RuntimeEnvGuard::new();
+    let swarm_id = "swarm-owned-empty-run";
+    let requester = "coord";
+    let owned_crashed = "owned-crashed";
+    let owned_stale = "owned-stale";
+    let other_running = "other-running";
+    let run_id = "run:op:await-empty";
+    let await_runtime = AwaitMembersRuntime::default();
+
+    let (client_tx, mut client_rx) = mpsc::unbounded_channel();
+    let mut owned_crashed_member = member(owned_crashed, swarm_id, "crashed");
+    owned_crashed_member.report_back_to_session_id = Some(requester.to_string());
+    owned_crashed_member.run_id = Some(run_id.to_string());
+    let mut owned_stale_member = member(owned_stale, swarm_id, "running_stale");
+    owned_stale_member.report_back_to_session_id = Some(requester.to_string());
+    owned_stale_member.run_id = Some(run_id.to_string());
+    let mut other_running_member = member(other_running, swarm_id, "running");
+    other_running_member.report_back_to_session_id = Some(requester.to_string());
+    other_running_member.run_id = Some("run-other".to_string());
+
+    let swarm_members = Arc::new(RwLock::new(HashMap::from([
+        (requester.to_string(), member(requester, swarm_id, "ready")),
+        (owned_crashed.to_string(), owned_crashed_member),
+        (owned_stale.to_string(), owned_stale_member),
+        (other_running.to_string(), other_running_member),
+    ])));
+    let swarms_by_id = Arc::new(RwLock::new(HashMap::from([(
+        swarm_id.to_string(),
+        HashSet::from([
+            requester.to_string(),
+            owned_crashed.to_string(),
+            owned_stale.to_string(),
+            other_running.to_string(),
+        ]),
+    )])));
+    let (swarm_event_tx, _swarm_event_rx) = broadcast::channel(32);
+
+    handle_comm_await_members(
+        2,
+        requester.to_string(),
+        vec![
+            "ready".to_string(),
+            "completed".to_string(),
+            "stopped".to_string(),
+            "failed".to_string(),
+        ],
+        vec![],
+        true,
+        Some(run_id.to_string()),
+        None,
+        Some(60),
+        CommAwaitMembersContext {
+            client_event_tx: &client_tx,
+            swarm_members: &swarm_members,
+            swarms_by_id: &swarms_by_id,
+            swarm_event_tx: &swarm_event_tx,
+            await_members_runtime: &await_runtime,
+        },
+    )
+    .await;
+
+    let response = tokio::time::timeout(std::time::Duration::from_secs(1), client_rx.recv())
+        .await
+        .expect("response should arrive")
+        .expect("channel should stay open");
+
+    match response {
+        ServerEvent::CommAwaitMembersResponse {
+            completed,
+            members,
+            summary,
+            ..
+        } => {
+            assert!(completed, "empty run-scoped snapshot should finish immediately");
+            assert!(members.is_empty(), "should not fall back to another run");
+            assert!(summary.contains("No active await_members candidates found"));
+            assert!(summary.contains(run_id));
+            assert!(summary.contains("swarm list run_id="));
+            assert!(summary.contains("swarm health run_id="));
+            assert!(summary.contains("swarm cleanup run_id="));
+            assert!(summary.contains("swarm retry"));
+        }
+        other => panic!("expected CommAwaitMembersResponse, got {other:?}"),
+    }
+}

@@ -1,16 +1,16 @@
 {
   "version": 5,
   "projectName": "jcode-harness",
-  "focus": "Operation scoped cleanup and await followups",
+  "focus": "Run scoped await no-candidates guidance",
   "status": "done",
-  "activeContractId": "2026-05-08-operation-scoped-cleanup-and-await-followups-a0a848",
+  "activeContractId": "2026-05-08-run-scoped-await-no-candidates-guidance-bbd166",
   "counters": {
-    "contracts": 42,
-    "traces": 64,
-    "gates": 41,
-    "verifications": 52,
+    "contracts": 43,
+    "traces": 66,
+    "gates": 42,
+    "verifications": 54,
     "knowledgeItems": 0,
-    "knowledgeQueries": 0,
+    "knowledgeQueries": 1,
     "evalCases": 0,
     "evalRuns": 0,
     "harnessProfiles": 0,
@@ -135,43 +135,6 @@
     }
   ],
   "events": [
-    {
-      "ts": "2026-05-08T11:43:01.247Z",
-      "type": "state_update",
-      "note": "Strict verification task 390767vp3e and selfdev build task 443797ia3r passed; exact completion gate gate-2026-05-08-b557cf passed.",
-      "status": "done",
-      "focus": "commit swarm event member metadata slice",
-      "activeContractId": "2026-05-08-expose-swarm-event-member-metadata-6abff3"
-    },
-    {
-      "ts": "2026-05-08T11:47:14.597Z",
-      "type": "contract_created",
-      "contractId": "2026-05-08-show-swarm-list-run-groups-cadff9",
-      "summary": "Show swarm list run groups"
-    },
-    {
-      "ts": "2026-05-08T11:52:56.321Z",
-      "type": "verification_recorded",
-      "traceId": "trace-2026-05-08-3b400218",
-      "contractId": "2026-05-08-show-swarm-list-run-groups-cadff9",
-      "status": "pass",
-      "summary": "Swarm list run-group summary strict verification and final selfdev build passed"
-    },
-    {
-      "ts": "2026-05-08T11:53:03.382Z",
-      "type": "gate_evaluated",
-      "contractId": "2026-05-08-show-swarm-list-run-groups-cadff9",
-      "gateId": "gate-2026-05-08-6020c8",
-      "verdict": "pass"
-    },
-    {
-      "ts": "2026-05-08T11:53:09.078Z",
-      "type": "state_update",
-      "note": "Strict verification task 0883109ng0 and final selfdev build task 127571xs06 passed; completion gate gate-2026-05-08-6020c8 passed.",
-      "status": "done",
-      "focus": "commit swarm list run-group summary slice",
-      "activeContractId": "2026-05-08-show-swarm-list-run-groups-cadff9"
-    },
     {
       "ts": "2026-05-08T11:55:13.996Z",
       "type": "contract_created",
@@ -731,6 +694,40 @@
       "type": "gate_evaluated",
       "contractId": "2026-05-08-operation-scoped-cleanup-and-await-followups-a0a848",
       "gateId": "gate-2026-05-08-3fe9c0",
+      "verdict": "pass"
+    },
+    {
+      "ts": "2026-05-08T14:29:11.341Z",
+      "type": "knowledge_queried",
+      "summary": "durable swarm run recovery cleanup operation id"
+    },
+    {
+      "ts": "2026-05-08T14:30:15.441Z",
+      "type": "contract_created",
+      "contractId": "2026-05-08-run-scoped-await-no-candidates-guidance-bbd166",
+      "summary": "Run scoped await no-candidates guidance"
+    },
+    {
+      "ts": "2026-05-08T14:32:02.989Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-dddc7f7a",
+      "contractId": "2026-05-08-run-scoped-await-no-candidates-guidance-bbd166",
+      "status": "pass",
+      "summary": "Focused await_members run-scoped no-candidates verification passed"
+    },
+    {
+      "ts": "2026-05-08T14:34:12.255Z",
+      "type": "verification_recorded",
+      "traceId": "trace-2026-05-08-d80b8923",
+      "contractId": "2026-05-08-run-scoped-await-no-candidates-guidance-bbd166",
+      "status": "pass",
+      "summary": "selfdev build and reload passed for run-scoped await no-candidates guidance"
+    },
+    {
+      "ts": "2026-05-08T14:34:20.665Z",
+      "type": "gate_evaluated",
+      "contractId": "2026-05-08-run-scoped-await-no-candidates-guidance-bbd166",
+      "gateId": "gate-2026-05-08-8492de",
       "verdict": "pass"
     }
   ]
