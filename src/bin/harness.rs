@@ -143,6 +143,26 @@ struct NotifyTestArgs {
     /// Report what would happen without emitting a terminal bell
     #[arg(long)]
     dry_run: bool,
+    /// Attention route to exercise
+    #[arg(long, value_enum, default_value_t = NotifyTestEventArg::Direct)]
+    event: NotifyTestEventArg,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
+enum NotifyTestEventArg {
+    /// Directly exercise the configured backend
+    Direct,
+    /// Simulate a human-intervention state such as a permission request
+    HumanIntervention,
+}
+
+impl NotifyTestEventArg {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Direct => "direct",
+            Self::HumanIntervention => "human_intervention",
+        }
+    }
 }
 
 #[derive(Parser)]
@@ -2574,12 +2594,18 @@ fn run_notify_test(args: NotifyTestArgs) -> Result<()> {
         config.dry_run_delivery()
     } else {
         let mut stderr = std::io::stderr().lock();
-        config.notify_with_writer(&mut stderr)?
+        match args.event {
+            NotifyTestEventArg::Direct => config.notify_with_writer(&mut stderr)?,
+            NotifyTestEventArg::HumanIntervention => {
+                config.notify_human_intervention_with_writer(&mut stderr)?
+            }
+        }
     };
 
     let report = json!({
         "status": "ok",
         "offline": true,
+        "event": args.event.as_str(),
         "config": diagnostic,
         "delivery": delivery,
     });

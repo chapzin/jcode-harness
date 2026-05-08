@@ -154,6 +154,18 @@ impl UserAttentionConfig {
         let mut stderr = io::stderr().lock();
         self.notify_background_completion_with_writer(notify, wake, &mut stderr)
     }
+
+    pub fn notify_human_intervention_with_writer<W: Write>(
+        &self,
+        writer: &mut W,
+    ) -> io::Result<UserAttentionDelivery> {
+        self.notify_with_writer(writer)
+    }
+
+    pub fn notify_human_intervention_stderr(&self) -> io::Result<UserAttentionDelivery> {
+        let mut stderr = io::stderr().lock();
+        self.notify_human_intervention_with_writer(&mut stderr)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -174,6 +186,25 @@ pub struct UserAttentionDelivery {
     pub delivered: bool,
     pub dry_run: bool,
     pub bytes_written: usize,
+}
+
+pub fn emit_human_intervention_alert(context: &str) {
+    let config = UserAttentionConfig::from_env();
+
+    #[cfg(test)]
+    let result = {
+        let mut sink = Vec::new();
+        config.notify_human_intervention_with_writer(&mut sink)
+    };
+
+    #[cfg(not(test))]
+    let result = config.notify_human_intervention_stderr();
+
+    if let Err(err) = result {
+        crate::logging::warn(&format!(
+            "Failed to emit {context} user-attention alert: {err}"
+        ));
+    }
 }
 
 fn parse_user_attention(value: &str, source: &'static str) -> UserAttentionConfig {
@@ -358,6 +389,39 @@ mod tests {
 
         let delivery = config
             .notify_background_completion_with_writer(true, true, &mut output)
+            .unwrap();
+
+        assert!(output.is_empty());
+        assert_eq!(delivery.backend, None);
+        assert!(!delivery.would_emit);
+        assert!(!delivery.attempted);
+        assert!(!delivery.delivered);
+        assert_eq!(delivery.bytes_written, 0);
+    }
+
+    #[test]
+    fn human_intervention_emits_one_bell_when_enabled() {
+        let config = UserAttentionConfig::from_env_values(Some("bell"), None);
+        let mut output = Vec::new();
+
+        let delivery = config
+            .notify_human_intervention_with_writer(&mut output)
+            .unwrap();
+
+        assert_eq!(output, TERMINAL_BELL);
+        assert!(delivery.would_emit);
+        assert!(delivery.attempted);
+        assert!(delivery.delivered);
+        assert_eq!(delivery.bytes_written, 1);
+    }
+
+    #[test]
+    fn human_intervention_respects_off_mode() {
+        let config = UserAttentionConfig::from_env_values(Some("off"), None);
+        let mut output = Vec::new();
+
+        let delivery = config
+            .notify_human_intervention_with_writer(&mut output)
             .unwrap();
 
         assert!(output.is_empty());

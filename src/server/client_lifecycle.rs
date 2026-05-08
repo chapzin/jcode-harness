@@ -1014,6 +1014,9 @@ pub(super) async fn handle_client(
                     .lock()
                     .await
                     .insert(request_id.clone(), req.response_tx);
+                // A stdin request means a foreground tool is blocked waiting for a human
+                // response. Emit once at the forwarding source, not on every UI render.
+                crate::user_attention::emit_human_intervention_alert("stdin-request");
                 let _ = client_event_tx.send(ServerEvent::StdinRequest {
                     request_id,
                     prompt: req.prompt,

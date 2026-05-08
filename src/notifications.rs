@@ -104,6 +104,10 @@ impl NotificationDispatcher {
 
     /// Send a permission request notification (high priority).
     pub fn dispatch_permission_request(&self, action: &str, description: &str, request_id: &str) {
+        // Emit at the permission-request source so the alert is tied to a real
+        // human-intervention state, not to every downstream notification channel.
+        crate::user_attention::emit_human_intervention_alert("permission-request");
+
         let title = format!("jcode: permission needed ({})", action);
         let safe_body = "An ambient action needs your approval. Open jcode to review.".to_string();
         let detailed_body = format!(

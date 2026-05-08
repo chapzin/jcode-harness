@@ -198,6 +198,43 @@ fn harness_notify_test_json_dry_run_reports_bell_without_emitting_bel() -> Resul
 }
 
 #[test]
+fn harness_notify_test_human_intervention_dry_run_reports_route() -> Result<()> {
+    let temp = tempfile::Builder::new()
+        .prefix("jcode-harness-notify-human-")
+        .tempdir()?;
+    let home = temp.path().join("home");
+    let cwd = temp.path().join("workspace");
+    std::fs::create_dir_all(&home)?;
+    std::fs::create_dir_all(&cwd)?;
+
+    let output = harness_command(&home, &cwd)
+        .env("JCODE_USER_ATTENTION", "bell")
+        .args([
+            "notify",
+            "test",
+            "--json",
+            "--dry-run",
+            "--event",
+            "human-intervention",
+        ])
+        .output()?;
+
+    assert!(output.status.success(), "stderr: {}", stderr_text(&output));
+    assert!(!output.stdout.contains(&b'\x07'), "stdout contained BEL");
+    assert!(!output.stderr.contains(&b'\x07'), "stderr contained BEL");
+
+    let report: Value = serde_json::from_str(&stdout_text(&output))?;
+    assert_eq!(report["status"], "ok");
+    assert_eq!(report["event"], "human_intervention");
+    assert_eq!(report["config"]["mode"], "bell");
+    assert_eq!(report["delivery"]["dry_run"], true);
+    assert_eq!(report["delivery"]["would_emit"], true);
+    assert_eq!(report["delivery"]["attempted"], false);
+
+    Ok(())
+}
+
+#[test]
 fn harness_acp_stdio_initialize_shutdown() -> Result<()> {
     use std::io::Write;
 

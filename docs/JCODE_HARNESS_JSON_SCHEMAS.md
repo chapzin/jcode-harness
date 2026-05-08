@@ -317,6 +317,7 @@ Command:
 
 ```bash
 jcode-harness notify test --dry-run --json
+jcode-harness notify test --event human-intervention --dry-run --json
 ```
 
 Shape:
@@ -325,6 +326,7 @@ Shape:
 {
   "status": "ok",
   "offline": true,
+  "event": "direct",
   "config": {
     "enabled": true,
     "mode": "bell",
@@ -346,9 +348,13 @@ Guarantees:
 
 - Default config is silent/off unless `JCODE_USER_ATTENTION=bell` or `JCODE_NOTIFY_SOUND=1` is set.
 - `--dry-run` never emits a terminal bell and is suitable for tests and diagnostics.
+- `event` is `direct` by default and `human_intervention` when called with `--event human-intervention`.
 - Without `--dry-run`, the initial backend writes only the terminal bell byte (`\a`) to stderr so JSON stdout remains parseable.
 - The runtime background-task completion path uses the same opt-in config and writes at most one stderr bell for a single
   `notify`/`wake` completion event before fan-out.
+- Ambient permission requests that require human approval use the same opt-in config and emit one stderr bell at the
+  permission-request source before downstream notification fan-out.
+- Foreground tool stdin prompts use the same opt-in config and emit one stderr bell at the stdin-request forwarding source.
 
 ## `session list --json`
 
